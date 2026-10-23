@@ -2,15 +2,12 @@ Source: system-monitor
 Section: utils
 Priority: optional
 Maintainer: Andrey Vorobev <andrey.vorobev.aqa@gmail.com>
-Build-Depends: debhelper-compat (= 13), dh-python, python3-all, python3-setuptools
 Standards-Version: 4.6.0
 Homepage: https://github.com/AndreyJVM/system-monitor
 
 Package: system-monitor
-Architecture: all
-Depends: ${misc:Depends}, ${python3:Depends}, python3 (>= 3.8), python3-psutil
-Recommends: python3-gi, gir1.2-gtk-3.0
-Description: Lightweight System, Docker, Compose & Swarm monitor (TUI & GUI)
- A fast and intuitive terminal (TUI) and GTK3 desktop utility to monitor
+Architecture: any
+Description: Fast System, Docker, Compose & Swarm terminal monitor (Go Edition)
+ A lightweight and fast terminal dashboard (TUI) written in Go to monitor
  host CPU, RAM, disk, network, Docker containers, Compose projects,
  and Swarm clusters.

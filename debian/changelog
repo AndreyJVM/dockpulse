@@ -1,3 +1,9 @@
+system-monitor (0.3.0) unstable; urgency=medium
+
+  * Version 0.3.0 release
+
+ -- Andrey Vorobev <Andrey.Vorobev.AQA@gmail.com>  Sat, 24 Oct 2026 01:01:07 +0300
+
 system-monitor (0.2.0) unstable; urgency=medium
 
   * Version 0.2.0 release
