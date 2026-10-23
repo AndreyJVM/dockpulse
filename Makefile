@@ -105,25 +105,26 @@ info:
 
 # Проверка готовности к релизу
 release-check:
-	@echo "Checking release readiness..."
 	@if [ -n "$$(git status --porcelain)" ]; then \
 		echo "Error: Uncommitted changes exist. Commit or stash them before releasing."; \
 		git status --short; \
 		exit 1; \
 	fi
-	@if git tag | grep -q "^v$(VERSION)$$"; then \
-		echo "Warning: Tag v$(VERSION) already exists."; \
-	fi
-	@echo "Working tree is clean. Ready for release v$(VERSION)."
+	@CUR_VER=$$(cat VERSION); \
+	if git tag | grep -q "^v$${CUR_VER}$$"; then \
+		echo "Warning: Tag v$${CUR_VER} already exists."; \
+	fi; \
+	echo "Working tree is clean. Ready for release v$${CUR_VER}."
 
 # Создание git-тега релиза
 release-tag: release-check
-	@echo "Creating git tag v$(VERSION)..."
-	git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
-	@echo "Tag v$(VERSION) successfully created!"
-	@echo ""
-	@echo "To publish the release and automatically build .deb package:"
-	@echo "  git push origin v$(VERSION)"
+	@CUR_VER=$$(cat VERSION); \
+	echo "Creating git tag v$${CUR_VER}..."; \
+	git tag -a "v$${CUR_VER}" -m "Release v$${CUR_VER}"; \
+	echo "Tag v$${CUR_VER} successfully created!"; \
+	echo ""; \
+	echo "To publish the release and automatically build .deb package:"; \
+	echo "  git push origin main --tags"
 
 # Полный релиз текущей версии
 release: release-tag
