@@ -1,0 +1,66 @@
+name: Build and Release .deb
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Run unit tests
+        run: |
+          python3 -m unittest discover tests
+
+      - name: Install Debian packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev debhelper dh-python python3-all python3-setuptools
+
+      - name: Build Debian package
+        run: |
+          dpkg-buildpackage -us -uc -b
+          mkdir -p dist
+          mv ../system-monitor_*.deb dist/
+
+      - name: Extract version
+        id: get_version
+        run: |
+          VERSION=$(cat VERSION)
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: |
+            ## System Monitor ${{ steps.get_version.outputs.version }}
+
+            ### ✨ Новые возможности и улучшения:
+            - Модульная архитектура (`monitors/` и `ui/`)
+            - Неблокирующий фоновый сбор системных метрик (`threading` + `GLib.idle_add`)
+            - Добавлен мониторинг загрузки процессора (CPU usage)
+            - Отображение времени непрерывной работы (Uptime) и сетевого имени хоста (Hostname)
+            - Защита от зависания при нестабильном сетевом соединении и недоступных накопителях
+
+            ### 📦 Установка на Debian / Ubuntu / Linux Mint:
+            ```bash
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/system-monitor_${{ steps.get_version.outputs.version }}_all.deb
+            sudo dpkg -i system-monitor_${{ steps.get_version.outputs.version }}_all.deb
+            sudo apt-get install -f
+            ```
+          files: dist/*.deb

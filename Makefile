@@ -2,7 +2,7 @@ PACKAGE_NAME = system-monitor
 VERSION = $(shell cat VERSION)
 DEB_FILE = ../$(PACKAGE_NAME)_$(VERSION)_all.deb
 
-.PHONY: all clean clean-all build install reinstall remove purge check test info files run dev dev-patch dev-minor help version version-patch version-minor version-major update-changelog release release-check release-help release-patch release-minor release-major
+.PHONY: all clean clean-all build install reinstall remove purge check test info files run dev dev-patch dev-minor help version version-patch version-minor version-major update-changelog release release-check release-help release-tag release-patch release-minor release-major
 
 all: build
 
@@ -15,34 +15,35 @@ version-patch:
 	$(eval NEW_VERSION=$(shell echo $(VERSION) | awk -F. '{print $$1"."$$2"."$$3+1}'))
 	@echo $(NEW_VERSION) > VERSION
 	@echo "Version bumped to $(NEW_VERSION)"
-	@echo "Don't forget to update debian/changelog"
 
 version-minor:
 	$(eval NEW_VERSION=$(shell echo $(VERSION) | awk -F. '{print $$1"."$$2+1".0"}'))
 	@echo $(NEW_VERSION) > VERSION
 	@echo "Version bumped to $(NEW_VERSION)"
-	@echo "Don't forget to update debian/changelog"
 
 version-major:
 	$(eval NEW_VERSION=$(shell echo $(VERSION) | awk -F. '{print $$1+1".0.0"}'))
 	@echo $(NEW_VERSION) > VERSION
 	@echo "Version bumped to $(NEW_VERSION)"
-	@echo "Don't forget to update debian/changelog"
 
 # Запуск тестов
 test:
 	@echo "Running tests..."
 	python3 -m unittest discover tests
 
-# Сборка пакета
+# Сборка пакета (на Linux через dpkg-buildpackage)
 build:
 	@echo "Building $(PACKAGE_NAME) version $(VERSION)"
-	@# Обновляем версию в changelog если нужно
-	@if ! grep -q "$(PACKAGE_NAME) ($(VERSION))" debian/changelog; then \
-		echo "WARNING: Version $(VERSION) not found in debian/changelog"; \
-		echo "Run: make update-changelog"; \
+	@if command -v dpkg-buildpackage >/dev/null 2>&1; then \
+		if ! grep -q "$(PACKAGE_NAME) ($(VERSION))" debian/changelog; then \
+			echo "WARNING: Version $(VERSION) not found in debian/changelog"; \
+			echo "Run: make update-changelog"; \
+		fi; \
+		dpkg-buildpackage -us -uc -b; \
+	else \
+		echo "NOTE: dpkg-buildpackage is not available on this OS."; \
+		echo "The .deb package will be built automatically by GitHub Actions when tag v$(VERSION) is pushed."; \
 	fi
-	dpkg-buildpackage -us -uc -b
 
 # Обновление changelog
 update-changelog:
@@ -74,28 +75,16 @@ clean-all:
 	rm -rf debian/*.log
 	@echo "Clean complete"
 
-# Установка
+# Установка (только для Debian/Ubuntu)
 install: build
-	@echo "Installing $(PACKAGE_NAME) version $(VERSION)"
-	@echo "Removing old version if exists..."
-	-sudo dpkg --purge $(PACKAGE_NAME) 2>/dev/null || true
-	@echo "Installing new version..."
-	sudo dpkg -i $(DEB_FILE)
-	@echo "Fixing dependencies if needed..."
-	sudo apt-get install -f -y
-	@echo "Installation complete"
-
-# Быстрая переустановка (без очистки)
-reinstall:
-	@echo "Reinstalling $(PACKAGE_NAME)"
-	sudo dpkg --purge $(PACKAGE_NAME) 2>/dev/null || true
-	sudo dpkg -i $(DEB_FILE)
-	sudo apt-get install -f -y
-
-# Удаление
-remove:
-	@echo "Removing $(PACKAGE_NAME)"
-	sudo dpkg --purge $(PACKAGE_NAME)
+	@if [ -f "$(DEB_FILE)" ]; then \
+		echo "Installing $(PACKAGE_NAME) version $(VERSION)"; \
+		sudo dpkg -i $(DEB_FILE); \
+		sudo apt-get install -f -y; \
+		echo "Installation complete"; \
+	else \
+		echo "Package $(DEB_FILE) not found. Run 'make build' on Debian/Ubuntu first."; \
+	fi
 
 # Проверка пакета
 check:
@@ -111,61 +100,51 @@ info:
 		echo "Package exists: Yes"; \
 		dpkg --info $(DEB_FILE); \
 	else \
-		echo "Package exists: No (run 'make build' first)"; \
-	fi
-
-# GitHub Release
-release: build
-	@echo "Creating GitHub release v$(VERSION)..."
-	@# Создаем release notes если шаблон существует
-	@if [ -f release-notes-template.md ]; then \
-		sed "s/{VERSION}/$(VERSION)/g" release-notes-template.md | \
-		sed "s/{REPO_OWNER}/$$(git config --get remote.origin.url | sed -n 's/.*[:/]\([^/]*\)\/\([^.]*\).*/\1/p')/g" | \
-		sed "s/{REPO_NAME}/$$(git config --get remote.origin.url | sed -n 's/.*[:/]\([^/]*\)\/\([^.]*\).*/\2/p')/g" > release-notes.md; \
-		echo "" >> release-notes.md; \
-		echo "## 📝 Changelog" >> release-notes.md; \
-		echo "\`\`\`" >> release-notes.md; \
-		head -20 debian/changelog >> release-notes.md; \
-		echo "\`\`\`" >> release-notes.md; \
-	fi
-	@if [ -f create-release.sh ]; then \
-		chmod +x create-release.sh; \
-		./create-release.sh; \
+		echo "Package exists: No (run 'make build' on Linux first)"; \
 	fi
 
 # Проверка готовности к релизу
 release-check:
 	@echo "Checking release readiness..."
-	@# Проверяем что нет незакоммиченных изменений
 	@if [ -n "$$(git status --porcelain)" ]; then \
-		echo "Error: Uncommitted changes exist"; \
+		echo "Error: Uncommitted changes exist. Commit or stash them before releasing."; \
 		git status --short; \
 		exit 1; \
 	fi
-	@# Проверяем что версия в VERSION совпадает с git tag
-	@if git tag | grep -q "v$(VERSION)"; then \
-		echo "Warning: Tag v$(VERSION) already exists"; \
+	@if git tag | grep -q "^v$(VERSION)$$"; then \
+		echo "Warning: Tag v$(VERSION) already exists."; \
 	fi
-	@echo "Ready for release"
+	@echo "Working tree is clean. Ready for release v$(VERSION)."
 
-# Показать команды для ручного релиза
-release-help:
-	@echo "To create a GitHub release:"
-	@echo "  1. Update version: make version-patch (or version-minor)"
-	@echo "  2. Update changelog: make update-changelog"
-	@echo "  3. Build package: make build"
-	@echo "  4. Create release: make release"
+# Создание git-тега релиза
+release-tag: release-check
+	@echo "Creating git tag v$(VERSION)..."
+	git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
+	@echo "Tag v$(VERSION) successfully created!"
 	@echo ""
-	@echo "Or use: make release-patch (automates all steps)"
+	@echo "To publish the release and automatically build .deb package:"
+	@echo "  git push origin v$(VERSION)"
 
-# Автоматический релиз с увеличением patch версии
-release-patch: version-patch update-changelog build release
+# Полный релиз текущей версии
+release: release-tag
 
-# Автоматический релиз с увеличением minor версии
-release-minor: version-minor update-changelog build release
+# Релиз с увеличением patch-версии
+release-patch: version-patch update-changelog
+	@git add VERSION debian/changelog
+	@git commit -m "Bump version to $$(cat VERSION)"
+	@$(MAKE) release-tag
 
-# Автоматический релиз с увеличением major версии
-release-major: version-major update-changelog build release
+# Релиз с увеличением minor-версии
+release-minor: version-minor update-changelog
+	@git add VERSION debian/changelog
+	@git commit -m "Bump version to $$(cat VERSION)"
+	@$(MAKE) release-tag
+
+# Релиз с увеличением major-версии
+release-major: version-major update-changelog
+	@git add VERSION debian/changelog
+	@git commit -m "Bump version to $$(cat VERSION)"
+	@$(MAKE) release-tag
 
 # Показать установленные файлы
 files:
@@ -176,34 +155,15 @@ run:
 	@echo "Running $(PACKAGE_NAME)..."
 	python3 main.py
 
-# Полный цикл разработки
-dev: clean build install run
-
-# Цикл с увеличением версии (для исправлений)
-dev-patch: version-patch update-changelog clean build install run
-
-# Цикл с увеличением версии (для новых функций)
-dev-minor: version-minor update-changelog clean build install run
-
 # Помощь
 help:
 	@echo "Available commands:"
 	@echo "  make version         - Show current version"
-	@echo "  make version-patch   - Increment patch version (0.1.0 -> 0.1.1)"
-	@echo "  make version-minor   - Increment minor version (0.1.0 -> 0.2.0)"
-	@echo "  make version-major   - Increment major version (0.1.0 -> 1.0.0)"
-	@echo "  make update-changelog- Update changelog with current version"
 	@echo "  make test            - Run unit tests"
-	@echo "  make build           - Build DEB package"
-	@echo "  make install         - Remove old and install new package"
-	@echo "  make reinstall       - Reinstall current package"
-	@echo "  make remove          - Remove package"
+	@echo "  make run             - Run the application locally"
+	@echo "  make release         - Create release tag for current version v$(VERSION)"
+	@echo "  make release-patch   - Bump patch version (e.g. 0.1.8 -> 0.1.9) and create release tag"
+	@echo "  make release-minor   - Bump minor version (e.g. 0.1.8 -> 0.2.0) and create release tag"
+	@echo "  make release-major   - Bump major version (e.g. 0.1.8 -> 1.0.0) and create release tag"
+	@echo "  make build           - Build DEB package (on Linux)"
 	@echo "  make clean           - Clean build files"
-	@echo "  make clean-all       - Clean all build files"
-	@echo "  make check           - Check package with lintian"
-	@echo "  make info            - Show package info"
-	@echo "  make files           - Show installed files"
-	@echo "  make run             - Run the application"
-	@echo "  make dev             - Clean, build, install, run"
-	@echo "  make dev-patch       - Bump patch version, build, install, run"
-	@echo "  make dev-minor       - Bump minor version, build, install, run"
