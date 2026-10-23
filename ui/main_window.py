@@ -1,5 +1,5 @@
 """
-main_window.py - Современный графический интерфейс на GTK 3 с карточным дизайном и HeaderBar.
+main_window.py - Современный графический интерфейс на GTK 3 с карточным дизайном, HeaderBar и мониторингом Docker.
 """
 
 import os
@@ -14,6 +14,7 @@ from gi.repository import Gtk, GLib, Gdk
 from monitors.system import get_os_info, get_uptime, get_hostname
 from monitors.network import get_default_ip, get_dns_servers, get_network_speed
 from monitors.hardware import get_hardware_summary
+from monitors.docker import get_docker_summary
 
 
 def get_version() -> str:
@@ -26,7 +27,7 @@ def get_version() -> str:
                 return f.read().strip()
     except Exception:
         pass
-    return "0.1.10"
+    return "0.1.11"
 
 
 CSS_DATA = """
@@ -124,7 +125,7 @@ class MainWindow(Gtk.Window):
 
     def __init__(self):
         super().__init__(title="System Monitor")
-        self.set_default_size(640, 680)
+        self.set_default_size(640, 720)
         self.set_border_width(12)
         self.set_position(Gtk.WindowPosition.CENTER)
 
@@ -229,6 +230,14 @@ class MainWindow(Gtk.Window):
         speed_pill.pack_start(self.labels["net_speed"], True, True, 0)
         grid_net.attach(speed_pill, 1, 2, 1, 1)
 
+        # КАРТОЧКА 5: 🐳 Docker
+        card_docker, grid_docker = self._create_card("🐳  Служба Docker")
+        main_box.pack_start(card_docker, False, False, 0)
+
+        self._add_text_row(grid_docker, 0, "Статус службы:", "docker_status")
+        self._add_text_row(grid_docker, 1, "Контейнеры:", "docker_containers")
+        self._add_text_row(grid_docker, 2, "Образы (Images):", "docker_images")
+
         # Подвал: время обновления и статус
         footer_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         footer_box.set_margin_top(4)
@@ -331,6 +340,7 @@ class MainWindow(Gtk.Window):
         try:
             hw = get_hardware_summary()
             net_speed = get_network_speed()
+            docker_info = get_docker_summary()
             data = {
                 "hostname": get_hostname(),
                 "os": get_os_info(),
@@ -339,6 +349,7 @@ class MainWindow(Gtk.Window):
                 "dns": get_dns_servers(),
                 "net_speed": net_speed,
                 "hw": hw,
+                "docker": docker_info,
                 "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "status": "● Онлайн",
                 "error": None
@@ -429,6 +440,23 @@ class MainWindow(Gtk.Window):
 
                 self.disks_container.show_all()
 
+                # 4. Данные Docker
+                docker = data.get("docker", {})
+                if "docker_status" in self.labels:
+                    self.labels["docker_status"].set_text(docker.get("status_display", "—"))
+                if "docker_containers" in self.labels:
+                    if docker.get("status") == "running":
+                        self.labels["docker_containers"].set_text(docker.get("text", "—"))
+                    else:
+                        self.labels["docker_containers"].set_text(docker.get("text", "—"))
+                if "docker_images" in self.labels:
+                    img_count = docker.get("images_count", 0)
+                    if docker.get("status") == "running":
+                        self.labels["docker_images"].set_text(f"{img_count} образов")
+                    else:
+                        self.labels["docker_images"].set_text("—")
+
+                # Время обновления
                 if "time" in self.labels:
                     self.labels["time"].set_text(f"Обновлено: {data.get('time', '')}")
 
