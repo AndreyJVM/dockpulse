@@ -1,9 +1,11 @@
 """
-main_window.py - Графический интерфейс на GTK 3 с нативными цветными ProgressBar и мониторингом сети.
+main_window.py - Современный графический интерфейс на GTK 3 с карточным дизайном и HeaderBar.
 """
 
+import os
 import threading
 from datetime import datetime
+from typing import Tuple
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -14,35 +16,95 @@ from monitors.network import get_default_ip, get_dns_servers, get_network_speed
 from monitors.hardware import get_hardware_summary
 
 
+def get_version() -> str:
+    """Чтение версии приложения из файла VERSION."""
+    try:
+        cur_dir = os.path.dirname(os.path.abspath(__file__))
+        version_file = os.path.join(os.path.dirname(cur_dir), "VERSION")
+        if os.path.exists(version_file):
+            with open(version_file, "r", encoding="utf-8") as f:
+                return f.read().strip()
+    except Exception:
+        pass
+    return "0.1.10"
+
+
 CSS_DATA = """
+window {
+    background-color: @theme_bg_color;
+}
+
+headerbar {
+    padding: 4px 8px;
+}
+
+.card {
+    background-color: rgba(128, 128, 128, 0.08);
+    border: 1px solid rgba(128, 128, 128, 0.18);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin: 4px 2px;
+}
+
+.card-title {
+    font-weight: bold;
+    color: #3498db;
+    margin-bottom: 4px;
+}
+
+.field-label {
+    color: alpha(currentColor, 0.75);
+    font-weight: 600;
+}
+
+.mono-font {
+    font-family: monospace;
+}
+
+.pill-box {
+    background-color: rgba(128, 128, 128, 0.12);
+    border-radius: 8px;
+    padding: 6px 10px;
+}
+
 progressbar {
-    min-width: 260px;
+    min-width: 200px;
 }
+
 progressbar trough {
-    min-height: 16px;
-    border-radius: 8px;
-    background-color: rgba(128, 128, 128, 0.2);
+    min-height: 12px;
+    border-radius: 6px;
+    background-color: rgba(128, 128, 128, 0.16);
 }
+
 progressbar progress {
-    border-radius: 8px;
+    border-radius: 6px;
 }
+
 progressbar.progress-low progress {
     background-color: #27ae60;
     background-image: none;
 }
+
 progressbar.progress-medium progress {
-    background-color: #e67e22;
+    background-color: #f39c12;
     background-image: none;
 }
+
 progressbar.progress-high progress {
     background-color: #e74c3c;
     background-image: none;
+}
+
+.footer-text {
+    font-size: 11px;
+    color: alpha(currentColor, 0.55);
 }
 """
 
 
 def apply_custom_css():
-    """Применение стилей для нативных цветных прогресс-баров."""
+    """Применение стилей для современного внешнего вида интерфейса."""
     try:
         css_provider = Gtk.CssProvider()
         css_provider.load_from_data(CSS_DATA.encode("utf-8"))
@@ -57,138 +119,172 @@ def apply_custom_css():
 
 class MainWindow(Gtk.Window):
     """
-    Главное окно приложения System Monitor с нативными прогресс-барами.
+    Главное окно приложения System Monitor с современным карточным дизайном.
     """
 
     def __init__(self):
         super().__init__(title="System Monitor")
-        self.set_default_size(620, 580)
-        self.set_border_width(14)
+        self.set_default_size(640, 680)
+        self.set_border_width(12)
         self.set_position(Gtk.WindowPosition.CENTER)
 
         apply_custom_css()
 
+        version = get_version()
         self.is_updating = False
 
-        # Основной вертикальный контейнер
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        self.add(vbox)
+        # 1. Современный HeaderBar
+        header_bar = Gtk.HeaderBar()
+        header_bar.set_show_close_button(True)
+        header_bar.set_title("System Monitor")
+        header_bar.set_subtitle(f"v{version}")
+        self.set_titlebar(header_bar)
 
-        # Заголовок
-        header = Gtk.Label()
-        header.set_markup("<big><b>System Information Monitor</b></big>")
-        vbox.pack_start(header, False, False, 0)
+        # Спиннер и кнопка обновления в HeaderBar
+        self.spinner = Gtk.Spinner()
+        header_bar.pack_end(self.spinner)
 
-        # ScrolledWindow для прокрутки при большом количестве дисков
+        self.refresh_btn = Gtk.Button(label="⟳ Refresh")
+        self.refresh_btn.set_tooltip_text("Обновить данные системы сейчас")
+        self.refresh_btn.connect("clicked", self.on_refresh_clicked)
+        header_bar.pack_end(self.refresh_btn)
+
+        # 2. Основной контейнер с прокруткой
         scrolled = Gtk.ScrolledWindow()
-        scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        scrolled.set_shadow_type(Gtk.ShadowType.ETCHED_IN)
-        vbox.pack_start(scrolled, True, True, 0)
+        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.add(scrolled)
 
-        # Сетка параметров
-        grid = Gtk.Grid()
-        grid.set_column_spacing(18)
-        grid.set_row_spacing(14)
-        grid.set_margin_top(14)
-        grid.set_margin_bottom(14)
-        grid.set_margin_left(14)
-        grid.set_margin_right(14)
-        scrolled.add(grid)
+        main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        main_box.set_margin_left(6)
+        main_box.set_margin_right(6)
+        main_box.set_margin_top(6)
+        main_box.set_margin_bottom(6)
+        scrolled.add(main_box)
 
         self.labels = {}
-        row = 0
 
-        # Текстовые информационные поля
-        text_fields = [
-            ("Hostname:", "hostname"),
-            ("Operating System:", "os"),
-            ("Uptime:", "uptime"),
-            ("IP Address:", "ip"),
-            ("DNS Servers:", "dns"),
-            ("Network Traffic:", "net_speed"),
-        ]
+        # КАРТОЧКА 1: 🖥️ Система
+        card_sys, grid_sys = self._create_card("🖥️  Системная информация")
+        main_box.pack_start(card_sys, False, False, 0)
 
-        for label_text, key in text_fields:
-            title = self._create_section_label(label_text)
-            grid.attach(title, 0, row, 1, 1)
+        self._add_text_row(grid_sys, 0, "ОС и Ядро:", "os")
+        self._add_text_row(grid_sys, 1, "Имя компьютера:", "hostname")
+        self._add_text_row(grid_sys, 2, "Время работы (Uptime):", "uptime")
 
-            val_label = Gtk.Label(xalign=0, halign=Gtk.Align.START)
-            val_label.set_line_wrap(True)
-            val_label.set_selectable(True)
-            grid.attach(val_label, 1, row, 1, 1)
-            self.labels[key] = val_label
-            row += 1
+        # КАРТОЧКА 2: ⚡ Производительность (CPU и RAM)
+        card_perf, grid_perf = self._create_card("⚡  Производительность")
+        main_box.pack_start(card_perf, False, False, 0)
 
-        # 1. CPU Usage с нативным ProgressBar
-        title_cpu = self._create_section_label("CPU Usage:")
-        grid.attach(title_cpu, 0, row, 1, 1)
+        # CPU Row
+        cpu_title = self._create_field_label("Процессор (CPU):")
+        grid_perf.attach(cpu_title, 0, 0, 1, 1)
 
-        cpu_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        cpu_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
         cpu_box.set_hexpand(True)
         self.cpu_bar = Gtk.ProgressBar()
         self.cpu_bar.set_show_text(True)
         self.cpu_label = Gtk.Label(xalign=0, halign=Gtk.Align.START)
+        self.cpu_label.get_style_context().add_class("footer-text")
         cpu_box.pack_start(self.cpu_bar, False, False, 0)
         cpu_box.pack_start(self.cpu_label, False, False, 0)
-        grid.attach(cpu_box, 1, row, 1, 1)
-        row += 1
+        grid_perf.attach(cpu_box, 1, 0, 1, 1)
 
-        # 2. RAM Usage с нативным ProgressBar
-        title_ram = self._create_section_label("RAM Usage:")
-        grid.attach(title_ram, 0, row, 1, 1)
+        # RAM Row
+        ram_title = self._create_field_label("Память (RAM):")
+        grid_perf.attach(ram_title, 0, 1, 1, 1)
 
-        ram_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        ram_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
         ram_box.set_hexpand(True)
         self.ram_bar = Gtk.ProgressBar()
         self.ram_bar.set_show_text(True)
         self.ram_label = Gtk.Label(xalign=0, halign=Gtk.Align.START)
+        self.ram_label.get_style_context().add_class("footer-text")
         ram_box.pack_start(self.ram_bar, False, False, 0)
         ram_box.pack_start(self.ram_label, False, False, 0)
-        grid.attach(ram_box, 1, row, 1, 1)
-        row += 1
+        grid_perf.attach(ram_box, 1, 1, 1, 1)
 
-        # 3. Disk Usage с динамическими ProgressBar для каждого раздела
-        title_disk = self._create_section_label("Disk Usage:")
-        grid.attach(title_disk, 0, row, 1, 1)
+        # КАРТОЧКА 3: 💾 Накопители
+        card_disk, grid_disk = self._create_card("💾  Дисковые накопители")
+        main_box.pack_start(card_disk, False, False, 0)
 
         self.disks_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.disks_container.set_hexpand(True)
-        grid.attach(self.disks_container, 1, row, 1, 1)
-        row += 1
+        grid_disk.attach(self.disks_container, 0, 0, 2, 1)
 
-        # Время последнего обновления
-        title_time = self._create_section_label("Last Update:")
-        grid.attach(title_time, 0, row, 1, 1)
-        self.labels["time"] = Gtk.Label(xalign=0, halign=Gtk.Align.START)
-        self.labels["time"].set_selectable(True)
-        grid.attach(self.labels["time"], 1, row, 1, 1)
+        # КАРТОЧКА 4: 🌐 Сеть и Трафик
+        card_net, grid_net = self._create_card("🌐  Сеть и Трафик")
+        main_box.pack_start(card_net, False, False, 0)
 
-        # Панель управления и кнопка обновления
-        button_box = Gtk.Box(spacing=10)
-        self.refresh_btn = Gtk.Button(label="Refresh Now")
-        self.refresh_btn.connect("clicked", self.on_refresh_clicked)
-        button_box.pack_end(self.refresh_btn, False, False, 0)
-        vbox.pack_start(button_box, False, False, 0)
+        self._add_text_row(grid_net, 0, "IP-адрес:", "ip", mono=True)
+        self._add_text_row(grid_net, 1, "DNS-серверы:", "dns", mono=True)
 
-        # Статус-бар
-        self.statusbar = Gtk.Statusbar()
-        self.status_context = self.statusbar.get_context_id("status")
-        vbox.pack_start(self.statusbar, False, False, 0)
+        # Трафик pill-box
+        net_speed_title = self._create_field_label("Скорость трафика:")
+        grid_net.attach(net_speed_title, 0, 2, 1, 1)
 
-        # Первичное обновление данных
+        speed_pill = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        speed_pill.get_style_context().add_class("pill-box")
+        self.labels["net_speed"] = Gtk.Label(xalign=0, halign=Gtk.Align.START)
+        self.labels["net_speed"].set_selectable(True)
+        speed_pill.pack_start(self.labels["net_speed"], True, True, 0)
+        grid_net.attach(speed_pill, 1, 2, 1, 1)
+
+        # Подвал: время обновления и статус
+        footer_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        footer_box.set_margin_top(4)
+        footer_box.set_margin_bottom(2)
+
+        self.status_label = Gtk.Label(xalign=0, halign=Gtk.Align.START)
+        self.status_label.get_style_context().add_class("footer-text")
+        footer_box.pack_start(self.status_label, False, False, 0)
+
+        self.labels["time"] = Gtk.Label(xalign=1, halign=Gtk.Align.END)
+        self.labels["time"].get_style_context().add_class("footer-text")
+        footer_box.pack_end(self.labels["time"], False, False, 0)
+
+        main_box.pack_start(footer_box, False, False, 0)
+
+        # Первичное обновление
         self.trigger_async_update()
 
-        # Автоматическое обновление каждые 3 секунды для живого отображения скорости и CPU
+        # Регулярный фоновый опрос каждые 3 секунды
         GLib.timeout_add_seconds(3, self.on_timer_tick)
 
-    def _create_section_label(self, text: str) -> Gtk.Label:
-        """Создание заголовка параметра."""
-        lbl = Gtk.Label()
-        lbl.set_markup(f"<b>{text}</b>")
-        lbl.set_xalign(0)
-        lbl.set_halign(Gtk.Align.START)
-        lbl.set_valign(Gtk.Align.START)
+    def _create_card(self, title: str) -> Tuple[Gtk.Box, Gtk.Grid]:
+        """Создает карточку с заголовком и внутренней сеткой."""
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        card.get_style_context().add_class("card")
+
+        title_lbl = Gtk.Label(xalign=0, halign=Gtk.Align.START)
+        title_lbl.set_markup(f"<b>{title}</b>")
+        title_lbl.get_style_context().add_class("card-title")
+        card.pack_start(title_lbl, False, False, 0)
+
+        grid = Gtk.Grid()
+        grid.set_column_spacing(20)
+        grid.set_row_spacing(10)
+        card.pack_start(grid, True, True, 0)
+
+        return card, grid
+
+    def _create_field_label(self, text: str) -> Gtk.Label:
+        """Метка названия поля."""
+        lbl = Gtk.Label(label=text, xalign=0, halign=Gtk.Align.START, valign=Gtk.Align.START)
+        lbl.get_style_context().add_class("field-label")
         return lbl
+
+    def _add_text_row(self, grid: Gtk.Grid, row: int, label_text: str, key: str, mono: bool = False):
+        """Добавление строки с текстовой информацией в сетку карточки."""
+        title = self._create_field_label(label_text)
+        grid.attach(title, 0, row, 1, 1)
+
+        val_label = Gtk.Label(xalign=0, halign=Gtk.Align.START, valign=Gtk.Align.START)
+        val_label.set_line_wrap(True)
+        val_label.set_selectable(True)
+        if mono:
+            val_label.get_style_context().add_class("mono-font")
+        grid.attach(val_label, 1, row, 1, 1)
+        self.labels[key] = val_label
 
     def _update_progress_bar_style(self, bar: Gtk.ProgressBar, percent: float, text: str):
         """Обновление прогресс-бара и цвета в зависимости от нагрузки."""
@@ -224,8 +320,8 @@ class MainWindow(Gtk.Window):
 
         self.is_updating = True
         self.refresh_btn.set_sensitive(False)
-        self.refresh_btn.set_label("Updating...")
-        self.statusbar.push(self.status_context, "Fetching system data...")
+        self.spinner.start()
+        self.status_label.set_text("Обновление данных...")
 
         worker = threading.Thread(target=self._collect_data_worker, daemon=True)
         worker.start()
@@ -244,12 +340,12 @@ class MainWindow(Gtk.Window):
                 "net_speed": net_speed,
                 "hw": hw,
                 "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "status": "✓ Updated successfully",
+                "status": "● Онлайн",
                 "error": None
             }
         except Exception as e:
             data = {
-                "status": f"✗ Error: {str(e)[:40]}",
+                "status": f"✗ Ошибка: {str(e)[:40]}",
                 "error": str(e)
             }
 
@@ -260,7 +356,7 @@ class MainWindow(Gtk.Window):
         try:
             if not data.get("error"):
                 # 1. Текстовые поля
-                for key in ["hostname", "os", "uptime", "ip", "dns", "time"]:
+                for key in ["hostname", "os", "uptime", "ip", "dns"]:
                     if key in self.labels and key in data:
                         self.labels[key].set_text(str(data[key]))
 
@@ -284,7 +380,7 @@ class MainWindow(Gtk.Window):
                 self._update_progress_bar_style(
                     self.cpu_bar, cpu_pct, f"{cpu_pct:.1f}%"
                 )
-                self.cpu_label.set_text(f"Cores: {cpu_cores}")
+                self.cpu_label.set_text(f"Количество ядер: {cpu_cores}")
 
                 # RAM
                 ram = hw.get("ram", {})
@@ -296,7 +392,7 @@ class MainWindow(Gtk.Window):
                     self.ram_bar, ram_pct, f"{ram_pct:.1f}%"
                 )
                 self.ram_label.set_text(
-                    f"Used: {used_gb:.1f} GB / Total: {total_gb:.1f} GB (Available: {avail_gb:.1f} GB)"
+                    f"Использовано: {used_gb:.1f} GB из {total_gb:.1f} GB (Свободно: {avail_gb:.1f} GB)"
                 )
 
                 # Диски
@@ -311,12 +407,12 @@ class MainWindow(Gtk.Window):
                         d_used = disk.get("used_gb", 0.0)
                         d_total = disk.get("total_gb", 0.0)
 
-                        item_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+                        item_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
                         item_box.set_hexpand(True)
 
                         info_label = Gtk.Label(xalign=0, halign=Gtk.Align.START)
                         info_label.set_markup(
-                            f"<b>{mp}</b>  <small>({d_used:.1f} / {d_total:.1f} GB)</small>"
+                            f"<b>{mp}</b>  <small style='color: alpha(currentColor, 0.7);'>({d_used:.1f} / {d_total:.1f} GB)</small>"
                         )
                         item_box.pack_start(info_label, False, False, 0)
 
@@ -328,14 +424,17 @@ class MainWindow(Gtk.Window):
 
                         self.disks_container.pack_start(item_box, False, False, 0)
                 else:
-                    empty_label = Gtk.Label(label="No disk information available", xalign=0)
+                    empty_label = Gtk.Label(label="Информация о дисках недоступна", xalign=0)
                     self.disks_container.pack_start(empty_label, False, False, 0)
 
                 self.disks_container.show_all()
 
-            self.statusbar.push(self.status_context, data.get("status", "Updated"))
+                if "time" in self.labels:
+                    self.labels["time"].set_text(f"Обновлено: {data.get('time', '')}")
+
+            self.status_label.set_text(data.get("status", "Готово"))
         finally:
-            self.refresh_btn.set_label("Refresh Now")
+            self.spinner.stop()
             self.refresh_btn.set_sensitive(True)
             self.is_updating = False
 
