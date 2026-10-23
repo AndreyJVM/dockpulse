@@ -3,7 +3,13 @@ Tests for monitors package
 """
 import unittest
 from monitors.system import get_os_info, get_hostname, get_uptime, get_system_summary
-from monitors.network import get_default_ip, get_dns_servers, get_network_summary
+from monitors.network import (
+    get_default_ip,
+    get_dns_servers,
+    get_network_speed,
+    get_network_summary,
+    format_speed,
+)
 from monitors.hardware import get_cpu_info, get_ram_info, get_disks_info, get_hardware_summary
 
 
@@ -40,6 +46,20 @@ class TestMonitors(unittest.TestCase):
         summary = get_network_summary()
         self.assertIn("ip", summary)
         self.assertIn("dns", summary)
+        self.assertIn("speed", summary)
+
+        speed = get_network_speed()
+        self.assertIsInstance(speed, dict)
+        self.assertIn("rx_speed", speed)
+        self.assertIn("tx_speed", speed)
+        self.assertIn("rx_text", speed)
+        self.assertIn("tx_text", speed)
+        self.assertIn("text", speed)
+
+    def test_format_speed(self):
+        self.assertEqual(format_speed(500), "500 B/s")
+        self.assertEqual(format_speed(1024), "1.0 KB/s")
+        self.assertEqual(format_speed(1024 * 1024), "1.00 MB/s")
 
     def test_hardware_info(self):
         cpu = get_cpu_info()

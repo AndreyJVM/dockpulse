@@ -1,5 +1,5 @@
 """
-main_window.py - Графический интерфейс на GTK 3 с нативными цветными ProgressBar.
+main_window.py - Графический интерфейс на GTK 3 с нативными цветными ProgressBar и мониторингом сети.
 """
 
 import threading
@@ -10,7 +10,7 @@ gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GLib, Gdk
 
 from monitors.system import get_os_info, get_uptime, get_hostname
-from monitors.network import get_default_ip, get_dns_servers
+from monitors.network import get_default_ip, get_dns_servers, get_network_speed
 from monitors.hardware import get_hardware_summary
 
 
@@ -62,7 +62,7 @@ class MainWindow(Gtk.Window):
 
     def __init__(self):
         super().__init__(title="System Monitor")
-        self.set_default_size(620, 560)
+        self.set_default_size(620, 580)
         self.set_border_width(14)
         self.set_position(Gtk.WindowPosition.CENTER)
 
@@ -105,6 +105,7 @@ class MainWindow(Gtk.Window):
             ("Uptime:", "uptime"),
             ("IP Address:", "ip"),
             ("DNS Servers:", "dns"),
+            ("Network Traffic:", "net_speed"),
         ]
 
         for label_text, key in text_fields:
@@ -177,8 +178,8 @@ class MainWindow(Gtk.Window):
         # Первичное обновление данных
         self.trigger_async_update()
 
-        # Автоматическое обновление каждые 10 секунд
-        GLib.timeout_add_seconds(10, self.on_timer_tick)
+        # Автоматическое обновление каждые 3 секунды для живого отображения скорости и CPU
+        GLib.timeout_add_seconds(3, self.on_timer_tick)
 
     def _create_section_label(self, text: str) -> Gtk.Label:
         """Создание заголовка параметра."""
@@ -233,12 +234,14 @@ class MainWindow(Gtk.Window):
         """Сбор данных в отдельном потоке."""
         try:
             hw = get_hardware_summary()
+            net_speed = get_network_speed()
             data = {
                 "hostname": get_hostname(),
                 "os": get_os_info(),
                 "uptime": get_uptime(),
                 "ip": get_default_ip(),
                 "dns": get_dns_servers(),
+                "net_speed": net_speed,
                 "hw": hw,
                 "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "status": "✓ Updated successfully",
@@ -261,7 +264,17 @@ class MainWindow(Gtk.Window):
                     if key in self.labels and key in data:
                         self.labels[key].set_text(str(data[key]))
 
-                # 2. Аппаратные метрики
+                # 2. Сетевой трафик
+                net_speed = data.get("net_speed", {})
+                rx_t = net_speed.get("rx_text", "0 B/s")
+                tx_t = net_speed.get("tx_text", "0 B/s")
+                if "net_speed" in self.labels:
+                    self.labels["net_speed"].set_markup(
+                        f"<span foreground='#27ae60'>↓</span> <b>{rx_t}</b>    "
+                        f"<span foreground='#2980b9'>↑</span> <b>{tx_t}</b>"
+                    )
+
+                # 3. Аппаратные метрики
                 hw = data.get("hw", {})
 
                 # CPU
