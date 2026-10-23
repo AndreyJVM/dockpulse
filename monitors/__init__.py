@@ -10,7 +10,9 @@ from monitors.network import (
     format_speed,
 )
 from monitors.hardware import get_cpu_info, get_ram_info, get_disks_info, get_hardware_summary
-from monitors.docker import get_docker_summary, find_docker_socket
+from monitors.docker import get_docker_summary, get_docker_containers, get_docker_images, find_docker_socket
+from monitors.compose import get_compose_projects
+from monitors.swarm import get_swarm_summary, get_swarm_nodes, get_swarm_services
 
 __all__ = [
     "get_os_info",
@@ -27,5 +29,11 @@ __all__ = [
     "get_disks_info",
     "get_hardware_summary",
     "get_docker_summary",
+    "get_docker_containers",
+    "get_docker_images",
     "find_docker_socket",
+    "get_compose_projects",
+    "get_swarm_summary",
+    "get_swarm_nodes",
+    "get_swarm_services",
 ]

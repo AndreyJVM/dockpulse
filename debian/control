@@ -8,7 +8,9 @@ Homepage: https://github.com/AndreyJVM/system-monitor
 
 Package: system-monitor
 Architecture: all
-Depends: ${misc:Depends}, ${python3:Depends}, python3 (>= 3.8), python3-gi, gir1.2-gtk-3.0, python3-psutil
-Description: Lightweight system monitor for Linux
- A simple and intuitive GTK3 desktop utility to monitor CPU, RAM,
- disk usage, network IP, DNS servers, and system information.
+Depends: ${misc:Depends}, ${python3:Depends}, python3 (>= 3.8), python3-psutil
+Recommends: python3-gi, gir1.2-gtk-3.0
+Description: Lightweight System, Docker, Compose & Swarm monitor (TUI & GUI)
+ A fast and intuitive terminal (TUI) and GTK3 desktop utility to monitor
+ host CPU, RAM, disk, network, Docker containers, Compose projects,
+ and Swarm clusters.
