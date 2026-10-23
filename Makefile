@@ -2,7 +2,7 @@ PACKAGE_NAME = system-monitor
 VERSION = $(shell cat VERSION)
 DEB_FILE = ../$(PACKAGE_NAME)_$(VERSION)_all.deb
 
-.PHONY: all clean build install remove purge reinstall version-bump
+.PHONY: all clean clean-all build install reinstall remove purge check test info files run dev dev-patch dev-minor help version version-patch version-minor version-major update-changelog release release-check release-help release-patch release-minor release-major
 
 all: build
 
@@ -29,6 +29,11 @@ version-major:
 	@echo "Version bumped to $(NEW_VERSION)"
 	@echo "Don't forget to update debian/changelog"
 
+# Запуск тестов
+test:
+	@echo "Running tests..."
+	python3 -m unittest discover tests
+
 # Сборка пакета
 build:
 	@echo "Building $(PACKAGE_NAME) version $(VERSION)"
@@ -42,14 +47,8 @@ build:
 # Обновление changelog
 update-changelog:
 	@echo "Updating debian/changelog with version $(VERSION)"
-	@echo "$(PACKAGE_NAME) ($(VERSION)) unstable; urgency=medium" > debian/changelog.new
-	@echo "" >> debian/changelog.new
-	@echo "  * New release" >> debian/changelog.new
-	@echo "" >> debian/changelog.new
-	@echo " -- $$(git config user.name) <$$(git config user.email)>  $$(date -R)" >> debian/changelog.new
-	@echo "" >> debian/changelog.new
-	@cat debian/changelog >> debian/changelog.new 2>/dev/null || true
-	@mv debian/changelog.new debian/changelog
+	@chmod +x update-changelog.sh
+	@./update-changelog.sh
 
 # Очистка
 clean:
@@ -118,33 +117,36 @@ info:
 # GitHub Release
 release: build
 	@echo "Creating GitHub release v$(VERSION)..."
-	@# Создаем release notes
-	@sed "s/{VERSION}/$(VERSION)/g" release-notes-template.md | \
-	 sed "s/{REPO_OWNER}/$$(git config --get remote.origin.url | sed -n 's/.*[:/]\([^/]*\)\/\([^.]*\).*/\1/p')/g" | \
-	 sed "s/{REPO_NAME}/$$(git config --get remote.origin.url | sed -n 's/.*[:/]\([^/]*\)\/\([^.]*\).*/\2/p')/g" > release-notes.md
-	@# Добавляем запись из changelog
-	@echo "" >> release-notes.md
-	@echo "## 📝 Changelog" >> release-notes.md
-	@echo "\`\`\`" >> release-notes.md
-	@head -20 debian/changelog >> release-notes.md
-	@echo "\`\`\`" >> release-notes.md
-	@chmod +x create-release.sh
-	@./create-release.sh
+	@# Создаем release notes если шаблон существует
+	@if [ -f release-notes-template.md ]; then \
+		sed "s/{VERSION}/$(VERSION)/g" release-notes-template.md | \
+		sed "s/{REPO_OWNER}/$$(git config --get remote.origin.url | sed -n 's/.*[:/]\([^/]*\)\/\([^.]*\).*/\1/p')/g" | \
+		sed "s/{REPO_NAME}/$$(git config --get remote.origin.url | sed -n 's/.*[:/]\([^/]*\)\/\([^.]*\).*/\2/p')/g" > release-notes.md; \
+		echo "" >> release-notes.md; \
+		echo "## 📝 Changelog" >> release-notes.md; \
+		echo "\`\`\`" >> release-notes.md; \
+		head -20 debian/changelog >> release-notes.md; \
+		echo "\`\`\`" >> release-notes.md; \
+	fi
+	@if [ -f create-release.sh ]; then \
+		chmod +x create-release.sh; \
+		./create-release.sh; \
+	fi
 
 # Проверка готовности к релизу
 release-check:
 	@echo "Checking release readiness..."
 	@# Проверяем что нет незакоммиченных изменений
 	@if [ -n "$$(git status --porcelain)" ]; then \
-		echo "$(RED)Error: Uncommitted changes exist$(NC)"; \
+		echo "Error: Uncommitted changes exist"; \
 		git status --short; \
 		exit 1; \
 	fi
 	@# Проверяем что версия в VERSION совпадает с git tag
 	@if git tag | grep -q "v$(VERSION)"; then \
-		echo "$(YELLOW)Warning: Tag v$(VERSION) already exists$(NC)"; \
+		echo "Warning: Tag v$(VERSION) already exists"; \
 	fi
-	@echo "$(GREEN)Ready for release$(NC)"
+	@echo "Ready for release"
 
 # Показать команды для ручного релиза
 release-help:
@@ -172,7 +174,7 @@ files:
 # Запуск приложения
 run:
 	@echo "Running $(PACKAGE_NAME)..."
-	system-monitor
+	python3 main.py
 
 # Полный цикл разработки
 dev: clean build install run
@@ -191,6 +193,7 @@ help:
 	@echo "  make version-minor   - Increment minor version (0.1.0 -> 0.2.0)"
 	@echo "  make version-major   - Increment major version (0.1.0 -> 1.0.0)"
 	@echo "  make update-changelog- Update changelog with current version"
+	@echo "  make test            - Run unit tests"
 	@echo "  make build           - Build DEB package"
 	@echo "  make install         - Remove old and install new package"
 	@echo "  make reinstall       - Reinstall current package"

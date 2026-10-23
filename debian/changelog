@@ -1,0 +1,14 @@
+system-monitor (0.1.8) unstable; urgency=medium
+
+  * Version 0.1.8 release
+
+ -- Andrey Vorobev <Andrey.Vorobev.AQA@gmail.com>  Fri, 23 Oct 2026 22:13:00 +0300
+
+system-monitor (0.1.8) unstable; urgency=medium
+
+  * Modular refactoring of monitors and UI
+  * Added CPU and Uptime monitoring
+  * Implemented asynchronous non-blocking data collection
+  * Updated README and build configurations
+
+ -- Andrey Vorobev <andrey.vorobev.aqa@gmail.com>  Fri, 23 Oct 2026 22:10:00 +0300
