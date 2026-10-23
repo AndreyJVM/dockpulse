@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,6 +26,22 @@ type ContainerItem struct {
 	ComposeProject string
 	ComposeService string
 	Labels         map[string]string
+}
+
+// ContainerDetail содержит детальную информацию об одном контейнере.
+type ContainerDetail struct {
+	ID         string
+	Name       string
+	Image      string
+	Created    string
+	State      string
+	Status     string
+	IP         string
+	Gateway    string
+	MACAddress string
+	Command    string
+	Mounts     []string
+	Env        []string
 }
 
 // DockerSummary содержит сводку службы Docker.
@@ -77,7 +94,7 @@ func getSocketHTTPClient(sockPath string) *http.Client {
 				return net.DialTimeout("unix", sockPath, 500*time.Millisecond)
 			},
 		},
-		Timeout: 1 * time.Second,
+		Timeout: 5 * time.Second,
 	}
 }
 
@@ -201,4 +218,206 @@ func GetDockerSummary() DockerSummary {
 	}
 
 	return summary
+}
+
+// StartContainer запускает контейнер по ID.
+func StartContainer(containerID string) error {
+	sockPath := FindDockerSocket()
+	if sockPath != "" {
+		client := getSocketHTTPClient(sockPath)
+		url := fmt.Sprintf("http://localhost/containers/%s/start", containerID)
+		resp, err := client.Post(url, "application/json", nil)
+		if err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == 204 || resp.StatusCode == 304 {
+				return nil
+			}
+			body, _ := io.ReadAll(resp.Body)
+			return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+		}
+	}
+
+	out, err := exec.Command("docker", "start", containerID).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// StopContainer останавливает контейнер по ID.
+func StopContainer(containerID string) error {
+	sockPath := FindDockerSocket()
+	if sockPath != "" {
+		client := getSocketHTTPClient(sockPath)
+		url := fmt.Sprintf("http://localhost/containers/%s/stop?t=10", containerID)
+		resp, err := client.Post(url, "application/json", nil)
+		if err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == 204 || resp.StatusCode == 304 {
+				return nil
+			}
+			body, _ := io.ReadAll(resp.Body)
+			return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+		}
+	}
+
+	out, err := exec.Command("docker", "stop", containerID).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// RestartContainer перезапускает контейнер по ID.
+func RestartContainer(containerID string) error {
+	sockPath := FindDockerSocket()
+	if sockPath != "" {
+		client := getSocketHTTPClient(sockPath)
+		url := fmt.Sprintf("http://localhost/containers/%s/restart?t=10", containerID)
+		resp, err := client.Post(url, "application/json", nil)
+		if err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == 204 {
+				return nil
+			}
+			body, _ := io.ReadAll(resp.Body)
+			return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+		}
+	}
+
+	out, err := exec.Command("docker", "restart", containerID).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// GetContainerLogs читает последние tail строк логов контейнера.
+func GetContainerLogs(containerID string, tailLines int) (string, error) {
+	if tailLines <= 0 {
+		tailLines = 100
+	}
+
+	sockPath := FindDockerSocket()
+	if sockPath != "" {
+		client := getSocketHTTPClient(sockPath)
+		url := fmt.Sprintf("http://localhost/containers/%s/logs?stdout=1&stderr=1&tail=%d", containerID, tailLines)
+		resp, err := client.Get(url)
+		if err == nil && resp.StatusCode == 200 {
+			defer resp.Body.Close()
+			text := demuxDockerLogs(resp.Body)
+			if strings.TrimSpace(text) != "" {
+				return text, nil
+			}
+		}
+	}
+
+	// CLI fallback
+	out, err := exec.Command("docker", "logs", "--tail", fmt.Sprintf("%d", tailLines), containerID).CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return string(out), nil
+}
+
+func demuxDockerLogs(r io.Reader) string {
+	all, err := io.ReadAll(r)
+	if err != nil || len(all) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	idx := 0
+	for idx+8 <= len(all) {
+		streamType := all[idx]
+		if streamType > 2 { // Not a multiplexed frame (0=stdin, 1=stdout, 2=stderr)
+			return string(all)
+		}
+		size := int(binary.BigEndian.Uint32(all[idx+4 : idx+8]))
+		if idx+8+size > len(all) {
+			break
+		}
+		sb.Write(all[idx+8 : idx+8+size])
+		idx += 8 + size
+	}
+
+	if sb.Len() > 0 && idx == len(all) {
+		return sb.String()
+	}
+	return string(all)
+}
+
+// GetContainerDetail возвращает подробные сведения о контейнере.
+func GetContainerDetail(containerID string) (ContainerDetail, error) {
+	detail := ContainerDetail{ID: containerID}
+	sockPath := FindDockerSocket()
+
+	if sockPath != "" {
+		client := getSocketHTTPClient(sockPath)
+		url := fmt.Sprintf("http://localhost/containers/%s/json", containerID)
+		resp, err := client.Get(url)
+		if err == nil && resp.StatusCode == 200 {
+			defer resp.Body.Close()
+			body, _ := io.ReadAll(resp.Body)
+
+			var data struct {
+				ID      string `json:"Id"`
+				Name    string `json:"Name"`
+				Created string `json:"Created"`
+				State   struct {
+					Status   string `json:"Status"`
+					Running  bool   `json:"Running"`
+					ExitCode int    `json:"ExitCode"`
+				} `json:"State"`
+				Config struct {
+					Image string   `json:"Image"`
+					Cmd   []string `json:"Cmd"`
+					Env   []string `json:"Env"`
+				} `json:"Config"`
+				NetworkSettings struct {
+					IPAddress  string `json:"IPAddress"`
+					Gateway    string `json:"Gateway"`
+					MacAddress string `json:"MacAddress"`
+				} `json:"NetworkSettings"`
+				Mounts []struct {
+					Source      string `json:"Source"`
+					Destination string `json:"Destination"`
+					Mode        string `json:"Mode"`
+				} `json:"Mounts"`
+			}
+
+			if json.Unmarshal(body, &data) == nil {
+				detail.Name = strings.TrimPrefix(data.Name, "/")
+				detail.Image = data.Config.Image
+				detail.Created = data.Created
+				detail.State = data.State.Status
+				detail.Status = fmt.Sprintf("%s (ExitCode: %d)", data.State.Status, data.State.ExitCode)
+				detail.IP = data.NetworkSettings.IPAddress
+				detail.Gateway = data.NetworkSettings.Gateway
+				detail.MACAddress = data.NetworkSettings.MacAddress
+				detail.Command = strings.Join(data.Config.Cmd, " ")
+
+				for _, m := range data.Mounts {
+					detail.Mounts = append(detail.Mounts, fmt.Sprintf("%s -> %s (%s)", m.Source, m.Destination, m.Mode))
+				}
+				detail.Env = data.Config.Env
+				return detail, nil
+			}
+		}
+	}
+
+	// CLI inspect fallback
+	out, err := exec.Command("docker", "inspect", containerID).Output()
+	if err == nil {
+		var raw []map[string]interface{}
+		if json.Unmarshal(out, &raw) == nil && len(raw) > 0 {
+			first := raw[0]
+			if name, ok := first["Name"].(string); ok {
+				detail.Name = strings.TrimPrefix(name, "/")
+			}
+			return detail, nil
+		}
+	}
+
+	return detail, fmt.Errorf("container not found: %s", containerID)
 }

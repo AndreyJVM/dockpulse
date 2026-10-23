@@ -29,6 +29,11 @@ var (
 				Background(lipgloss.Color("#1F2937")).
 				Padding(0, 1)
 
+	selectedRowStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("#FFFFFF")).
+				Background(lipgloss.Color("#0284C7"))
+
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#38BDF8")).
@@ -82,16 +87,28 @@ type Model struct {
 	showHelp        bool
 	width           int
 	height          int
-	sysInfo         monitor.SystemInfo
-	cpuInfo         monitor.CPUInfo
-	memInfo         monitor.MemoryInfo
-	disksInfo       []monitor.PartitionInfo
-	netInfo         monitor.NetworkInfo
-	topProcs        []monitor.ProcessInfo
-	dockerInfo      monitor.DockerSummary
-	compose         []monitor.ComposeProject
-	swarm           monitor.SwarmSummary
-	lastUpdate      string
+
+	// Навигация и модальные окна
+	cursorIdx           int
+	activeModal         string // "", "logs", "inspect"
+	logsTargetName      string
+	logsTargetID        string
+	logsLines           []string
+	logsScroll          int
+	inspectTarget       monitor.ContainerDetail
+	actionMessage       string
+	actionMessageExpiry time.Time
+
+	sysInfo    monitor.SystemInfo
+	cpuInfo    monitor.CPUInfo
+	memInfo    monitor.MemoryInfo
+	disksInfo  []monitor.PartitionInfo
+	netInfo    monitor.NetworkInfo
+	topProcs   []monitor.ProcessInfo
+	dockerInfo monitor.DockerSummary
+	compose    []monitor.ComposeProject
+	swarm      monitor.SwarmSummary
+	lastUpdate string
 }
 
 // NewModel создает новую TUI модель с настраиваемым интервалом обновления и начальной вкладкой.
@@ -121,10 +138,19 @@ func (m *Model) fetchAllData() {
 	m.compose = monitor.GetComposeProjects(m.dockerInfo.Containers)
 	m.swarm = monitor.GetSwarmSummary()
 	m.lastUpdate = time.Now().Format("15:04:05")
+
+	if m.cursorIdx >= len(m.dockerInfo.Containers) {
+		m.cursorIdx = max(0, len(m.dockerInfo.Containers)-1)
+	}
 }
 
 func (m Model) Init() tea.Cmd {
 	return tickCmd(m.refreshInterval)
+}
+
+func (m *Model) showToast(msg string) {
+	m.actionMessage = msg
+	m.actionMessageExpiry = time.Now().Add(4 * time.Second)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -135,25 +161,66 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "ctrl+c", "esc":
-			if m.showHelp {
+		// Если активно модальное окно
+		if m.activeModal != "" {
+			switch msg.String() {
+			case "q", "esc":
+				m.activeModal = ""
+				return m, nil
+
+			case "up", "k":
+				if m.activeModal == "logs" && m.logsScroll > 0 {
+					m.logsScroll--
+				}
+				return m, nil
+
+			case "down", "j":
+				if m.activeModal == "logs" && m.logsScroll < len(m.logsLines)-10 {
+					m.logsScroll++
+				}
+				return m, nil
+
+			case "pgup":
+				if m.activeModal == "logs" {
+					m.logsScroll = max(0, m.logsScroll-10)
+				}
+				return m, nil
+
+			case "pgdown":
+				if m.activeModal == "logs" {
+					m.logsScroll = min(max(0, len(m.logsLines)-10), m.logsScroll+10)
+				}
+				return m, nil
+			}
+			return m, nil
+		}
+
+		// Если открыта справка
+		if m.showHelp {
+			switch msg.String() {
+			case "q", "esc", "?":
 				m.showHelp = false
 				return m, nil
 			}
+			return m, nil
+		}
+
+		// Основной режим
+		switch msg.String() {
+		case "q", "ctrl+c":
 			return m, tea.Quit
 
 		case "?":
-			m.showHelp = !m.showHelp
+			m.showHelp = true
 			return m, nil
 
-		case "tab", "right", "l":
+		// Навигация по вкладкам
+		case "tab", "right":
 			m.activeTab++
 			if m.activeTab > 4 {
 				m.activeTab = 1
 			}
-
-		case "shift+tab", "left", "h":
+		case "shift+tab", "left":
 			m.activeTab--
 			if m.activeTab < 1 {
 				m.activeTab = 4
@@ -170,6 +237,88 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "r", "R":
 			m.fetchAllData()
+			m.showToast("Данные успешно обновлены")
+
+		// Навигация и действия в списке контейнеров (Вкладка 2)
+		case "up", "k":
+			if m.activeTab == 2 && len(m.dockerInfo.Containers) > 0 {
+				m.cursorIdx--
+				if m.cursorIdx < 0 {
+					m.cursorIdx = len(m.dockerInfo.Containers) - 1
+				}
+			}
+		case "down", "j":
+			if m.activeTab == 2 && len(m.dockerInfo.Containers) > 0 {
+				m.cursorIdx++
+				if m.cursorIdx >= len(m.dockerInfo.Containers) {
+					m.cursorIdx = 0
+				}
+			}
+
+		// Просмотр логов контейнера
+		case "l", "L":
+			if m.activeTab == 2 && len(m.dockerInfo.Containers) > 0 && m.cursorIdx < len(m.dockerInfo.Containers) {
+				c := m.dockerInfo.Containers[m.cursorIdx]
+				m.logsTargetName = c.Name
+				m.logsTargetID = c.ID
+				logs, err := monitor.GetContainerLogs(c.ID, 120)
+				if err != nil {
+					m.showToast("Ошибка чтения логов: " + err.Error())
+				} else {
+					m.logsLines = strings.Split(strings.TrimSpace(logs), "\n")
+					m.logsScroll = max(0, len(m.logsLines)-18) // прокрутка в конец
+					m.activeModal = "logs"
+				}
+			}
+
+		// Детали контейнера (Inspect)
+		case "enter", "i", "I":
+			if m.activeTab == 2 && len(m.dockerInfo.Containers) > 0 && m.cursorIdx < len(m.dockerInfo.Containers) {
+				c := m.dockerInfo.Containers[m.cursorIdx]
+				detail, err := monitor.GetContainerDetail(c.ID)
+				if err != nil {
+					m.showToast("Ошибка inspect: " + err.Error())
+				} else {
+					m.inspectTarget = detail
+					m.activeModal = "inspect"
+				}
+			}
+
+		// Старт / Стоп контейнера
+		case "s", "S":
+			if m.activeTab == 2 && len(m.dockerInfo.Containers) > 0 && m.cursorIdx < len(m.dockerInfo.Containers) {
+				c := m.dockerInfo.Containers[m.cursorIdx]
+				if c.State == "running" {
+					m.showToast(fmt.Sprintf("Остановка контейнера %s...", c.Name))
+					if err := monitor.StopContainer(c.ID); err != nil {
+						m.showToast("Ошибка остановки: " + err.Error())
+					} else {
+						m.fetchAllData()
+						m.showToast(fmt.Sprintf("Контейнер %s остановлен", c.Name))
+					}
+				} else {
+					m.showToast(fmt.Sprintf("Запуск контейнера %s...", c.Name))
+					if err := monitor.StartContainer(c.ID); err != nil {
+						m.showToast("Ошибка запуска: " + err.Error())
+					} else {
+						m.fetchAllData()
+						m.showToast(fmt.Sprintf("Контейнер %s запущен", c.Name))
+					}
+				}
+			}
+
+		// Перезапуск контейнера
+		case "p", "P":
+			if m.activeTab == 2 && len(m.dockerInfo.Containers) > 0 && m.cursorIdx < len(m.dockerInfo.Containers) {
+				c := m.dockerInfo.Containers[m.cursorIdx]
+				m.showToast(fmt.Sprintf("Перезапуск %s...", c.Name))
+				if err := monitor.RestartContainer(c.ID); err != nil {
+					m.showToast("Ошибка перезапуска: " + err.Error())
+				} else {
+					m.fetchAllData()
+					m.showToast(fmt.Sprintf("Контейнер %s успешно перезапущен", c.Name))
+				}
+			}
 		}
 
 	case tickMsg:
@@ -182,9 +331,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) View() string {
 	var b strings.Builder
 
-	// 1. Верхняя панель заголовка
+	// 1. Панель заголовка
 	header := headerStyle.Render("⚡ System & Docker Monitor") +
-		dimStyle.Render("  v0.3.0 (Go Edition)  ") +
+		dimStyle.Render("  v0.3.1 (Go Edition)  ") +
 		greenStyle.Render("["+m.lastUpdate+"]")
 	b.WriteString(header + "\n\n")
 
@@ -208,11 +357,19 @@ func (m Model) View() string {
 	b.WriteString(strings.Join(renderedTabs, " ") + "\n")
 	b.WriteString(dimStyle.Render(strings.Repeat("─", max(m.width, 70))) + "\n")
 
-	// Если открыта справка (?)
-	if m.showHelp {
+	// Всплывающее уведомление о действии
+	if m.actionMessage != "" && time.Now().Before(m.actionMessageExpiry) {
+		b.WriteString(yellowStyle.Render("🔔 "+m.actionMessage) + "\n\n")
+	}
+
+	// 3. Модальные окна или содержимое вкладки
+	if m.activeModal == "logs" {
+		b.WriteString(m.renderLogsModal())
+	} else if m.activeModal == "inspect" {
+		b.WriteString(m.renderInspectModal())
+	} else if m.showHelp {
 		b.WriteString("\n" + m.renderHelpBox() + "\n")
 	} else {
-		// 3. Содержимое активной вкладки
 		switch m.activeTab {
 		case 1:
 			b.WriteString(m.renderHostTab())
@@ -227,14 +384,77 @@ func (m Model) View() string {
 
 	// 4. Подвал
 	b.WriteString("\n" + dimStyle.Render(strings.Repeat("─", max(m.width, 70))) + "\n")
-	b.WriteString(footerStyle.Render(
-		boldStyle.Render("[1-4 / Tab / ← →]") + " Вкладки  |  " +
-			boldStyle.Render("[R]") + " Обновить  |  " +
-			boldStyle.Render("[?]") + " Справка  |  " +
-			boldStyle.Render("[Q / Esc]") + " Выход",
-	))
+	if m.activeModal != "" {
+		b.WriteString(footerStyle.Render(
+			boldStyle.Render("[Esc / Q]") + " Закрыть окно  |  " +
+				boldStyle.Render("[↑ / ↓ / PgUp / PgDn]") + " Прокрутка",
+		))
+	} else if m.activeTab == 2 {
+		b.WriteString(footerStyle.Render(
+			boldStyle.Render("[↑ / ↓]") + " Выбрать  |  " +
+				boldStyle.Render("[L]") + " Логи  |  " +
+				boldStyle.Render("[Enter/I]") + " Инфо  |  " +
+				boldStyle.Render("[S]") + " Старт/Стоп  |  " +
+				boldStyle.Render("[P]") + " Рестарт  |  " +
+				boldStyle.Render("[?]") + " Справка",
+		))
+	} else {
+		b.WriteString(footerStyle.Render(
+			boldStyle.Render("[1-4 / Tab / ← →]") + " Вкладки  |  " +
+				boldStyle.Render("[R]") + " Обновить  |  " +
+				boldStyle.Render("[?]") + " Справка  |  " +
+				boldStyle.Render("[Q]") + " Выход",
+		))
+	}
 
 	return b.String()
+}
+
+func (m Model) renderLogsModal() string {
+	var s strings.Builder
+	title := fmt.Sprintf("📜 ЛОГИ КОНТЕЙНЕРА: %s (ID: %s)", boldStyle.Render(m.logsTargetName), dimStyle.Render(m.logsTargetID))
+	s.WriteString(titleStyle.Render(title) + "\n\n")
+
+	maxVisible := 18
+	if len(m.logsLines) == 0 {
+		s.WriteString("  " + dimStyle.Render("Логи отсутствуют или контейнер не выводил сообщений.") + "\n")
+	} else {
+		start := min(m.logsScroll, max(0, len(m.logsLines)-1))
+		end := min(start+maxVisible, len(m.logsLines))
+
+		for i := start; i < end; i++ {
+			line := m.logsLines[i]
+			s.WriteString(fmt.Sprintf(" %s %s\n", dimStyle.Render("│"), truncate(line, max(40, m.width-8))))
+		}
+
+		s.WriteString(fmt.Sprintf("\n  %s\n", dimStyle.Render(fmt.Sprintf("[Строки %d-%d из %d] (прокрутка ↑/↓/PgUp/PgDn)", start+1, end, len(m.logsLines)))))
+	}
+
+	return boxStyle.Render(s.String())
+}
+
+func (m Model) renderInspectModal() string {
+	var s strings.Builder
+	d := m.inspectTarget
+
+	title := fmt.Sprintf("🔍 ИНСПЕКЦИЯ КОНТЕЙНЕРА: %s", boldStyle.Render(d.Name))
+	s.WriteString(titleStyle.Render(title) + "\n\n")
+
+	s.WriteString(fmt.Sprintf("  %s %s\n", dimStyle.Render("ID:"), d.ID))
+	s.WriteString(fmt.Sprintf("  %s %s\n", dimStyle.Render("Образ:"), boldStyle.Render(d.Image)))
+	s.WriteString(fmt.Sprintf("  %s %s\n", dimStyle.Render("Статус:"), greenStyle.Render(d.Status)))
+	s.WriteString(fmt.Sprintf("  %s %s\n", dimStyle.Render("Создан:"), d.Created))
+	s.WriteString(fmt.Sprintf("  %s %s    %s %s\n", dimStyle.Render("IP-адрес:"), boldStyle.Render(d.IP), dimStyle.Render("Шлюз:"), d.Gateway))
+	s.WriteString(fmt.Sprintf("  %s %s\n", dimStyle.Render("Команда:"), truncate(d.Command, 60)))
+
+	if len(d.Mounts) > 0 {
+		s.WriteString("\n  " + boldStyle.Render("Тома и монтирования (Mounts):") + "\n")
+		for _, mnt := range d.Mounts {
+			s.WriteString(fmt.Sprintf("   • %s\n", mnt))
+		}
+	}
+
+	return boxStyle.Render(s.String())
 }
 
 func (m Model) renderHelpBox() string {
@@ -242,14 +462,24 @@ func (m Model) renderHelpBox() string {
 
   %s   Переключение вкладок (1: Host, 2: Docker, 3: Compose, 4: Swarm)
   %s   След. / пред. вкладка
-  %s   Принудительное обновление всех метрик
+  %s   Перемещение курсора по контейнерам (на вкладке 2)
+  %s   Просмотр последних логов выбранного контейнера
+  %s   Подробная инспекция выбранного контейнера (IP, тома, сеть)
+  %s   Запуск / остановка контейнера
+  %s   Перезапуск (restart) контейнера
+  %s   Принудительное обновление всех данных
   %s   Показать / скрыть эту справку
   %s   Выход из приложения
 
-  Интервал автообновления: %s (запустите с -i 1s или -i 5s для изменения)`,
+  Интервал автообновления: %s`,
 		boldStyle.Render("📖 ГОРЯЧИЕ КЛАВИШИ:"),
 		greenStyle.Render("[1] - [4]"),
 		greenStyle.Render("[Tab] / [Shift+Tab] / [←] / [→]"),
+		greenStyle.Render("[↑] / [↓] / [k] / [j]"),
+		greenStyle.Render("[L]"),
+		greenStyle.Render("[Enter] / [I]"),
+		greenStyle.Render("[S]"),
+		greenStyle.Render("[P]"),
 		greenStyle.Render("[R]"),
 		greenStyle.Render("[?]"),
 		greenStyle.Render("[Q] / [Esc]"),
@@ -325,7 +555,7 @@ func (m Model) renderHostTab() string {
 func (m Model) renderDockerTab() string {
 	var s strings.Builder
 
-	s.WriteString(titleStyle.Render("🐳  DOCKER КОНТЕЙНЕРЫ") + "\n")
+	s.WriteString(titleStyle.Render("🐳  DOCKER КОНТЕЙНЕРЫ (ИНТЕРАКТИВНОЕ УПРАВЛЕНИЕ)") + "\n")
 	s.WriteString(fmt.Sprintf("  %s %s    %s %d    %s %s\n\n",
 		dimStyle.Render("Служба:"), m.dockerInfo.StatusDisplay,
 		dimStyle.Render("Образов:"), m.dockerInfo.ImagesCount,
@@ -341,13 +571,13 @@ func (m Model) renderDockerTab() string {
 		return s.String()
 	}
 
-	s.WriteString(fmt.Sprintf("  %-12s %-20s %-24s %-12s %-20s\n",
+	s.WriteString(fmt.Sprintf("   %-12s %-20s %-24s %-12s %-20s\n",
 		dimStyle.Render("ID"), dimStyle.Render("NAME"), dimStyle.Render("IMAGE"),
 		dimStyle.Render("STATE"), dimStyle.Render("PORTS"),
 	))
-	s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 88)) + "\n")
+	s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 90)) + "\n")
 
-	for _, c := range m.dockerInfo.Containers {
+	for i, c := range m.dockerInfo.Containers {
 		stateColored := dimStyle.Render(c.State)
 		if c.State == "running" {
 			stateColored = greenStyle.Render("running")
@@ -355,10 +585,21 @@ func (m Model) renderDockerTab() string {
 			stateColored = yellowStyle.Render("paused")
 		}
 
-		s.WriteString(fmt.Sprintf("  %-12s %-20s %-24s %-20s %-20s\n",
+		prefix := "  "
+		rowContent := fmt.Sprintf("%-12s %-20s %-24s %-20s %-20s",
 			c.ID, boldStyle.Render(truncate(c.Name, 18)), truncate(c.Image, 22),
 			stateColored, truncate(c.Ports, 20),
-		))
+		)
+
+		if i == m.cursorIdx {
+			prefix = greenStyle.Render("► ")
+			rowContent = selectedRowStyle.Render(fmt.Sprintf("%-12s %-20s %-24s %-12s %-20s",
+				c.ID, truncate(c.Name, 18), truncate(c.Image, 22),
+				c.State, truncate(c.Ports, 20),
+			))
+		}
+
+		s.WriteString(fmt.Sprintf("%s%s\n", prefix, rowContent))
 	}
 
 	return s.String()
@@ -494,6 +735,13 @@ func truncate(str string, maxLen int) string {
 		return str[:maxLen]
 	}
 	return str[:maxLen-3] + "..."
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func max(a, b int) int {
