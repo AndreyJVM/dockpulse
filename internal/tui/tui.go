@@ -57,35 +57,55 @@ var (
 	footerStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#9CA3AF")).
 			MarginTop(1)
+
+	boxStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#38BDF8")).
+			Padding(1, 2)
 )
 
 type tickMsg time.Time
 
-func tickCmd() tea.Cmd {
-	return tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
+func tickCmd(d time.Duration) tea.Cmd {
+	if d <= 0 {
+		d = 2 * time.Second
+	}
+	return tea.Tick(d, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
 
 // Model представляет состояние TUI.
 type Model struct {
-	activeTab  int
-	width      int
-	height     int
-	sysInfo    monitor.SystemInfo
-	cpuInfo    monitor.CPUInfo
-	memInfo    monitor.MemoryInfo
-	disksInfo  []monitor.PartitionInfo
-	netInfo    monitor.NetworkInfo
-	dockerInfo monitor.DockerSummary
-	compose    []monitor.ComposeProject
-	swarm      monitor.SwarmSummary
-	lastUpdate string
+	activeTab       int
+	refreshInterval time.Duration
+	showHelp        bool
+	width           int
+	height          int
+	sysInfo         monitor.SystemInfo
+	cpuInfo         monitor.CPUInfo
+	memInfo         monitor.MemoryInfo
+	disksInfo       []monitor.PartitionInfo
+	netInfo         monitor.NetworkInfo
+	topProcs        []monitor.ProcessInfo
+	dockerInfo      monitor.DockerSummary
+	compose         []monitor.ComposeProject
+	swarm           monitor.SwarmSummary
+	lastUpdate      string
 }
 
-// NewModel создает новую TUI модель.
-func NewModel() Model {
-	m := Model{activeTab: 1}
+// NewModel создает новую TUI модель с настраиваемым интервалом обновления и начальной вкладкой.
+func NewModel(refreshInterval time.Duration, initialTab int) Model {
+	if initialTab < 1 || initialTab > 4 {
+		initialTab = 1
+	}
+	if refreshInterval <= 0 {
+		refreshInterval = 2 * time.Second
+	}
+	m := Model{
+		activeTab:       initialTab,
+		refreshInterval: refreshInterval,
+	}
 	m.fetchAllData()
 	return m
 }
@@ -96,6 +116,7 @@ func (m *Model) fetchAllData() {
 	m.memInfo = monitor.GetMemoryInfo()
 	m.disksInfo = monitor.GetDisksInfo()
 	m.netInfo = monitor.GetNetworkInfo()
+	m.topProcs = monitor.GetTopProcesses(5)
 	m.dockerInfo = monitor.GetDockerSummary()
 	m.compose = monitor.GetComposeProjects(m.dockerInfo.Containers)
 	m.swarm = monitor.GetSwarmSummary()
@@ -103,7 +124,7 @@ func (m *Model) fetchAllData() {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tickCmd()
+	return tickCmd(m.refreshInterval)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -115,8 +136,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "q", "ctrl+c":
+		case "q", "ctrl+c", "esc":
+			if m.showHelp {
+				m.showHelp = false
+				return m, nil
+			}
 			return m, tea.Quit
+
+		case "?":
+			m.showHelp = !m.showHelp
+			return m, nil
+
+		case "tab", "right", "l":
+			m.activeTab++
+			if m.activeTab > 4 {
+				m.activeTab = 1
+			}
+
+		case "shift+tab", "left", "h":
+			m.activeTab--
+			if m.activeTab < 1 {
+				m.activeTab = 4
+			}
+
 		case "1":
 			m.activeTab = 1
 		case "2":
@@ -125,13 +167,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.activeTab = 3
 		case "4":
 			m.activeTab = 4
+
 		case "r", "R":
 			m.fetchAllData()
 		}
 
 	case tickMsg:
 		m.fetchAllData()
-		return m, tickCmd()
+		return m, tickCmd(m.refreshInterval)
 	}
 	return m, nil
 }
@@ -140,7 +183,7 @@ func (m Model) View() string {
 	var b strings.Builder
 
 	// 1. Верхняя панель заголовка
-	header := headerStyle.Render("⚡ System, Docker, Compose & Swarm Monitor") +
+	header := headerStyle.Render("⚡ System & Docker Monitor") +
 		dimStyle.Render("  v0.3.0 (Go Edition)  ") +
 		greenStyle.Render("["+m.lastUpdate+"]")
 	b.WriteString(header + "\n\n")
@@ -165,27 +208,54 @@ func (m Model) View() string {
 	b.WriteString(strings.Join(renderedTabs, " ") + "\n")
 	b.WriteString(dimStyle.Render(strings.Repeat("─", max(m.width, 70))) + "\n")
 
-	// 3. Содержимое активной вкладки
-	switch m.activeTab {
-	case 1:
-		b.WriteString(m.renderHostTab())
-	case 2:
-		b.WriteString(m.renderDockerTab())
-	case 3:
-		b.WriteString(m.renderComposeTab())
-	case 4:
-		b.WriteString(m.renderSwarmTab())
+	// Если открыта справка (?)
+	if m.showHelp {
+		b.WriteString("\n" + m.renderHelpBox() + "\n")
+	} else {
+		// 3. Содержимое активной вкладки
+		switch m.activeTab {
+		case 1:
+			b.WriteString(m.renderHostTab())
+		case 2:
+			b.WriteString(m.renderDockerTab())
+		case 3:
+			b.WriteString(m.renderComposeTab())
+		case 4:
+			b.WriteString(m.renderSwarmTab())
+		}
 	}
 
 	// 4. Подвал
 	b.WriteString("\n" + dimStyle.Render(strings.Repeat("─", max(m.width, 70))) + "\n")
 	b.WriteString(footerStyle.Render(
-		boldStyle.Render("[1-4]") + " Вкладки  |  " +
+		boldStyle.Render("[1-4 / Tab / ← →]") + " Вкладки  |  " +
 			boldStyle.Render("[R]") + " Обновить  |  " +
-			boldStyle.Render("[Q]") + " Выход",
+			boldStyle.Render("[?]") + " Справка  |  " +
+			boldStyle.Render("[Q / Esc]") + " Выход",
 	))
 
 	return b.String()
+}
+
+func (m Model) renderHelpBox() string {
+	content := fmt.Sprintf(`%s
+
+  %s   Переключение вкладок (1: Host, 2: Docker, 3: Compose, 4: Swarm)
+  %s   След. / пред. вкладка
+  %s   Принудительное обновление всех метрик
+  %s   Показать / скрыть эту справку
+  %s   Выход из приложения
+
+  Интервал автообновления: %s (запустите с -i 1s или -i 5s для изменения)`,
+		boldStyle.Render("📖 ГОРЯЧИЕ КЛАВИШИ:"),
+		greenStyle.Render("[1] - [4]"),
+		greenStyle.Render("[Tab] / [Shift+Tab] / [←] / [→]"),
+		greenStyle.Render("[R]"),
+		greenStyle.Render("[?]"),
+		greenStyle.Render("[Q] / [Esc]"),
+		yellowStyle.Render(m.refreshInterval.String()),
+	)
+	return boxStyle.Render(content)
 }
 
 func (m Model) renderHostTab() string {
@@ -226,6 +296,21 @@ func (m Model) renderHostTab() string {
 		}
 	} else {
 		s.WriteString("  " + dimStyle.Render("Дисковые разделы недоступны") + "\n")
+	}
+
+	if len(m.topProcs) > 0 {
+		s.WriteString("\n" + titleStyle.Render("🔥  ТОП ПРОЦЕССОВ (ПО CPU)") + "\n")
+		s.WriteString(fmt.Sprintf("  %-8s %-24s %-10s %-12s\n",
+			dimStyle.Render("PID"), dimStyle.Render("ИМЯ"),
+			dimStyle.Render("CPU %"), dimStyle.Render("RAM (MB)"),
+		))
+		s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 56)) + "\n")
+		for _, p := range m.topProcs {
+			s.WriteString(fmt.Sprintf("  %-8d %-24s %-10s %-12s\n",
+				p.PID, boldStyle.Render(truncate(p.Name, 22)),
+				formatPercent(p.CPUPercent), fmt.Sprintf("%.1f MB", p.RSSMB),
+			))
+		}
 	}
 
 	s.WriteString("\n" + titleStyle.Render("🐳  DOCKER СТАТУС") + "\n")
@@ -362,45 +447,57 @@ func (m Model) renderSwarmTab() string {
 	return s.String()
 }
 
-func formatBar(percent float64, width int) string {
-	pct := maxFloat(0.0, minFloat(100.0, percent))
-	filled := int(float64(width) * pct / 100.0)
-	empty := width - filled
+func formatPercent(val float64) string {
+	str := fmt.Sprintf("%.1f%%", val)
+	if val >= 80 {
+		return redStyle.Render(str)
+	} else if val >= 50 {
+		return yellowStyle.Render(str)
+	}
+	return greenStyle.Render(str)
+}
 
-	color := greenStyle
-	if pct >= 90.0 {
-		color = redStyle
-	} else if pct >= 70.0 {
-		color = yellowStyle
+func formatBar(percent float64, width int) string {
+	if percent < 0 {
+		percent = 0
+	} else if percent > 100 {
+		percent = 100
 	}
 
-	bar := color.Render(strings.Repeat("█", filled)) + dimStyle.Render(strings.Repeat("░", empty))
-	return fmt.Sprintf("[%s] %s", bar, color.Render(fmt.Sprintf("%5.1f%%", pct)))
+	filled := int((percent / 100.0) * float64(width))
+	if filled > width {
+		filled = width
+	}
+	empty := width - filled
+
+	barFilled := strings.Repeat("█", filled)
+	barEmpty := strings.Repeat("░", empty)
+
+	var coloredFilled string
+	if percent >= 85 {
+		coloredFilled = redStyle.Render(barFilled)
+	} else if percent >= 60 {
+		coloredFilled = yellowStyle.Render(barFilled)
+	} else {
+		coloredFilled = greenStyle.Render(barFilled)
+	}
+
+	pctStr := fmt.Sprintf("%5.1f%%", percent)
+	return fmt.Sprintf("[%s%s] %s", coloredFilled, dimStyle.Render(barEmpty), pctStr)
 }
 
 func truncate(str string, maxLen int) string {
 	if len(str) <= maxLen {
 		return str
 	}
-	return str[:maxLen-2] + ".."
+	if maxLen <= 3 {
+		return str[:maxLen]
+	}
+	return str[:maxLen-3] + "..."
 }
 
 func max(a, b int) int {
 	if a > b {
-		return a
-	}
-	return b
-}
-
-func maxFloat(a, b float64) float64 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func minFloat(a, b float64) float64 {
-	if a < b {
 		return a
 	}
 	return b

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
 	netUtil "github.com/shirou/gopsutil/v3/net"
+	"github.com/shirou/gopsutil/v3/process"
 )
 
 // SystemInfo содержит общие данные о хосте.
@@ -52,6 +54,15 @@ type NetworkInfo struct {
 	RXSpeed   string
 	TXSpeed   string
 	SpeedText string
+}
+
+// ProcessInfo содержит информацию о запущенном процессе.
+type ProcessInfo struct {
+	PID        int32
+	Name       string
+	CPUPercent float64
+	MemPercent float32
+	RSSMB      float64
 }
 
 // NetworkTracker отслеживает счетчики байт сети для вычисления скорости.
@@ -172,6 +183,47 @@ func GetNetworkInfo() NetworkInfo {
 		TXSpeed:   formatSpeed(txSpeed),
 		SpeedText: fmt.Sprintf("↓ %s  ↑ %s", formatSpeed(rxSpeed), formatSpeed(txSpeed)),
 	}
+}
+
+// GetTopProcesses возвращает список процессов с наибольшей нагрузкой.
+func GetTopProcesses(limit int) []ProcessInfo {
+	procs, err := process.Processes()
+	if err != nil || len(procs) == 0 {
+		return nil
+	}
+
+	var list []ProcessInfo
+	for _, p := range procs {
+		name, err := p.Name()
+		if err != nil || name == "" {
+			continue
+		}
+
+		cpuPct, _ := p.CPUPercent()
+		memPct, _ := p.MemoryPercent()
+		memInfo, _ := p.MemoryInfo()
+		rssMB := 0.0
+		if memInfo != nil {
+			rssMB = float64(memInfo.RSS) / (1024 * 1024)
+		}
+
+		list = append(list, ProcessInfo{
+			PID:        p.Pid,
+			Name:       name,
+			CPUPercent: cpuPct,
+			MemPercent: memPct,
+			RSSMB:      rssMB,
+		})
+	}
+
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].CPUPercent > list[j].CPUPercent
+	})
+
+	if len(list) > limit {
+		list = list[:limit]
+	}
+	return list
 }
 
 func getDefaultIP() string {

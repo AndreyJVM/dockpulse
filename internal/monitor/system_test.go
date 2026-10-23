@@ -28,6 +28,26 @@ func TestGetMemoryInfo(t *testing.T) {
 	}
 }
 
+func TestGetTopProcesses(t *testing.T) {
+	procs := GetTopProcesses(3)
+	// On active system, there should be at least 1 process (this test itself)
+	if len(procs) == 0 {
+		t.Logf("No processes returned (may happen in restricted environments)")
+	} else {
+		if len(procs) > 3 {
+			t.Errorf("expected max 3 processes, got %d", len(procs))
+		}
+		for _, p := range procs {
+			if p.PID <= 0 {
+				t.Errorf("expected positive PID, got %d", p.PID)
+			}
+			if p.Name == "" {
+				t.Errorf("expected non-empty process name")
+			}
+		}
+	}
+}
+
 func TestFormatSpeed(t *testing.T) {
 	cases := []struct {
 		bytesPerSec float64
