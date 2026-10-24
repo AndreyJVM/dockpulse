@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -26,6 +27,10 @@ type ContainerItem struct {
 	ComposeProject string
 	ComposeService string
 	Labels         map[string]string
+	CPUPerc        float64
+	MemUsageMB     float64
+	MemLimitMB     float64
+	MemPerc        float64
 }
 
 // ContainerDetail содержит детальную информацию об одном контейнере.
@@ -42,6 +47,9 @@ type ContainerDetail struct {
 	Command    string
 	Mounts     []string
 	Env        []string
+	CPUPerc    float64
+	MemUsageMB float64
+	MemPerc    float64
 }
 
 // DockerSummary содержит сводку службы Docker.
@@ -54,6 +62,82 @@ type DockerSummary struct {
 	ImagesCount       int
 	Version           string
 	Containers        []ContainerItem
+}
+
+// ContainerStatsRaw описывает структуру ответа /containers/{id}/stats?stream=false от Docker Engine API.
+type ContainerStatsRaw struct {
+	CPUStats struct {
+		CPUUsage struct {
+			TotalUsage uint64 `json:"total_usage"`
+		} `json:"cpu_usage"`
+		SystemCPUUsage uint64 `json:"system_cpu_usage"`
+		OnlineCPUs     int    `json:"online_cpus"`
+	} `json:"cpu_stats"`
+	PreCPUStats struct {
+		CPUUsage struct {
+			TotalUsage uint64 `json:"total_usage"`
+		} `json:"cpu_usage"`
+		SystemCPUUsage uint64 `json:"system_cpu_usage"`
+	} `json:"precpu_stats"`
+	MemoryStats struct {
+		Usage uint64 `json:"usage"`
+		Limit uint64 `json:"limit"`
+		Stats struct {
+			InactiveFile      uint64 `json:"inactive_file"`
+			TotalInactiveFile uint64 `json:"total_inactive_file"`
+		} `json:"stats"`
+	} `json:"memory_stats"`
+}
+
+func calculateContainerStats(s ContainerStatsRaw) (cpuPerc float64, memUsageMB float64, memLimitMB float64, memPerc float64) {
+	// Расчет загрузки CPU в процентах
+	cpuDelta := float64(s.CPUStats.CPUUsage.TotalUsage) - float64(s.PreCPUStats.CPUUsage.TotalUsage)
+	systemDelta := float64(s.CPUStats.SystemCPUUsage) - float64(s.PreCPUStats.SystemCPUUsage)
+	onlineCPUs := s.CPUStats.OnlineCPUs
+	if onlineCPUs <= 0 {
+		onlineCPUs = 1
+	}
+
+	if systemDelta > 0 && cpuDelta > 0 {
+		cpuPerc = (cpuDelta / systemDelta) * float64(onlineCPUs) * 100.0
+	}
+
+	// Расчет потребления оперативной памяти
+	memUsage := s.MemoryStats.Usage
+	if s.MemoryStats.Stats.TotalInactiveFile > 0 && memUsage > s.MemoryStats.Stats.TotalInactiveFile {
+		memUsage -= s.MemoryStats.Stats.TotalInactiveFile
+	} else if s.MemoryStats.Stats.InactiveFile > 0 && memUsage > s.MemoryStats.Stats.InactiveFile {
+		memUsage -= s.MemoryStats.Stats.InactiveFile
+	}
+
+	memUsageMB = float64(memUsage) / (1024 * 1024)
+	memLimitMB = float64(s.MemoryStats.Limit) / (1024 * 1024)
+	if s.MemoryStats.Limit > 0 {
+		memPerc = (float64(memUsage) / float64(s.MemoryStats.Limit)) * 100.0
+	}
+
+	return cpuPerc, memUsageMB, memLimitMB, memPerc
+}
+
+func fetchContainerStats(client *http.Client, containerID string) (cpuPerc float64, memUsageMB float64, memLimitMB float64, memPerc float64) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://localhost/containers/%s/stats?stream=false&one-shot=true", containerID), nil)
+	if err != nil {
+		return 0, 0, 0, 0
+	}
+	resp, err := client.Do(req)
+	if err != nil || resp.StatusCode != 200 {
+		return 0, 0, 0, 0
+	}
+	defer resp.Body.Close()
+
+	var s ContainerStatsRaw
+	if err := json.NewDecoder(resp.Body).Decode(&s); err != nil {
+		return 0, 0, 0, 0
+	}
+
+	return calculateContainerStats(s)
 }
 
 // FindDockerSocket ищет доступный UNIX-сокет Docker или Podman.
@@ -98,7 +182,7 @@ func getSocketHTTPClient(sockPath string) *http.Client {
 	}
 }
 
-// GetDockerSummary собирает статус службы Docker и список контейнеров.
+// GetDockerSummary собирает статус службы Docker и список контейнеров с живыми метриками.
 func GetDockerSummary() DockerSummary {
 	_, cliErr := exec.LookPath("docker")
 	sockPath := FindDockerSocket()
@@ -143,63 +227,80 @@ func GetDockerSummary() DockerSummary {
 		}
 
 		// 2. Опрос /containers/json?all=1
-		if summary.Status == "running" {
-			respC, err := client.Get("http://localhost/containers/json?all=1")
-			if err == nil && respC.StatusCode == 200 {
-				defer respC.Body.Close()
-				bodyC, _ := io.ReadAll(respC.Body)
+		respC, errC := client.Get("http://localhost/containers/json?all=1")
+		if errC == nil && respC.StatusCode == 200 {
+			defer respC.Body.Close()
+			bodyC, _ := io.ReadAll(respC.Body)
 
-				var rawContainers []struct {
-					ID     string   `json:"Id"`
-					Names  []string `json:"Names"`
-					Image  string   `json:"Image"`
-					State  string   `json:"State"`
-					Status string   `json:"Status"`
-					Ports  []struct {
-						IP          string `json:"IP"`
-						PrivatePort int    `json:"PrivatePort"`
-						PublicPort  int    `json:"PublicPort"`
-						Type        string `json:"Type"`
-					} `json:"Ports"`
-					Labels map[string]string `json:"Labels"`
+			var rawContainers []struct {
+				ID     string   `json:"Id"`
+				Names  []string `json:"Names"`
+				Image  string   `json:"Image"`
+				State  string   `json:"State"`
+				Status string   `json:"Status"`
+				Ports  []struct {
+					IP          string `json:"IP"`
+					PrivatePort int    `json:"PrivatePort"`
+					PublicPort  int    `json:"PublicPort"`
+					Type        string `json:"Type"`
+				} `json:"Ports"`
+				Labels map[string]string `json:"Labels"`
+			}
+
+			if json.Unmarshal(bodyC, &rawContainers) == nil {
+				for _, c := range rawContainers {
+					cID := c.ID
+					if len(cID) > 12 {
+						cID = cID[:12]
+					}
+
+					name := ""
+					if len(c.Names) > 0 {
+						name = strings.TrimPrefix(c.Names[0], "/")
+					}
+
+					var portsList []string
+					for _, p := range c.Ports {
+						if p.PublicPort > 0 {
+							portsList = append(portsList, fmt.Sprintf("%d->%d/%s", p.PublicPort, p.PrivatePort, p.Type))
+						} else if p.PrivatePort > 0 {
+							portsList = append(portsList, fmt.Sprintf("%d/%s", p.PrivatePort, p.Type))
+						}
+					}
+
+					composeProject := c.Labels["com.docker.compose.project"]
+					composeService := c.Labels["com.docker.compose.service"]
+
+					summary.Containers = append(summary.Containers, ContainerItem{
+						ID:             cID,
+						Name:           name,
+						Image:          c.Image,
+						State:          c.State,
+						Status:         c.Status,
+						Ports:          strings.Join(portsList, ", "),
+						ComposeProject: composeProject,
+						ComposeService: composeService,
+						Labels:         c.Labels,
+					})
 				}
 
-				if json.Unmarshal(bodyC, &rawContainers) == nil {
-					for _, c := range rawContainers {
-						cID := c.ID
-						if len(cID) > 12 {
-							cID = cID[:12]
+				// Параллельный опрос метрик CPU и памяти для работающих контейнеров
+				if len(summary.Containers) > 0 {
+					var wg sync.WaitGroup
+					for i := range summary.Containers {
+						if summary.Containers[i].State == "running" {
+							wg.Add(1)
+							go func(idx int, cID string) {
+								defer wg.Done()
+								cpu, memUsage, memLimit, memPerc := fetchContainerStats(client, cID)
+								summary.Containers[idx].CPUPerc = cpu
+								summary.Containers[idx].MemUsageMB = memUsage
+								summary.Containers[idx].MemLimitMB = memLimit
+								summary.Containers[idx].MemPerc = memPerc
+							}(i, summary.Containers[i].ID)
 						}
-
-						name := ""
-						if len(c.Names) > 0 {
-							name = strings.TrimPrefix(c.Names[0], "/")
-						}
-
-						var portsList []string
-						for _, p := range c.Ports {
-							if p.PublicPort > 0 {
-								portsList = append(portsList, fmt.Sprintf("%d->%d/%s", p.PublicPort, p.PrivatePort, p.Type))
-							} else if p.PrivatePort > 0 {
-								portsList = append(portsList, fmt.Sprintf("%d/%s", p.PrivatePort, p.Type))
-							}
-						}
-
-						composeProject := c.Labels["com.docker.compose.project"]
-						composeService := c.Labels["com.docker.compose.service"]
-
-						summary.Containers = append(summary.Containers, ContainerItem{
-							ID:             cID,
-							Name:           name,
-							Image:          c.Image,
-							State:          c.State,
-							Status:         c.Status,
-							Ports:          strings.Join(portsList, ", "),
-							ComposeProject: composeProject,
-							ComposeService: composeService,
-							Labels:         c.Labels,
-						})
 					}
+					wg.Wait()
 				}
 			}
 			return summary
@@ -249,7 +350,7 @@ func StopContainer(containerID string) error {
 	sockPath := FindDockerSocket()
 	if sockPath != "" {
 		client := getSocketHTTPClient(sockPath)
-		url := fmt.Sprintf("http://localhost/containers/%s/stop?t=10", containerID)
+		url := fmt.Sprintf("http://localhost/containers/%s/stop", containerID)
 		resp, err := client.Post(url, "application/json", nil)
 		if err == nil {
 			defer resp.Body.Close()
@@ -273,7 +374,7 @@ func RestartContainer(containerID string) error {
 	sockPath := FindDockerSocket()
 	if sockPath != "" {
 		client := getSocketHTTPClient(sockPath)
-		url := fmt.Sprintf("http://localhost/containers/%s/restart?t=10", containerID)
+		url := fmt.Sprintf("http://localhost/containers/%s/restart", containerID)
 		resp, err := client.Post(url, "application/json", nil)
 		if err == nil {
 			defer resp.Body.Close()
@@ -292,7 +393,7 @@ func RestartContainer(containerID string) error {
 	return nil
 }
 
-// GetContainerLogs читает последние tail строк логов контейнера.
+// GetContainerLogs читает последние N строк логов контейнера.
 func GetContainerLogs(containerID string, tailLines int) (string, error) {
 	if tailLines <= 0 {
 		tailLines = 100
@@ -303,16 +404,14 @@ func GetContainerLogs(containerID string, tailLines int) (string, error) {
 		client := getSocketHTTPClient(sockPath)
 		url := fmt.Sprintf("http://localhost/containers/%s/logs?stdout=1&stderr=1&tail=%d", containerID, tailLines)
 		resp, err := client.Get(url)
-		if err == nil && resp.StatusCode == 200 {
+		if err == nil {
 			defer resp.Body.Close()
-			text := demuxDockerLogs(resp.Body)
-			if strings.TrimSpace(text) != "" {
-				return text, nil
+			if resp.StatusCode == 200 {
+				return demuxDockerLogs(resp.Body), nil
 			}
 		}
 	}
 
-	// CLI fallback
 	out, err := exec.Command("docker", "logs", "--tail", fmt.Sprintf("%d", tailLines), containerID).CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
@@ -320,6 +419,7 @@ func GetContainerLogs(containerID string, tailLines int) (string, error) {
 	return string(out), nil
 }
 
+// demuxDockerLogs разбирает мультиплексированный стрим логов Docker Engine API (8-байтный заголовок каждого фрейма).
 func demuxDockerLogs(r io.Reader) string {
 	all, err := io.ReadAll(r)
 	if err != nil || len(all) == 0 {
@@ -335,7 +435,7 @@ func demuxDockerLogs(r io.Reader) string {
 		}
 		size := int(binary.BigEndian.Uint32(all[idx+4 : idx+8]))
 		if idx+8+size > len(all) {
-			break
+			return string(all)
 		}
 		sb.Write(all[idx+8 : idx+8+size])
 		idx += 8 + size
@@ -347,11 +447,12 @@ func demuxDockerLogs(r io.Reader) string {
 	return string(all)
 }
 
-// GetContainerDetail возвращает подробные сведения о контейнере.
+// GetContainerDetail возвращает подробную инспекцию контейнера.
 func GetContainerDetail(containerID string) (ContainerDetail, error) {
-	detail := ContainerDetail{ID: containerID}
-	sockPath := FindDockerSocket()
+	var detail ContainerDetail
+	detail.ID = containerID
 
+	sockPath := FindDockerSocket()
 	if sockPath != "" {
 		client := getSocketHTTPClient(sockPath)
 		url := fmt.Sprintf("http://localhost/containers/%s/json", containerID)
@@ -361,12 +462,10 @@ func GetContainerDetail(containerID string) (ContainerDetail, error) {
 			body, _ := io.ReadAll(resp.Body)
 
 			var data struct {
-				ID      string `json:"Id"`
 				Name    string `json:"Name"`
 				Created string `json:"Created"`
 				State   struct {
 					Status   string `json:"Status"`
-					Running  bool   `json:"Running"`
 					ExitCode int    `json:"ExitCode"`
 				} `json:"State"`
 				Config struct {
@@ -401,6 +500,15 @@ func GetContainerDetail(containerID string) (ContainerDetail, error) {
 					detail.Mounts = append(detail.Mounts, fmt.Sprintf("%s -> %s (%s)", m.Source, m.Destination, m.Mode))
 				}
 				detail.Env = data.Config.Env
+
+				// Опрос метрик если контейнер запущен
+				if detail.State == "running" {
+					cpu, memUsage, _, memPerc := fetchContainerStats(client, containerID)
+					detail.CPUPerc = cpu
+					detail.MemUsageMB = memUsage
+					detail.MemPerc = memPerc
+				}
+
 				return detail, nil
 			}
 		}

@@ -449,6 +449,12 @@ func (m Model) renderInspectModal() string {
 	s.WriteString(fmt.Sprintf("  %s %s\n", dimStyle.Render("ID:"), d.ID))
 	s.WriteString(fmt.Sprintf("  %s %s\n", dimStyle.Render("Образ:"), boldStyle.Render(d.Image)))
 	s.WriteString(fmt.Sprintf("  %s %s\n", dimStyle.Render("Статус:"), greenStyle.Render(d.Status)))
+	if d.State == "running" && (d.CPUPerc > 0 || d.MemUsageMB > 0) {
+		s.WriteString(fmt.Sprintf("  %s %.1f%%    %s %.1f MB (%.1f%%)\n",
+			dimStyle.Render("CPU:"), d.CPUPerc,
+			dimStyle.Render("Память:"), d.MemUsageMB, d.MemPerc,
+		))
+	}
 	s.WriteString(fmt.Sprintf("  %s %s\n", dimStyle.Render("Создан:"), d.Created))
 	s.WriteString(fmt.Sprintf("  %s %s    %s %s\n", dimStyle.Render("IP-адрес:"), boldStyle.Render(d.IP), dimStyle.Render("Шлюз:"), d.Gateway))
 	s.WriteString(fmt.Sprintf("  %s %s\n", dimStyle.Render("Команда:"), truncate(d.Command, 60)))
@@ -577,11 +583,12 @@ func (m Model) renderDockerTab() string {
 		return s.String()
 	}
 
-	s.WriteString(fmt.Sprintf("   %-12s %-20s %-24s %-12s %-20s\n",
+	s.WriteString(fmt.Sprintf("   %-12s %-18s %-18s %-8s %-15s %-10s %-18s\n",
 		dimStyle.Render("ID"), dimStyle.Render("NAME"), dimStyle.Render("IMAGE"),
+		dimStyle.Render("CPU%"), dimStyle.Render("MEM USAGE"),
 		dimStyle.Render("STATE"), dimStyle.Render("PORTS"),
 	))
-	s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 90)) + "\n")
+	s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 102)) + "\n")
 
 	for i, c := range m.dockerInfo.Containers {
 		stateColored := dimStyle.Render(c.State)
@@ -591,17 +598,56 @@ func (m Model) renderDockerTab() string {
 			stateColored = yellowStyle.Render("paused")
 		}
 
+		cpuStr := "-"
+		memStr := "-"
+		if c.State == "running" {
+			cpuStr = fmt.Sprintf("%.1f%%", c.CPUPerc)
+			if c.MemUsageMB > 0 {
+				if c.MemPerc > 0 {
+					memStr = fmt.Sprintf("%.1fM (%.1f%%)", c.MemUsageMB, c.MemPerc)
+				} else {
+					memStr = fmt.Sprintf("%.1f MB", c.MemUsageMB)
+				}
+			}
+		}
+
+		cpuFormatted := fmt.Sprintf("%-8s", cpuStr)
+		var cpuColored string
+		if c.CPUPerc > 80.0 {
+			cpuColored = redStyle.Render(cpuFormatted)
+		} else if c.CPUPerc > 50.0 {
+			cpuColored = yellowStyle.Render(cpuFormatted)
+		} else if c.CPUPerc > 0.0 {
+			cpuColored = cpuFormatted
+		} else {
+			cpuColored = dimStyle.Render(cpuFormatted)
+		}
+
+		memFormatted := fmt.Sprintf("%-15s", truncate(memStr, 15))
+		var memColored string
+		if c.MemPerc > 85.0 {
+			memColored = redStyle.Render(memFormatted)
+		} else if c.MemPerc > 70.0 {
+			memColored = yellowStyle.Render(memFormatted)
+		} else if c.MemUsageMB > 0 {
+			memColored = memFormatted
+		} else {
+			memColored = dimStyle.Render(memFormatted)
+		}
+
 		prefix := "  "
-		rowContent := fmt.Sprintf("%-12s %-20s %-24s %-20s %-20s",
-			c.ID, boldStyle.Render(truncate(c.Name, 18)), truncate(c.Image, 22),
-			stateColored, truncate(c.Ports, 20),
+		rowContent := fmt.Sprintf("%-12s %-18s %-18s %s %s %-20s %s",
+			c.ID, boldStyle.Render(truncate(c.Name, 16)), truncate(c.Image, 16),
+			cpuColored, memColored,
+			stateColored, truncate(c.Ports, 18),
 		)
 
 		if i == m.cursorIdx {
 			prefix = greenStyle.Render("► ")
-			rowContent = selectedRowStyle.Render(fmt.Sprintf("%-12s %-20s %-24s %-12s %-20s",
-				c.ID, truncate(c.Name, 18), truncate(c.Image, 22),
-				c.State, truncate(c.Ports, 20),
+			rowContent = selectedRowStyle.Render(fmt.Sprintf("%-12s %-18s %-18s %-8s %-15s %-10s %-18s",
+				c.ID, truncate(c.Name, 16), truncate(c.Image, 16),
+				cpuStr, truncate(memStr, 15),
+				c.State, truncate(c.Ports, 18),
 			))
 		}
 
