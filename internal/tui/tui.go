@@ -780,13 +780,14 @@ func formatBar(percent float64, width int) string {
 }
 
 func truncate(str string, maxLen int) string {
-	if len(str) <= maxLen {
+	runes := []rune(str)
+	if len(runes) <= maxLen {
 		return str
 	}
 	if maxLen <= 3 {
-		return str[:maxLen]
+		return string(runes[:maxLen])
 	}
-	return str[:maxLen-3] + "..."
+	return string(runes[:maxLen-3]) + "..."
 }
 
 func min(a, b int) int {

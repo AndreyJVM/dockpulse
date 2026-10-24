@@ -88,16 +88,7 @@ func GetSystemInfo() SystemInfo {
 		}
 	}
 
-	days := hInfo.Uptime / (60 * 60 * 24)
-	hours := (hInfo.Uptime % (60 * 60 * 24)) / 3600
-	minutes := (hInfo.Uptime % 3600) / 60
-
-	var uptimeStr string
-	if days > 0 {
-		uptimeStr = fmt.Sprintf("%d дн %02d:%02d", days, hours, minutes)
-	} else {
-		uptimeStr = fmt.Sprintf("%02d:%02d", hours, minutes)
-	}
+	uptimeStr := formatUptime(hInfo.Uptime)
 
 	return SystemInfo{
 		Hostname:  hInfo.Hostname,
@@ -236,14 +227,20 @@ func getDefaultIP() string {
 	return "127.0.0.1"
 }
 
-func getDNSServers() string {
-	data, err := os.ReadFile("/etc/resolv.conf")
-	if err != nil {
-		return "System defaults"
-	}
+func formatUptime(uptimeSec uint64) string {
+	days := uptimeSec / (60 * 60 * 24)
+	hours := (uptimeSec % (60 * 60 * 24)) / 3600
+	minutes := (uptimeSec % 3600) / 60
 
+	if days > 0 {
+		return fmt.Sprintf("%d дн %02d:%02d", days, hours, minutes)
+	}
+	return fmt.Sprintf("%02d:%02d", hours, minutes)
+}
+
+func parseDNSServers(content string) string {
 	var servers []string
-	lines := strings.Split(string(data), "\n")
+	lines := strings.Split(content, "\n")
 	for _, l := range lines {
 		l = strings.TrimSpace(l)
 		if strings.HasPrefix(l, "nameserver") && !strings.HasPrefix(l, "#") {
@@ -255,9 +252,21 @@ func getDNSServers() string {
 	}
 
 	if len(servers) > 0 {
-		return strings.Join(servers[:min(len(servers), 3)], ", ")
+		maxCount := len(servers)
+		if maxCount > 3 {
+			maxCount = 3
+		}
+		return strings.Join(servers[:maxCount], ", ")
 	}
 	return "System defaults"
+}
+
+func getDNSServers() string {
+	data, err := os.ReadFile("/etc/resolv.conf")
+	if err != nil {
+		return "System defaults"
+	}
+	return parseDNSServers(string(data))
 }
 
 func (t *NetworkTracker) calculateSpeed() (float64, float64) {
