@@ -706,18 +706,22 @@ func (m Model) renderSwarmTab() string {
 
 	if len(m.swarm.Nodes) > 0 {
 		s.WriteString(boldStyle.Render("  УЗЛЫ КЛАСТЕРА (NODES):") + "\n")
-		s.WriteString(fmt.Sprintf("  %-14s %-20s %-12s %-10s %-10s\n",
+		s.WriteString(fmt.Sprintf("  %-14s %-20s %-12s %-10s %-14s %-10s\n",
 			dimStyle.Render("NODE ID"), dimStyle.Render("HOSTNAME"), dimStyle.Render("ROLE"),
-			dimStyle.Render("STATE"), dimStyle.Render("LEADER"),
+			dimStyle.Render("STATE"), dimStyle.Render("AVAILABILITY"), dimStyle.Render("LEADER"),
 		))
-		s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 66)) + "\n")
+		s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 80)) + "\n")
 		for _, n := range m.swarm.Nodes {
 			leaderMark := ""
 			if n.IsLeader {
 				leaderMark = yellowStyle.Render("[Leader]")
 			}
-			s.WriteString(fmt.Sprintf("  %-14s %-20s %-12s %-10s %-10s\n",
-				n.ID, boldStyle.Render(truncate(n.Hostname, 18)), n.Role, n.State, leaderMark,
+			avail := n.Availability
+			if avail == "" {
+				avail = "active"
+			}
+			s.WriteString(fmt.Sprintf("  %-14s %-20s %-12s %-10s %-14s %-10s\n",
+				n.ID, boldStyle.Render(truncate(n.Hostname, 18)), n.Role, n.State, avail, leaderMark,
 			))
 		}
 		s.WriteString("\n")
@@ -725,14 +729,18 @@ func (m Model) renderSwarmTab() string {
 
 	if len(m.swarm.Services) > 0 {
 		s.WriteString(boldStyle.Render("  СЛУЖБЫ SWARM (SERVICES):") + "\n")
-		s.WriteString(fmt.Sprintf("  %-14s %-20s %-24s %-14s\n",
+		s.WriteString(fmt.Sprintf("  %-14s %-20s %-24s %-16s %-18s\n",
 			dimStyle.Render("SERVICE ID"), dimStyle.Render("NAME"), dimStyle.Render("IMAGE"),
-			dimStyle.Render("REPLICAS"),
+			dimStyle.Render("REPLICAS"), dimStyle.Render("PORTS"),
 		))
-		s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 72)) + "\n")
+		s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 92)) + "\n")
 		for _, svc := range m.swarm.Services {
-			s.WriteString(fmt.Sprintf("  %-14s %-20s %-24s %-14s\n",
-				svc.ID, boldStyle.Render(truncate(svc.Name, 18)), truncate(svc.Image, 22), greenStyle.Render(svc.Replicas),
+			ports := svc.Ports
+			if ports == "" {
+				ports = "-"
+			}
+			s.WriteString(fmt.Sprintf("  %-14s %-20s %-24s %-16s %-18s\n",
+				svc.ID, boldStyle.Render(truncate(svc.Name, 18)), truncate(svc.Image, 22), greenStyle.Render(svc.Replicas), truncate(ports, 18),
 			))
 		}
 	}
