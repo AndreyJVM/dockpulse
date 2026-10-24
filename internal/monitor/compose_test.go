@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -100,5 +101,38 @@ func TestGetComposeProjectsPartialAndEmpty(t *testing.T) {
 	}
 	if p.StatusDisplay != "Частично" {
 		t.Errorf("expected StatusDisplay 'Частично', got '%s'", p.StatusDisplay)
+	}
+}
+
+func TestGetComposeProjectLogsNotFound(t *testing.T) {
+	_, err := GetComposeProjectLogs("non-existent-proj-xyz-99", nil, 50)
+	if err == nil {
+		t.Errorf("expected error for non-existent compose project with empty containers")
+	}
+}
+
+func TestRestartComposeProjectNotFound(t *testing.T) {
+	err := RestartComposeProject("non-existent-proj-xyz-99", nil)
+	if err == nil {
+		t.Errorf("expected error for non-existent compose project with empty containers")
+	}
+}
+
+func TestGetComposeProjectLogsFallback(t *testing.T) {
+	// Containers exist for project, but have invalid IDs so socket reading returns empty logs
+	containers := []ContainerItem{
+		{
+			ID:             "mock-c1-invalid",
+			Name:           "web-1",
+			ComposeProject: "mock-stack",
+		},
+	}
+
+	logs, err := GetComposeProjectLogs("mock-stack", containers, 0) // tailLines <= 0 defaults to 100
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(logs, "Логи сервисов проекта пусты") && !strings.Contains(logs, "web-1") {
+		t.Errorf("expected fallback log message, got: %q", logs)
 	}
 }

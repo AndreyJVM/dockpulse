@@ -91,6 +91,7 @@ type Model struct {
 
 	// Навигация и модальные окна
 	cursorIdx           int
+	composeCursorIdx    int
 	activeModal         string // "", "logs", "inspect"
 	logsTargetName      string
 	logsTargetID        string
@@ -146,6 +147,9 @@ func (m *Model) fetchAllData() {
 	m.lastUpdate = time.Now().Format("15:04:05")
 
 	m.clampCursor()
+	if m.composeCursorIdx >= len(m.compose) {
+		m.composeCursorIdx = max(0, len(m.compose)-1)
+	}
 }
 
 func (m Model) getFilteredContainers() []monitor.ContainerItem {
@@ -322,6 +326,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.cursorIdx = len(containers) - 1
 					}
 				}
+			} else if m.activeTab == 3 && len(m.compose) > 0 {
+				m.composeCursorIdx--
+				if m.composeCursorIdx < 0 {
+					m.composeCursorIdx = len(m.compose) - 1
+				}
 			}
 		case "down", "j":
 			if m.activeTab == 2 {
@@ -332,21 +341,40 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.cursorIdx = 0
 					}
 				}
+			} else if m.activeTab == 3 && len(m.compose) > 0 {
+				m.composeCursorIdx++
+				if m.composeCursorIdx >= len(m.compose) {
+					m.composeCursorIdx = 0
+				}
 			}
 
-		// Просмотр логов контейнера
+		// Просмотр логов контейнера или проекта Compose
 		case "l", "L":
-			containers := m.getFilteredContainers()
-			if m.activeTab == 2 && len(containers) > 0 && m.cursorIdx < len(containers) {
-				c := containers[m.cursorIdx]
-				m.logsTargetName = c.Name
-				m.logsTargetID = c.ID
-				logs, err := monitor.GetContainerLogs(c.ID, 120)
+			if m.activeTab == 2 {
+				containers := m.getFilteredContainers()
+				if len(containers) > 0 && m.cursorIdx < len(containers) {
+					c := containers[m.cursorIdx]
+					m.logsTargetName = c.Name
+					m.logsTargetID = c.ID
+					logs, err := monitor.GetContainerLogs(c.ID, 120)
+					if err != nil {
+						m.showToast("Ошибка чтения логов: " + err.Error())
+					} else {
+						m.logsLines = strings.Split(strings.TrimSpace(logs), "\n")
+						m.logsScroll = max(0, len(m.logsLines)-18)
+						m.activeModal = "logs"
+					}
+				}
+			} else if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
+				proj := m.compose[m.composeCursorIdx]
+				m.logsTargetName = "Compose: " + proj.Name
+				m.logsTargetID = proj.Name
+				logs, err := monitor.GetComposeProjectLogs(proj.Name, m.dockerInfo.Containers, 150)
 				if err != nil {
-					m.showToast("Ошибка чтения логов: " + err.Error())
+					m.showToast("Ошибка чтения логов проекта: " + err.Error())
 				} else {
 					m.logsLines = strings.Split(strings.TrimSpace(logs), "\n")
-					m.logsScroll = max(0, len(m.logsLines)-18) // прокрутка в конец
+					m.logsScroll = max(0, len(m.logsLines)-18)
 					m.activeModal = "logs"
 				}
 			}
@@ -389,17 +417,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-		// Перезапуск контейнера
+		// Перезапуск контейнера или проекта Compose
 		case "p", "P":
-			containers := m.getFilteredContainers()
-			if m.activeTab == 2 && len(containers) > 0 && m.cursorIdx < len(containers) {
-				c := containers[m.cursorIdx]
-				m.showToast(fmt.Sprintf("Перезапуск %s...", c.Name))
-				if err := monitor.RestartContainer(c.ID); err != nil {
-					m.showToast("Ошибка перезапуска: " + err.Error())
+			if m.activeTab == 2 {
+				containers := m.getFilteredContainers()
+				if len(containers) > 0 && m.cursorIdx < len(containers) {
+					c := containers[m.cursorIdx]
+					m.showToast(fmt.Sprintf("Перезапуск %s...", c.Name))
+					if err := monitor.RestartContainer(c.ID); err != nil {
+						m.showToast("Ошибка перезапуска: " + err.Error())
+					} else {
+						m.fetchAllData()
+						m.showToast(fmt.Sprintf("Контейнер %s успешно перезапущен", c.Name))
+					}
+				}
+			} else if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
+				proj := m.compose[m.composeCursorIdx]
+				m.showToast(fmt.Sprintf("Перезапуск Compose проекта %s...", proj.Name))
+				if err := monitor.RestartComposeProject(proj.Name, m.dockerInfo.Containers); err != nil {
+					m.showToast("Ошибка перезапуска проекта: " + err.Error())
 				} else {
 					m.fetchAllData()
-					m.showToast(fmt.Sprintf("Контейнер %s успешно перезапущен", c.Name))
+					m.showToast(fmt.Sprintf("Проект %s успешно перезапущен", proj.Name))
 				}
 			}
 		}
@@ -502,6 +541,13 @@ func (m Model) View() string {
 					boldStyle.Render("[?]") + " Справка",
 			))
 		}
+	} else if m.activeTab == 3 {
+		b.WriteString(footerStyle.Render(
+			boldStyle.Render("[↑ / ↓]") + " Выбрать стек  |  " +
+				boldStyle.Render("[L]") + " Логи стека  |  " +
+				boldStyle.Render("[P]") + " Перезапуск стека  |  " +
+				boldStyle.Render("[?]") + " Справка",
+		))
 	} else {
 		b.WriteString(footerStyle.Render(
 			boldStyle.Render("[1-4 / Tab / ← →]") + " Вкладки  |  " +
@@ -572,12 +618,12 @@ func (m Model) renderHelpBox() string {
 
   %s   Переключение вкладок (1: Host, 2: Docker, 3: Compose, 4: Swarm)
   %s   След. / пред. вкладка
-  %s   Перемещение курсора по контейнерам (на вкладке 2)
+  %s   Перемещение курсора по контейнерам (вкладка 2) или стекам Compose (вкладка 3)
   %s   Поиск и фильтрация контейнеров по имени, образу или ID
-  %s   Просмотр последних логов выбранного контейнера
+  %s   Просмотр логов контейнера или всех сервисов проекта Compose
   %s   Подробная инспекция выбранного контейнера (IP, тома, сеть)
   %s   Запуск / остановка контейнера
-  %s   Перезапуск (restart) контейнера
+  %s   Перезапуск (restart) контейнера или проекта Compose
   %s   Принудительное обновление всех данных
   %s   Показать / скрыть эту справку
   %s   Выход из приложения
@@ -781,10 +827,18 @@ func (m Model) renderComposeTab() string {
 		return s.String()
 	}
 
-	for _, p := range m.compose {
-		s.WriteString(fmt.Sprintf("┌─ %s  [%s]  (Сервисов поднято: %d/%d)\n",
+	for i, p := range m.compose {
+		prefix := "  "
+		headerText := fmt.Sprintf("┌─ %s  [%s]  (Сервисов поднято: %d/%d)",
 			boldStyle.Render(p.Name), p.StatusDisplay, p.RunningServices, p.TotalServices,
-		))
+		)
+		if i == m.composeCursorIdx {
+			prefix = greenStyle.Render("► ")
+			headerText = selectedRowStyle.Render(fmt.Sprintf("┌─ %s  [%s]  (Сервисов поднято: %d/%d)",
+				p.Name, p.StatusDisplay, p.RunningServices, p.TotalServices,
+			))
+		}
+		s.WriteString(fmt.Sprintf("%s%s\n", prefix, headerText))
 		for _, svc := range p.Services {
 			st := dimStyle.Render("○ " + svc.State)
 			if svc.State == "running" {

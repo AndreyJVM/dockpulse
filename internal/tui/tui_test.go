@@ -413,3 +413,91 @@ func TestRenderDockerTabFilteringView(t *testing.T) {
 		t.Errorf("expected 'не найдены' in View(), got: %s", vEmpty)
 	}
 }
+
+func TestComposeTabNavigationAndActions(t *testing.T) {
+	m := NewModel(2*time.Second, 3, "v0.4.1")
+	m.compose = []monitor.ComposeProject{
+		{
+			Name:            "proj-alpha",
+			Status:          "running",
+			StatusDisplay:   "Запущен",
+			TotalServices:   2,
+			RunningServices: 2,
+			Services: []monitor.ComposeService{
+				{Name: "web", State: "running"},
+				{Name: "api", State: "running"},
+			},
+		},
+		{
+			Name:            "proj-beta",
+			Status:          "stopped",
+			StatusDisplay:   "Остановлен",
+			TotalServices:   1,
+			RunningServices: 0,
+			Services: []monitor.ComposeService{
+				{Name: "worker", State: "exited"},
+			},
+		},
+	}
+	m.composeCursorIdx = 0
+
+	// Down moves to second project
+	res, _ := m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m = res.(Model)
+	if m.composeCursorIdx != 1 {
+		t.Errorf("expected composeCursorIdx=1, got %d", m.composeCursorIdx)
+	}
+
+	// Down wraps back to 0
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m = res.(Model)
+	if m.composeCursorIdx != 0 {
+		t.Errorf("expected composeCursorIdx=0 after wrap, got %d", m.composeCursorIdx)
+	}
+
+	// Up wraps to 1
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	m = res.(Model)
+	if m.composeCursorIdx != 1 {
+		t.Errorf("expected composeCursorIdx=1 after up wrap, got %d", m.composeCursorIdx)
+	}
+
+	// Key 'k' moves to 0
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	m = res.(Model)
+	if m.composeCursorIdx != 0 {
+		t.Errorf("expected composeCursorIdx=0 after 'k', got %d", m.composeCursorIdx)
+	}
+
+	// Key 'j' moves to 1
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	m = res.(Model)
+	if m.composeCursorIdx != 1 {
+		t.Errorf("expected composeCursorIdx=1 after 'j', got %d", m.composeCursorIdx)
+	}
+
+	// Footer on tab 3 contains compose hints
+	view := m.View()
+	if !strings.Contains(view, "Логи стека") || !strings.Contains(view, "Перезапуск стека") {
+		t.Errorf("expected compose hints in footer view, got: %s", view)
+	}
+
+	// Selection marker rendered
+	if !strings.Contains(view, "► ") {
+		t.Errorf("expected cursor marker '► ' in compose tab view")
+	}
+
+	// Test 'l' opens logs modal or triggers error toast
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	m = res.(Model)
+	if m.activeModal == "logs" && !strings.Contains(m.logsTargetName, "proj-beta") {
+		t.Errorf("expected logsTargetName to contain 'proj-beta', got %q", m.logsTargetName)
+	}
+
+	// Test 'p' restarts compose project
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("p")})
+	m = res.(Model)
+	if m.actionMessage == "" {
+		t.Errorf("expected actionMessage after pressing 'p'")
+	}
+}

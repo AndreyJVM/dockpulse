@@ -1,6 +1,13 @@
 package monitor
 
-import "sort"
+import (
+	"context"
+	"fmt"
+	"os/exec"
+	"sort"
+	"strings"
+	"time"
+)
 
 // ComposeService представляет сервис внутри проекта Compose.
 type ComposeService struct {
@@ -84,4 +91,90 @@ func GetComposeProjects(containers []ContainerItem) []ComposeProject {
 	})
 
 	return res
+}
+
+// GetComposeProjectLogs читает логи всех сервисов проекта Compose.
+func GetComposeProjectLogs(projectName string, containers []ContainerItem, tailLines int) (string, error) {
+	if tailLines <= 0 {
+		tailLines = 100
+	}
+
+	// 1. Попытка через docker compose CLI
+	if _, err := exec.LookPath("docker"); err == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "docker", "compose", "-p", projectName, "logs", "--tail", fmt.Sprintf("%d", tailLines))
+		out, err := cmd.CombinedOutput()
+		if err == nil && len(strings.TrimSpace(string(out))) > 0 {
+			return string(out), nil
+		}
+	}
+
+	// 2. Fallback: сбор логов по найденным контейнерам проекта
+	var projectContainers []ContainerItem
+	for _, c := range containers {
+		if c.ComposeProject == projectName {
+			projectContainers = append(projectContainers, c)
+		}
+	}
+
+	if len(projectContainers) == 0 {
+		return "", fmt.Errorf("контейнеры проекта %q не найдены", projectName)
+	}
+
+	perContainerTail := tailLines / len(projectContainers)
+	if perContainerTail < 20 {
+		perContainerTail = 20
+	}
+
+	var sb strings.Builder
+	for _, c := range projectContainers {
+		logs, err := GetContainerLogs(c.ID, perContainerTail)
+		if err == nil && strings.TrimSpace(logs) != "" {
+			for _, line := range strings.Split(strings.TrimSpace(logs), "\n") {
+				sb.WriteString(fmt.Sprintf("%s | %s\n", c.Name, line))
+			}
+		}
+	}
+
+	if sb.Len() == 0 {
+		return "Логи сервисов проекта пусты или сервисы не выводили сообщений.", nil
+	}
+	return sb.String(), nil
+}
+
+// RestartComposeProject перезапускает все контейнеры проекта Compose.
+func RestartComposeProject(projectName string, containers []ContainerItem) error {
+	// 1. Попытка через docker compose CLI
+	if _, err := exec.LookPath("docker"); err == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "docker", "compose", "-p", projectName, "restart")
+		if out, err := cmd.CombinedOutput(); err == nil {
+			return nil
+		} else if !strings.Contains(string(out), "unknown command") && len(strings.TrimSpace(string(out))) > 0 {
+			// Если docker compose вернул явную ошибку (не 'unknown command')
+			// пробуем fallback ниже
+		}
+	}
+
+	// 2. Fallback: перезапуск через сокет / список контейнеров проекта
+	var matched int
+	var errs []string
+	for _, c := range containers {
+		if c.ComposeProject == projectName {
+			matched++
+			if err := RestartContainer(c.ID); err != nil {
+				errs = append(errs, fmt.Sprintf("%s: %v", c.Name, err))
+			}
+		}
+	}
+
+	if matched == 0 {
+		return fmt.Errorf("не найдено контейнеров для проекта %q", projectName)
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("ошибки перезапуска: %s", strings.Join(errs, "; "))
+	}
+	return nil
 }
