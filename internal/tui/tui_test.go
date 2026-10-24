@@ -283,3 +283,133 @@ func TestRenderAllTabs(t *testing.T) {
 		t.Errorf("expected Help modal in View()")
 	}
 }
+
+func TestFilterContainers(t *testing.T) {
+	m := NewModel(2*time.Second, 2, "v0.4.1")
+	m.dockerInfo.Containers = []monitor.ContainerItem{
+		{ID: "c1", Name: "web-gateway", Image: "nginx:alpine", ComposeProject: "infra"},
+		{ID: "c2", Name: "db-postgres", Image: "postgres:16", ComposeProject: "backend"},
+		{ID: "c3", Name: "redis-cache", Image: "redis:7-alpine", ComposeProject: "cache"},
+	}
+
+	// Empty query
+	m.filterQuery = ""
+	if len(m.getFilteredContainers()) != 3 {
+		t.Errorf("expected all 3 containers for empty filter query")
+	}
+
+	// Filter by Name
+	m.filterQuery = "web"
+	filtered := m.getFilteredContainers()
+	if len(filtered) != 1 || filtered[0].Name != "web-gateway" {
+		t.Errorf("expected 1 result 'web-gateway', got %v", filtered)
+	}
+
+	// Case-insensitive match on Image
+	m.filterQuery = "POSTGRES"
+	filtered = m.getFilteredContainers()
+	if len(filtered) != 1 || filtered[0].Name != "db-postgres" {
+		t.Errorf("expected 1 result 'db-postgres', got %v", filtered)
+	}
+
+	// Match on ID
+	m.filterQuery = "c3"
+	filtered = m.getFilteredContainers()
+	if len(filtered) != 1 || filtered[0].Name != "redis-cache" {
+		t.Errorf("expected 1 result 'redis-cache', got %v", filtered)
+	}
+
+	// Match on ComposeProject
+	m.filterQuery = "infra"
+	filtered = m.getFilteredContainers()
+	if len(filtered) != 1 || filtered[0].Name != "web-gateway" {
+		t.Errorf("expected 1 result for compose project 'infra', got %v", filtered)
+	}
+
+	// No match
+	m.filterQuery = "non-existent"
+	if len(m.getFilteredContainers()) != 0 {
+		t.Errorf("expected 0 results for non-matching query")
+	}
+}
+
+func TestFilterModeKeys(t *testing.T) {
+	m := NewModel(2*time.Second, 2, "v0.4.1")
+	m.dockerInfo.Containers = []monitor.ContainerItem{
+		{ID: "c1", Name: "web", Image: "nginx"},
+		{ID: "c2", Name: "worker", Image: "app"},
+	}
+
+	// 1. Activate search mode with '/'
+	res, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	m = res.(Model)
+	if !m.isFiltering {
+		t.Fatalf("expected isFiltering=true after '/'")
+	}
+
+	// 2. Type "w", "e", "b"
+	for _, r := range []rune("web") {
+		res, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		m = res.(Model)
+	}
+	if m.filterQuery != "web" {
+		t.Errorf("expected filterQuery='web', got %q", m.filterQuery)
+	}
+	if len(m.getFilteredContainers()) != 1 {
+		t.Errorf("expected 1 container matching 'web', got %d", len(m.getFilteredContainers()))
+	}
+
+	// 3. Backspace
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	m = res.(Model)
+	if m.filterQuery != "we" {
+		t.Errorf("expected filterQuery='we' after backspace, got %q", m.filterQuery)
+	}
+
+	// 4. Enter to apply filter and exit typing mode
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = res.(Model)
+	if m.isFiltering {
+		t.Errorf("expected isFiltering=false after Enter")
+	}
+	if m.filterQuery != "we" {
+		t.Errorf("expected filterQuery to persist after Enter")
+	}
+
+	// 5. Esc in normal mode clears filter
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = res.(Model)
+	if m.filterQuery != "" {
+		t.Errorf("expected filterQuery='' after Esc, got %q", m.filterQuery)
+	}
+}
+
+func TestRenderDockerTabFilteringView(t *testing.T) {
+	m := NewModel(2*time.Second, 2, "v0.4.1")
+	m.activeTab = 2
+	m.dockerInfo.Containers = []monitor.ContainerItem{
+		{ID: "c1", Name: "alpha", Image: "alpine"},
+	}
+
+	// Active search input
+	m.isFiltering = true
+	m.filterQuery = "alp"
+	vSearch := m.View()
+	if !strings.Contains(vSearch, "[Поиск: alp█]") {
+		t.Errorf("expected search prompt in View(), got: %s", vSearch)
+	}
+
+	// Applied filter view
+	m.isFiltering = false
+	vFilter := m.View()
+	if !strings.Contains(vFilter, "Фильтр: alp") {
+		t.Errorf("expected filter badge in View(), got: %s", vFilter)
+	}
+
+	// Empty search results
+	m.filterQuery = "nonexistent"
+	vEmpty := m.View()
+	if !strings.Contains(vEmpty, "не найдены") {
+		t.Errorf("expected 'не найдены' in View(), got: %s", vEmpty)
+	}
+}

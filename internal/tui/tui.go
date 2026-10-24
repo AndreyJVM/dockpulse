@@ -100,6 +100,10 @@ type Model struct {
 	actionMessage       string
 	actionMessageExpiry time.Time
 
+	// Поиск и фильтрация контейнеров
+	isFiltering bool
+	filterQuery string
+
 	sysInfo    monitor.SystemInfo
 	cpuInfo    monitor.CPUInfo
 	memInfo    monitor.MemoryInfo
@@ -141,10 +145,37 @@ func (m *Model) fetchAllData() {
 	m.swarm = monitor.GetSwarmSummary()
 	m.lastUpdate = time.Now().Format("15:04:05")
 
-	if m.cursorIdx >= len(m.dockerInfo.Containers) {
-		m.cursorIdx = max(0, len(m.dockerInfo.Containers)-1)
+	m.clampCursor()
+}
+
+func (m Model) getFilteredContainers() []monitor.ContainerItem {
+	if strings.TrimSpace(m.filterQuery) == "" {
+		return m.dockerInfo.Containers
+	}
+	q := strings.ToLower(strings.TrimSpace(m.filterQuery))
+	var res []monitor.ContainerItem
+	for _, c := range m.dockerInfo.Containers {
+		if strings.Contains(strings.ToLower(c.Name), q) ||
+			strings.Contains(strings.ToLower(c.Image), q) ||
+			strings.Contains(strings.ToLower(c.ID), q) ||
+			strings.Contains(strings.ToLower(c.ComposeProject), q) {
+			res = append(res, c)
+		}
+	}
+	return res
+}
+
+func (m *Model) clampCursor() {
+	containers := m.getFilteredContainers()
+	if len(containers) == 0 {
+		m.cursorIdx = 0
+	} else if m.cursorIdx >= len(containers) {
+		m.cursorIdx = len(containers) - 1
+	} else if m.cursorIdx < 0 {
+		m.cursorIdx = 0
 	}
 }
+
 
 func (m Model) Init() tea.Cmd {
 	return tickCmd(m.refreshInterval)
@@ -163,6 +194,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Если активен ввод фильтра
+		if m.isFiltering {
+			switch msg.Type {
+			case tea.KeyEsc:
+				m.isFiltering = false
+				m.filterQuery = ""
+				m.clampCursor()
+				return m, nil
+			case tea.KeyEnter:
+				m.isFiltering = false
+				return m, nil
+			case tea.KeyBackspace:
+				if len(m.filterQuery) > 0 {
+					runes := []rune(m.filterQuery)
+					m.filterQuery = string(runes[:len(runes)-1])
+					m.clampCursor()
+				}
+				return m, nil
+			case tea.KeyRunes, tea.KeySpace:
+				m.filterQuery += msg.String()
+				m.clampCursor()
+				return m, nil
+			}
+			return m, nil
+		}
+
 		// Если активно модальное окно
 		if m.activeModal != "" {
 			switch msg.String() {
@@ -241,26 +298,47 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.fetchAllData()
 			m.showToast("Данные успешно обновлены")
 
+		// Поиск по списку контейнеров
+		case "/":
+			if m.activeTab == 2 {
+				m.isFiltering = true
+				return m, nil
+			}
+
+		case "esc":
+			if m.filterQuery != "" {
+				m.filterQuery = ""
+				m.clampCursor()
+				return m, nil
+			}
+
 		// Навигация и действия в списке контейнеров (Вкладка 2)
 		case "up", "k":
-			if m.activeTab == 2 && len(m.dockerInfo.Containers) > 0 {
-				m.cursorIdx--
-				if m.cursorIdx < 0 {
-					m.cursorIdx = len(m.dockerInfo.Containers) - 1
+			if m.activeTab == 2 {
+				containers := m.getFilteredContainers()
+				if len(containers) > 0 {
+					m.cursorIdx--
+					if m.cursorIdx < 0 {
+						m.cursorIdx = len(containers) - 1
+					}
 				}
 			}
 		case "down", "j":
-			if m.activeTab == 2 && len(m.dockerInfo.Containers) > 0 {
-				m.cursorIdx++
-				if m.cursorIdx >= len(m.dockerInfo.Containers) {
-					m.cursorIdx = 0
+			if m.activeTab == 2 {
+				containers := m.getFilteredContainers()
+				if len(containers) > 0 {
+					m.cursorIdx++
+					if m.cursorIdx >= len(containers) {
+						m.cursorIdx = 0
+					}
 				}
 			}
 
 		// Просмотр логов контейнера
 		case "l", "L":
-			if m.activeTab == 2 && len(m.dockerInfo.Containers) > 0 && m.cursorIdx < len(m.dockerInfo.Containers) {
-				c := m.dockerInfo.Containers[m.cursorIdx]
+			containers := m.getFilteredContainers()
+			if m.activeTab == 2 && len(containers) > 0 && m.cursorIdx < len(containers) {
+				c := containers[m.cursorIdx]
 				m.logsTargetName = c.Name
 				m.logsTargetID = c.ID
 				logs, err := monitor.GetContainerLogs(c.ID, 120)
@@ -275,8 +353,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Детали контейнера (Inspect)
 		case "enter", "i", "I":
-			if m.activeTab == 2 && len(m.dockerInfo.Containers) > 0 && m.cursorIdx < len(m.dockerInfo.Containers) {
-				c := m.dockerInfo.Containers[m.cursorIdx]
+			containers := m.getFilteredContainers()
+			if m.activeTab == 2 && len(containers) > 0 && m.cursorIdx < len(containers) {
+				c := containers[m.cursorIdx]
 				detail, err := monitor.GetContainerDetail(c.ID)
 				if err != nil {
 					m.showToast("Ошибка inspect: " + err.Error())
@@ -288,8 +367,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Старт / Стоп контейнера
 		case "s", "S":
-			if m.activeTab == 2 && len(m.dockerInfo.Containers) > 0 && m.cursorIdx < len(m.dockerInfo.Containers) {
-				c := m.dockerInfo.Containers[m.cursorIdx]
+			containers := m.getFilteredContainers()
+			if m.activeTab == 2 && len(containers) > 0 && m.cursorIdx < len(containers) {
+				c := containers[m.cursorIdx]
 				if c.State == "running" {
 					m.showToast(fmt.Sprintf("Остановка контейнера %s...", c.Name))
 					if err := monitor.StopContainer(c.ID); err != nil {
@@ -311,8 +391,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Перезапуск контейнера
 		case "p", "P":
-			if m.activeTab == 2 && len(m.dockerInfo.Containers) > 0 && m.cursorIdx < len(m.dockerInfo.Containers) {
-				c := m.dockerInfo.Containers[m.cursorIdx]
+			containers := m.getFilteredContainers()
+			if m.activeTab == 2 && len(containers) > 0 && m.cursorIdx < len(containers) {
+				c := containers[m.cursorIdx]
 				m.showToast(fmt.Sprintf("Перезапуск %s...", c.Name))
 				if err := monitor.RestartContainer(c.ID); err != nil {
 					m.showToast("Ошибка перезапуска: " + err.Error())
@@ -396,14 +477,31 @@ func (m Model) View() string {
 				boldStyle.Render("[↑ / ↓ / PgUp / PgDn]") + " Прокрутка",
 		))
 	} else if m.activeTab == 2 {
-		b.WriteString(footerStyle.Render(
-			boldStyle.Render("[↑ / ↓]") + " Выбрать  |  " +
-				boldStyle.Render("[L]") + " Логи  |  " +
-				boldStyle.Render("[Enter/I]") + " Инфо  |  " +
-				boldStyle.Render("[S]") + " Старт/Стоп  |  " +
-				boldStyle.Render("[P]") + " Рестарт  |  " +
-				boldStyle.Render("[?]") + " Справка",
-		))
+		if m.isFiltering {
+			b.WriteString(footerStyle.Render(
+				boldStyle.Render("[Enter]") + " Применить фильтр  |  " +
+					boldStyle.Render("[Esc]") + " Отмена",
+			))
+		} else if m.filterQuery != "" {
+			b.WriteString(footerStyle.Render(
+				boldStyle.Render("[↑ / ↓]") + " Выбрать  |  " +
+					boldStyle.Render("[Esc]") + " Сбросить фильтр  |  " +
+					boldStyle.Render("[L]") + " Логи  |  " +
+					boldStyle.Render("[Enter/I]") + " Инфо  |  " +
+					boldStyle.Render("[S]") + " Старт/Стоп  |  " +
+					boldStyle.Render("[P]") + " Рестарт",
+			))
+		} else {
+			b.WriteString(footerStyle.Render(
+				boldStyle.Render("[↑ / ↓]") + " Выбрать  |  " +
+					boldStyle.Render("[/]") + " Поиск  |  " +
+					boldStyle.Render("[L]") + " Логи  |  " +
+					boldStyle.Render("[Enter/I]") + " Инфо  |  " +
+					boldStyle.Render("[S]") + " Старт/Стоп  |  " +
+					boldStyle.Render("[P]") + " Рестарт  |  " +
+					boldStyle.Render("[?]") + " Справка",
+			))
+		}
 	} else {
 		b.WriteString(footerStyle.Render(
 			boldStyle.Render("[1-4 / Tab / ← →]") + " Вкладки  |  " +
@@ -475,6 +573,7 @@ func (m Model) renderHelpBox() string {
   %s   Переключение вкладок (1: Host, 2: Docker, 3: Compose, 4: Swarm)
   %s   След. / пред. вкладка
   %s   Перемещение курсора по контейнерам (на вкладке 2)
+  %s   Поиск и фильтрация контейнеров по имени, образу или ID
   %s   Просмотр последних логов выбранного контейнера
   %s   Подробная инспекция выбранного контейнера (IP, тома, сеть)
   %s   Запуск / остановка контейнера
@@ -488,6 +587,7 @@ func (m Model) renderHelpBox() string {
 		greenStyle.Render("[1] - [4]"),
 		greenStyle.Render("[Tab] / [Shift+Tab] / [←] / [→]"),
 		greenStyle.Render("[↑] / [↓] / [k] / [j]"),
+		greenStyle.Render("[/]"),
 		greenStyle.Render("[L]"),
 		greenStyle.Render("[Enter] / [I]"),
 		greenStyle.Render("[S]"),
@@ -583,6 +683,20 @@ func (m Model) renderDockerTab() string {
 		return s.String()
 	}
 
+	containers := m.getFilteredContainers()
+
+	if m.isFiltering {
+		s.WriteString("  " + yellowStyle.Render(fmt.Sprintf("[Поиск: %s█]", m.filterQuery)) + "  " + dimStyle.Render("(Enter: применить, Esc: отмена)") + "\n\n")
+	} else if m.filterQuery != "" {
+		s.WriteString("  " + activeTabStyle.Render(fmt.Sprintf("Фильтр: %s", m.filterQuery)) + "  " + dimStyle.Render(fmt.Sprintf("(Найдено: %d из %d, Esc: сбросить)", len(containers), len(m.dockerInfo.Containers))) + "\n\n")
+	}
+
+	if len(containers) == 0 && m.filterQuery != "" {
+		s.WriteString("  " + dimStyle.Render(fmt.Sprintf("По запросу %q контейнеры не найдены.", m.filterQuery)) + "\n")
+		s.WriteString("  " + dimStyle.Render("Нажмите Esc для сброса поискового фильтра.") + "\n")
+		return s.String()
+	}
+
 	s.WriteString(fmt.Sprintf("   %-12s %-18s %-18s %-8s %-15s %-10s %-18s\n",
 		dimStyle.Render("ID"), dimStyle.Render("NAME"), dimStyle.Render("IMAGE"),
 		dimStyle.Render("CPU%"), dimStyle.Render("MEM USAGE"),
@@ -590,7 +704,7 @@ func (m Model) renderDockerTab() string {
 	))
 	s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 102)) + "\n")
 
-	for i, c := range m.dockerInfo.Containers {
+	for i, c := range containers {
 		stateColored := dimStyle.Render(c.State)
 		if c.State == "running" {
 			stateColored = greenStyle.Render("running")
