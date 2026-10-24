@@ -8,21 +8,21 @@
 Сверхбыстрый автономный терминальный TUI-монитор системных ресурсов хоста, **Docker**, **Docker Compose** и кластеров **Docker Swarm**, написанный на **Go (Golang)** на базе фреймворков **Bubble Tea** и **Lip Gloss** с возможностью **интерактивного управления контейнерами**.
 
 ```text
-┌─ System & Docker Monitor ───────────────────────────────────────────┐
-│ [1: Host Overview]  [2: Docker Containers]  [3: Compose]  [4: Swarm]   │
-├─────────────────────────────────────────────────────────────────────┤
-│    DOCKER КОНТЕЙНЕРЫ (ИНТЕРАКТИВНОЕ УПРАВЛЕНИЕ)                    │
-│   Служба: [Запущен]     Образов: 14    Версия: 27.3.1               │
-│                                                                     │
-│    ID           NAME                 IMAGE          STATE   PORTS   │
-│   ───────────────────────────────────────────────────────────────── │
-│ ►  e7f829a1b021 web-gateway          nginx:alpine   running 80->80  │
-│    18ac38d990bc db-postgres         postgres:16    running 5432    │
-│    90ef1482ac10 redis-cache         redis:7-alpine paused          │
-│    45a2789bd012 worker-job          app-worker     exited          │
-├─────────────────────────────────────────────────────────────────────┤
-│ [↑/↓] Выбрать | [L] Логи | [Enter/I] Инфо | [S] Старт/Стоп | [P] Рестарт│
-└─────────────────────────────────────────────────────────────────────┘
+┌─ System & Docker Monitor ───────────────────────────────────────────────────────────────────────┐
+│ [1: Host Overview]  [2: Docker Containers]  [3: Compose]  [4: Swarm]                            │
+├─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│    DOCKER КОНТЕЙНЕРЫ (ИНТЕРАКТИВНОЕ УПРАВЛЕНИЕ)                                                 │
+│   Служба: [Запущен]     Образов: 14    Версия: 27.3.1                                            │
+│                                                                                                 │
+│    ID           NAME             IMAGE            CPU%     MEM USAGE       STATE    PORTS       │
+│   ───────────────────────────────────────────────────────────────────────────────────────────── │
+│ ►  e7f829a1b021 web-gateway      nginx:alpine     1.2%     18.4M (3.6%)    running  80->80      │
+│    18ac38d990bc db-postgres     postgres:16      0.8%     42.1M (8.2%)    running  5432        │
+│    90ef1482ac10 redis-cache     redis:7-alpine   -        -               paused               │
+│    45a2789bd012 worker-job      app-worker       -        -               exited               │
+├─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ [↑/↓] Выбрать | [L] Логи | [Enter/I] Инфо | [S] Старт/Стоп | [P] Рестарт                        │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -32,6 +32,7 @@
 - **Состояние хоста в реальном времени**: Загрузка CPU с количеством ядер, память RAM, смонтированные дисковые разделы, скорость сети в реальном времени (RX/TX) и точный аптайм.
 - **Топ процессов**: Автоматический вывод наиболее ресурсоемких процессов (PID, имя, CPU %, RSS RAM в МБ).
 - **Интерактивное управление Docker-контейнерами**:
+  - **Мониторинг ресурсов в реальном времени**: Живой опрос и отображение потребления CPU (%) и оперативной памяти (МБ / %) для каждого работающего контейнера с цветовой индикацией прямо в таблице и в окне инспекции.
   - Навигация по списку контейнеров клавишами `↑` / `↓` или `j` / `k`.
   - **Просмотр логов (`L`)**: встроенный модальный просмотрщик последних логов с прокруткой (`↑`/`↓`/`PgUp`/`PgDn`).
   - **Инспекция (`Enter` / `I`)**: всплывающее окно со всеми деталями (IP-адрес, шлюз, MAC, команда запуска, примонтированные тома).
@@ -49,12 +50,12 @@
 ### Вариант 1. Установка готового `.deb` пакета (Debian / Ubuntu / Linux Mint):
 ```bash
 # Для x86_64 / amd64:
-wget https://github.com/AndreyJVM/system-monitor/releases/download/v0.4.0/system-monitor_0.4.0_amd64.deb
-sudo dpkg -i system-monitor_0.4.0_amd64.deb
+wget https://github.com/AndreyJVM/system-monitor/releases/download/v0.4.1/system-monitor_0.4.1_amd64.deb
+sudo dpkg -i system-monitor_0.4.1_amd64.deb
 
 # Для ARM64 (Raspberry Pi, ARM-серверы):
-wget https://github.com/AndreyJVM/system-monitor/releases/download/v0.4.0/system-monitor_0.4.0_arm64.deb
-sudo dpkg -i system-monitor_0.4.0_arm64.deb
+wget https://github.com/AndreyJVM/system-monitor/releases/download/v0.4.1/system-monitor_0.4.1_arm64.deb
+sudo dpkg -i system-monitor_0.4.1_arm64.deb
 
 # Запуск из любого терминала
 system-monitor
@@ -64,11 +65,11 @@ system-monitor
 Скачайте архив со страницы [Releases](https://github.com/AndreyJVM/system-monitor/releases):
 ```bash
 # Linux amd64
-tar -xzf system-monitor_v0.4.0_linux_amd64.tar.gz
+tar -xzf system-monitor_v0.4.1_linux_amd64.tar.gz
 ./system-monitor
 
 # macOS (Apple Silicon)
-tar -xzf system-monitor_v0.4.0_darwin_arm64.tar.gz
+tar -xzf system-monitor_v0.4.1_darwin_arm64.tar.gz
 ./system-monitor
 ```
 
