@@ -82,6 +82,7 @@ func tickCmd(d time.Duration) tea.Cmd {
 
 // Model представляет состояние TUI.
 type Model struct {
+	version         string
 	activeTab       int
 	refreshInterval time.Duration
 	showHelp        bool
@@ -112,7 +113,7 @@ type Model struct {
 }
 
 // NewModel создает новую TUI модель с настраиваемым интервалом обновления и начальной вкладкой.
-func NewModel(refreshInterval time.Duration, initialTab int) Model {
+func NewModel(refreshInterval time.Duration, initialTab int, version string) Model {
 	if initialTab < 1 || initialTab > 4 {
 		initialTab = 1
 	}
@@ -120,6 +121,7 @@ func NewModel(refreshInterval time.Duration, initialTab int) Model {
 		refreshInterval = 2 * time.Second
 	}
 	m := Model{
+		version:         version,
 		activeTab:       initialTab,
 		refreshInterval: refreshInterval,
 	}
@@ -332,8 +334,12 @@ func (m Model) View() string {
 	var b strings.Builder
 
 	// 1. Панель заголовка
-	header := headerStyle.Render("⚡ System & Docker Monitor") +
-		dimStyle.Render("  v0.3.1 (Go Edition)  ") +
+	verStr := m.version
+	if verStr == "" {
+		verStr = "v0.4.0"
+	}
+	header := headerStyle.Render("System & Docker Monitor") +
+		dimStyle.Render(fmt.Sprintf("  %s (Go Edition)  ", verStr)) +
 		greenStyle.Render("["+m.lastUpdate+"]")
 	b.WriteString(header + "\n\n")
 
@@ -359,7 +365,7 @@ func (m Model) View() string {
 
 	// Всплывающее уведомление о действии
 	if m.actionMessage != "" && time.Now().Before(m.actionMessageExpiry) {
-		b.WriteString(yellowStyle.Render("🔔 "+m.actionMessage) + "\n\n")
+		b.WriteString(yellowStyle.Render("[!] "+m.actionMessage) + "\n\n")
 	}
 
 	// 3. Модальные окна или содержимое вкладки
@@ -412,7 +418,7 @@ func (m Model) View() string {
 
 func (m Model) renderLogsModal() string {
 	var s strings.Builder
-	title := fmt.Sprintf("📜 ЛОГИ КОНТЕЙНЕРА: %s (ID: %s)", boldStyle.Render(m.logsTargetName), dimStyle.Render(m.logsTargetID))
+	title := fmt.Sprintf("ЛОГИ КОНТЕЙНЕРА: %s (ID: %s)", boldStyle.Render(m.logsTargetName), dimStyle.Render(m.logsTargetID))
 	s.WriteString(titleStyle.Render(title) + "\n\n")
 
 	maxVisible := 18
@@ -437,7 +443,7 @@ func (m Model) renderInspectModal() string {
 	var s strings.Builder
 	d := m.inspectTarget
 
-	title := fmt.Sprintf("🔍 ИНСПЕКЦИЯ КОНТЕЙНЕРА: %s", boldStyle.Render(d.Name))
+	title := fmt.Sprintf("ИНСПЕКЦИЯ КОНТЕЙНЕРА: %s", boldStyle.Render(d.Name))
 	s.WriteString(titleStyle.Render(title) + "\n\n")
 
 	s.WriteString(fmt.Sprintf("  %s %s\n", dimStyle.Render("ID:"), d.ID))
@@ -472,7 +478,7 @@ func (m Model) renderHelpBox() string {
   %s   Выход из приложения
 
   Интервал автообновления: %s`,
-		boldStyle.Render("📖 ГОРЯЧИЕ КЛАВИШИ:"),
+		boldStyle.Render("ГОРЯЧИЕ КЛАВИШИ:"),
 		greenStyle.Render("[1] - [4]"),
 		greenStyle.Render("[Tab] / [Shift+Tab] / [←] / [→]"),
 		greenStyle.Render("[↑] / [↓] / [k] / [j]"),
@@ -491,7 +497,7 @@ func (m Model) renderHelpBox() string {
 func (m Model) renderHostTab() string {
 	var s strings.Builder
 
-	s.WriteString(titleStyle.Render("🖥️  СИСТЕМНАЯ ИНФОРМАЦИЯ") + "\n")
+	s.WriteString(titleStyle.Render("СИСТЕМНАЯ ИНФОРМАЦИЯ") + "\n")
 	s.WriteString(fmt.Sprintf("  %s %s    %s %s\n",
 		dimStyle.Render("Хост:"), boldStyle.Render(m.sysInfo.Hostname),
 		dimStyle.Render("Uptime:"), greenStyle.Render(m.sysInfo.Uptime),
@@ -500,7 +506,7 @@ func (m Model) renderHostTab() string {
 		dimStyle.Render("ОС:"), m.sysInfo.OS, m.sysInfo.Kernel,
 	))
 
-	s.WriteString(titleStyle.Render("⚡  ПРОИЗВОДИТЕЛЬНОСТЬ ХОСТА") + "\n")
+	s.WriteString(titleStyle.Render("ПРОИЗВОДИТЕЛЬНОСТЬ ХОСТА") + "\n")
 	s.WriteString(fmt.Sprintf("  CPU (%d cores): %s\n",
 		m.cpuInfo.Cores, formatBar(m.cpuInfo.Percent, 28),
 	))
@@ -508,7 +514,7 @@ func (m Model) renderHostTab() string {
 		m.memInfo.UsedGB, m.memInfo.TotalGB, formatBar(m.memInfo.Percent, 28),
 	))
 
-	s.WriteString(titleStyle.Render("🌐  СЕТЬ И ТРАФИК") + "\n")
+	s.WriteString(titleStyle.Render("СЕТЬ И ТРАФИК") + "\n")
 	s.WriteString(fmt.Sprintf("  IP: %s    DNS: %s\n",
 		boldStyle.Render(m.netInfo.IP), m.netInfo.DNS,
 	))
@@ -517,7 +523,7 @@ func (m Model) renderHostTab() string {
 		lipgloss.NewStyle().Foreground(lipgloss.Color("#38BDF8")).Render("↑ TX: "+m.netInfo.TXSpeed),
 	))
 
-	s.WriteString(titleStyle.Render("💾  ДИСКОВЫЕ РАЗДЕЛЫ") + "\n")
+	s.WriteString(titleStyle.Render("ДИСКОВЫЕ РАЗДЕЛЫ") + "\n")
 	if len(m.disksInfo) > 0 {
 		for _, d := range m.disksInfo {
 			s.WriteString(fmt.Sprintf("  %-12s %s  (%.1f/%.1f GB)\n",
@@ -529,7 +535,7 @@ func (m Model) renderHostTab() string {
 	}
 
 	if len(m.topProcs) > 0 {
-		s.WriteString("\n" + titleStyle.Render("🔥  ТОП ПРОЦЕССОВ (ПО CPU)") + "\n")
+		s.WriteString("\n" + titleStyle.Render("ТОП ПРОЦЕССОВ (ПО CPU)") + "\n")
 		s.WriteString(fmt.Sprintf("  %-8s %-24s %-10s %-12s\n",
 			dimStyle.Render("PID"), dimStyle.Render("ИМЯ"),
 			dimStyle.Render("CPU %"), dimStyle.Render("RAM (MB)"),
@@ -543,7 +549,7 @@ func (m Model) renderHostTab() string {
 		}
 	}
 
-	s.WriteString("\n" + titleStyle.Render("🐳  DOCKER СТАТУС") + "\n")
+	s.WriteString("\n" + titleStyle.Render("DOCKER СТАТУС") + "\n")
 	s.WriteString(fmt.Sprintf("  Статус: %s    Контейнеры: %s\n",
 		m.dockerInfo.StatusDisplay,
 		boldStyle.Render(fmt.Sprintf("%d активно, %d остановлено", m.dockerInfo.RunningContainers, m.dockerInfo.StoppedContainers)),
@@ -555,7 +561,7 @@ func (m Model) renderHostTab() string {
 func (m Model) renderDockerTab() string {
 	var s strings.Builder
 
-	s.WriteString(titleStyle.Render("🐳  DOCKER КОНТЕЙНЕРЫ (ИНТЕРАКТИВНОЕ УПРАВЛЕНИЕ)") + "\n")
+	s.WriteString(titleStyle.Render("DOCKER КОНТЕЙНЕРЫ (ИНТЕРАКТИВНОЕ УПРАВЛЕНИЕ)") + "\n")
 	s.WriteString(fmt.Sprintf("  %s %s    %s %d    %s %s\n\n",
 		dimStyle.Render("Служба:"), m.dockerInfo.StatusDisplay,
 		dimStyle.Render("Образов:"), m.dockerInfo.ImagesCount,
@@ -608,7 +614,7 @@ func (m Model) renderDockerTab() string {
 func (m Model) renderComposeTab() string {
 	var s strings.Builder
 
-	s.WriteString(titleStyle.Render(fmt.Sprintf("📦  DOCKER COMPOSE ПРОЕКТЫ (%d)", len(m.compose))) + "\n\n")
+	s.WriteString(titleStyle.Render(fmt.Sprintf("DOCKER COMPOSE ПРОЕКТЫ (%d)", len(m.compose))) + "\n\n")
 
 	if len(m.compose) == 0 {
 		s.WriteString("  " + dimStyle.Render("Проекты Docker Compose не обнаружены (нет меток com.docker.compose.project).") + "\n")
@@ -637,7 +643,7 @@ func (m Model) renderComposeTab() string {
 func (m Model) renderSwarmTab() string {
 	var s strings.Builder
 
-	s.WriteString(titleStyle.Render("🌐  DOCKER SWARM КЛАСТЕР") + "\n\n")
+	s.WriteString(titleStyle.Render("DOCKER SWARM КЛАСТЕР") + "\n\n")
 
 	if !m.swarm.IsActive {
 		s.WriteString(fmt.Sprintf("  Статус: %s\n\n", m.swarm.StatusDisplay))
@@ -662,7 +668,7 @@ func (m Model) renderSwarmTab() string {
 		for _, n := range m.swarm.Nodes {
 			leaderMark := ""
 			if n.IsLeader {
-				leaderMark = yellowStyle.Render("★ Leader")
+				leaderMark = yellowStyle.Render("[Leader]")
 			}
 			s.WriteString(fmt.Sprintf("  %-14s %-20s %-12s %-10s %-10s\n",
 				n.ID, boldStyle.Render(truncate(n.Hostname, 18)), n.Role, n.State, leaderMark,

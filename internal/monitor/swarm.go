@@ -44,7 +44,7 @@ func GetSwarmSummary() SwarmSummary {
 	sockPath := FindDockerSocket()
 	summary := SwarmSummary{
 		IsActive:      false,
-		StatusDisplay: "⚪ Не активен",
+		StatusDisplay: "Не активен",
 		Text:          "Docker Swarm не активирован",
 	}
 
@@ -67,7 +67,7 @@ func GetSwarmSummary() SwarmSummary {
 
 			if json.Unmarshal(body, &infoData) == nil && strings.ToLower(infoData.Swarm.LocalNodeState) == "active" {
 				summary.IsActive = true
-				summary.StatusDisplay = "🟢 Активен"
+				summary.StatusDisplay = "Активен"
 				summary.NodeID = infoData.Swarm.NodeID
 				if len(summary.NodeID) > 12 {
 					summary.NodeID = summary.NodeID[:12]
@@ -90,7 +90,7 @@ func GetSwarmSummary() SwarmSummary {
 			parts := strings.Fields(string(out))
 			if len(parts) > 0 && strings.ToLower(parts[0]) == "active" {
 				summary.IsActive = true
-				summary.StatusDisplay = "🟢 Активен"
+				summary.StatusDisplay = "Активен"
 				summary.Text = "Docker Swarm активен на этом хосте"
 				return summary
 			}

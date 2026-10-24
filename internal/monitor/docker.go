@@ -106,13 +106,13 @@ func GetDockerSummary() DockerSummary {
 	if cliErr != nil && sockPath == "" {
 		return DockerSummary{
 			Status:        "not_installed",
-			StatusDisplay: "🔴 Не установлен",
+			StatusDisplay: "Не установлен",
 		}
 	}
 
 	summary := DockerSummary{
 		Status:        "stopped",
-		StatusDisplay: "⚪ Остановлен",
+		StatusDisplay: "Остановлен",
 	}
 
 	if sockPath != "" {
@@ -133,7 +133,7 @@ func GetDockerSummary() DockerSummary {
 			}
 			if json.Unmarshal(body, &infoData) == nil {
 				summary.Status = "running"
-				summary.StatusDisplay = "🟢 Запущен"
+				summary.StatusDisplay = "Запущен"
 				summary.TotalContainers = infoData.Containers
 				summary.RunningContainers = infoData.ContainersRunning
 				summary.StoppedContainers = infoData.ContainersStopped
@@ -212,7 +212,7 @@ func GetDockerSummary() DockerSummary {
 		parts := strings.Fields(string(out))
 		if len(parts) >= 5 {
 			summary.Status = "running"
-			summary.StatusDisplay = "🟢 Запущен"
+			summary.StatusDisplay = "Запущен"
 			summary.Version = parts[4]
 		}
 	}

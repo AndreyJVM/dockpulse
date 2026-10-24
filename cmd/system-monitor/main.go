@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	version = "v0.3.0"
+	version = "v0.4.1"
 )
 
 func main() {
@@ -32,7 +32,7 @@ func main() {
 	flag.BoolVar(&showHelp, "h", false, "Показать справку (короткий флаг)")
 
 	flag.Usage = func() {
-		fmt.Printf("⚡ System & Docker Monitor %s (Go Edition)\n\n", version)
+		fmt.Printf("System & Docker Monitor %s (Go Edition)\n\n", version)
 		fmt.Printf("Использование:\n")
 		fmt.Printf("  system-monitor [опции]\n\n")
 		fmt.Printf("Опции:\n")
@@ -59,7 +59,7 @@ func main() {
 		return
 	}
 
-	model := tui.NewModel(interval, initialTab)
+	model := tui.NewModel(interval, initialTab, version)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Ошибка запуска system-monitor: %v\n", err)

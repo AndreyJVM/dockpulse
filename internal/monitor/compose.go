@@ -67,13 +67,13 @@ func GetComposeProjects(containers []ContainerItem) []ComposeProject {
 
 		if running == proj.TotalServices && proj.TotalServices > 0 {
 			proj.Status = "running"
-			proj.StatusDisplay = "🟢 Запущен"
+			proj.StatusDisplay = "Запущен"
 		} else if running > 0 {
 			proj.Status = "partial"
-			proj.StatusDisplay = "🟡 Частично"
+			proj.StatusDisplay = "Частично"
 		} else {
 			proj.Status = "stopped"
-			proj.StatusDisplay = "⚪ Остановлен"
+			proj.StatusDisplay = "Остановлен"
 		}
 
 		res = append(res, *proj)
