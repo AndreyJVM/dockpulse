@@ -61,6 +61,59 @@ func TestParseSwarmInfo(t *testing.T) {
 	}
 }
 
+func TestParseSwarmTasks(t *testing.T) {
+	tasksJSON := []byte(`[
+		{
+			"ID": "t1",
+			"ServiceID": "svc1",
+			"NodeID": "node1",
+			"Status": { "State": "running" },
+			"DesiredState": "running"
+		},
+		{
+			"ID": "t2",
+			"ServiceID": "svc1",
+			"NodeID": "node2",
+			"Status": { "State": "running" },
+			"DesiredState": "running"
+		},
+		{
+			"ID": "t3",
+			"ServiceID": "svc1",
+			"NodeID": "node1",
+			"Status": { "State": "failed" },
+			"DesiredState": "shutdown"
+		},
+		{
+			"ID": "t4",
+			"ServiceID": "svc2",
+			"NodeID": "node1",
+			"Status": { "State": "running" },
+			"DesiredState": "running"
+		}
+	]`)
+
+	svcTasks, nodeTasks := parseSwarmTasks(tasksJSON)
+	if svcTasks["svc1"] != 2 {
+		t.Errorf("expected 2 running tasks for svc1, got %d", svcTasks["svc1"])
+	}
+	if svcTasks["svc2"] != 1 {
+		t.Errorf("expected 1 running task for svc2, got %d", svcTasks["svc2"])
+	}
+	if nodeTasks["node1"] != 2 {
+		t.Errorf("expected 2 running tasks on node1, got %d", nodeTasks["node1"])
+	}
+	if nodeTasks["node2"] != 1 {
+		t.Errorf("expected 1 running task on node2, got %d", nodeTasks["node2"])
+	}
+
+	// Malformed JSON
+	badSvc, badNode := parseSwarmTasks([]byte(`malformed`))
+	if len(badSvc) != 0 || len(badNode) != 0 {
+		t.Errorf("expected empty maps for malformed JSON")
+	}
+}
+
 func TestParseSwarmNodes(t *testing.T) {
 	nodesJSON := []byte(`[
 		{
@@ -97,7 +150,12 @@ func TestParseSwarmNodes(t *testing.T) {
 		}
 	]`)
 
-	nodes := parseSwarmNodes(nodesJSON)
+	nodeTasks := map[string]int{
+		"node1234567890abcdef": 4,
+		"worker9876543210fedcba": 1,
+	}
+
+	nodes := parseSwarmNodes(nodesJSON, nodeTasks)
 	if len(nodes) != 2 {
 		t.Fatalf("expected 2 nodes, got %d", len(nodes))
 	}
@@ -115,6 +173,9 @@ func TestParseSwarmNodes(t *testing.T) {
 	if n1.Availability != "active" {
 		t.Errorf("expected Availability 'active', got '%s'", n1.Availability)
 	}
+	if n1.ActiveTasks != 4 {
+		t.Errorf("expected 4 ActiveTasks, got %d", n1.ActiveTasks)
+	}
 
 	n2 := nodes[1]
 	if n2.Role != "worker" || n2.IsLeader {
@@ -123,9 +184,12 @@ func TestParseSwarmNodes(t *testing.T) {
 	if n2.Availability != "drain" {
 		t.Errorf("expected Availability 'drain', got '%s'", n2.Availability)
 	}
+	if n2.ActiveTasks != 1 {
+		t.Errorf("expected 1 ActiveTask, got %d", n2.ActiveTasks)
+	}
 
 	// Malformed JSON
-	if parseSwarmNodes([]byte(`malformed`)) != nil {
+	if parseSwarmNodes([]byte(`malformed`), nil) != nil {
 		t.Errorf("expected nil for malformed nodes JSON")
 	}
 }
@@ -173,7 +237,12 @@ func TestParseSwarmServices(t *testing.T) {
 		}
 	]`)
 
-	svcs := parseSwarmServices(svcsJSON)
+	svcTasks := map[string]int{
+		"svc1234567890abcdef": 3,
+		"svcGlobal9876543210fe": 2,
+	}
+
+	svcs := parseSwarmServices(svcsJSON, svcTasks)
 	if len(svcs) != 2 {
 		t.Fatalf("expected 2 services, got %d", len(svcs))
 	}
@@ -185,8 +254,11 @@ func TestParseSwarmServices(t *testing.T) {
 	if s1.Image != "nginx:alpine" {
 		t.Errorf("expected stripped image 'nginx:alpine', got '%s'", s1.Image)
 	}
-	if s1.Replicas != "3 replicas" {
-		t.Errorf("expected '3 replicas', got '%s'", s1.Replicas)
+	if s1.Replicas != "3/3" {
+		t.Errorf("expected '3/3', got '%s'", s1.Replicas)
+	}
+	if s1.RunningReplicas != 3 || s1.TargetReplicas != 3 {
+		t.Errorf("expected 3/3 replicas, got running=%d target=%d", s1.RunningReplicas, s1.TargetReplicas)
 	}
 	if s1.Ports != "8080:80/tcp" {
 		t.Errorf("expected Ports '8080:80/tcp', got '%s'", s1.Ports)
@@ -196,12 +268,12 @@ func TestParseSwarmServices(t *testing.T) {
 	if s2.Name != "log-collector" {
 		t.Errorf("expected Name 'log-collector', got '%s'", s2.Name)
 	}
-	if s2.Mode != "global" || s2.Replicas != "global (1/node)" {
-		t.Errorf("expected global mode and replica string, got mode=%s replicas=%s", s2.Mode, s2.Replicas)
+	if s2.Mode != "global" || s2.Replicas != "2 (global)" {
+		t.Errorf("expected global mode and replica string '2 (global)', got mode=%s replicas=%s", s2.Mode, s2.Replicas)
 	}
 
 	// Malformed JSON
-	if parseSwarmServices([]byte(`invalid`)) != nil {
+	if parseSwarmServices([]byte(`invalid`), nil) != nil {
 		t.Errorf("expected nil for malformed services JSON")
 	}
 }

@@ -706,11 +706,11 @@ func (m Model) renderSwarmTab() string {
 
 	if len(m.swarm.Nodes) > 0 {
 		s.WriteString(boldStyle.Render("  УЗЛЫ КЛАСТЕРА (NODES):") + "\n")
-		s.WriteString(fmt.Sprintf("  %-14s %-20s %-12s %-10s %-14s %-10s\n",
+		s.WriteString(fmt.Sprintf("  %-14s %-20s %-12s %-10s %-14s %-8s %-10s\n",
 			dimStyle.Render("NODE ID"), dimStyle.Render("HOSTNAME"), dimStyle.Render("ROLE"),
-			dimStyle.Render("STATE"), dimStyle.Render("AVAILABILITY"), dimStyle.Render("LEADER"),
+			dimStyle.Render("STATE"), dimStyle.Render("AVAILABILITY"), dimStyle.Render("TASKS"), dimStyle.Render("LEADER"),
 		))
-		s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 80)) + "\n")
+		s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 88)) + "\n")
 		for _, n := range m.swarm.Nodes {
 			leaderMark := ""
 			if n.IsLeader {
@@ -720,8 +720,8 @@ func (m Model) renderSwarmTab() string {
 			if avail == "" {
 				avail = "active"
 			}
-			s.WriteString(fmt.Sprintf("  %-14s %-20s %-12s %-10s %-14s %-10s\n",
-				n.ID, boldStyle.Render(truncate(n.Hostname, 18)), n.Role, n.State, avail, leaderMark,
+			s.WriteString(fmt.Sprintf("  %-14s %-20s %-12s %-10s %-14s %-8d %-10s\n",
+				n.ID, boldStyle.Render(truncate(n.Hostname, 18)), n.Role, n.State, avail, n.ActiveTasks, leaderMark,
 			))
 		}
 		s.WriteString("\n")
@@ -739,8 +739,17 @@ func (m Model) renderSwarmTab() string {
 			if ports == "" {
 				ports = "-"
 			}
+			repColored := greenStyle.Render(svc.Replicas)
+			if svc.Mode == "replicated" && svc.TargetReplicas > 0 && svc.RunningReplicas < svc.TargetReplicas {
+				if svc.RunningReplicas == 0 {
+					repColored = redStyle.Render(svc.Replicas)
+				} else {
+					repColored = yellowStyle.Render(svc.Replicas)
+				}
+			}
+
 			s.WriteString(fmt.Sprintf("  %-14s %-20s %-24s %-16s %-18s\n",
-				svc.ID, boldStyle.Render(truncate(svc.Name, 18)), truncate(svc.Image, 22), greenStyle.Render(svc.Replicas), truncate(ports, 18),
+				svc.ID, boldStyle.Render(truncate(svc.Name, 18)), truncate(svc.Image, 22), repColored, truncate(ports, 18),
 			))
 		}
 	}

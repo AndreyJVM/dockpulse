@@ -18,16 +18,19 @@ type SwarmNode struct {
 	State        string
 	Availability string
 	IsLeader     bool
+	ActiveTasks  int
 }
 
 // SwarmService представляет службу кластера Swarm.
 type SwarmService struct {
-	ID       string
-	Name     string
-	Image    string
-	Mode     string
-	Replicas string
-	Ports    string
+	ID              string
+	Name            string
+	Image           string
+	Mode            string
+	Replicas        string
+	RunningReplicas int
+	TargetReplicas  int
+	Ports           string
 }
 
 // SwarmSummary содержит статус кластера Swarm.
@@ -74,8 +77,36 @@ func parseSwarmInfo(body []byte) (SwarmSummary, bool) {
 	}, true
 }
 
+// parseSwarmTasks разбирает JSON ответа Docker Engine API /tasks и возвращает число работающих тасок по serviceID и nodeID.
+func parseSwarmTasks(body []byte) (map[string]int, map[string]int) {
+	var rawTasks []struct {
+		ID        string `json:"ID"`
+		ServiceID string `json:"ServiceID"`
+		NodeID    string `json:"NodeID"`
+		Status    struct {
+			State string `json:"State"`
+		} `json:"Status"`
+		DesiredState string `json:"DesiredState"`
+	}
+
+	svcTasks := make(map[string]int)
+	nodeTasks := make(map[string]int)
+
+	if json.Unmarshal(body, &rawTasks) != nil {
+		return svcTasks, nodeTasks
+	}
+
+	for _, t := range rawTasks {
+		if strings.ToLower(t.Status.State) == "running" {
+			svcTasks[t.ServiceID]++
+			nodeTasks[t.NodeID]++
+		}
+	}
+	return svcTasks, nodeTasks
+}
+
 // parseSwarmNodes разбирает JSON ответа Docker Engine API /nodes.
-func parseSwarmNodes(body []byte) []SwarmNode {
+func parseSwarmNodes(body []byte, nodeTasks map[string]int) []SwarmNode {
 	var rawNodes []struct {
 		ID   string `json:"ID"`
 		Spec struct {
@@ -99,13 +130,22 @@ func parseSwarmNodes(body []byte) []SwarmNode {
 
 	var nodes []SwarmNode
 	for _, n := range rawNodes {
-		nid := n.ID
+		fullID := n.ID
+		nid := fullID
 		if len(nid) > 12 {
 			nid = nid[:12]
 		}
 		availability := n.Spec.Availability
 		if availability == "" {
 			availability = "active"
+		}
+
+		activeTasks := 0
+		if nodeTasks != nil {
+			activeTasks = nodeTasks[fullID]
+			if activeTasks == 0 && nodeTasks[nid] > 0 {
+				activeTasks = nodeTasks[nid]
+			}
 		}
 
 		nodes = append(nodes, SwarmNode{
@@ -115,13 +155,14 @@ func parseSwarmNodes(body []byte) []SwarmNode {
 			State:        n.Status.State,
 			Availability: availability,
 			IsLeader:     n.ManagerStatus.Leader,
+			ActiveTasks:  activeTasks,
 		})
 	}
 	return nodes
 }
 
 // parseSwarmServices разбирает JSON ответа Docker Engine API /services.
-func parseSwarmServices(body []byte) []SwarmService {
+func parseSwarmServices(body []byte, runningTasks map[string]int) []SwarmService {
 	var rawSvcs []struct {
 		ID   string `json:"ID"`
 		Spec struct {
@@ -153,19 +194,33 @@ func parseSwarmServices(body []byte) []SwarmService {
 
 	var svcs []SwarmService
 	for _, s := range rawSvcs {
-		sid := s.ID
+		fullID := s.ID
+		sid := fullID
 		if len(sid) > 12 {
 			sid = sid[:12]
 		}
 		img := strings.Split(s.Spec.TaskTemplate.ContainerSpec.Image, "@")[0]
 
 		mode := "replicated"
-		rep := "0 replicas"
+		targetReplicas := 0
+		running := 0
+		if runningTasks != nil {
+			running = runningTasks[fullID]
+			if running == 0 && runningTasks[sid] > 0 {
+				running = runningTasks[sid]
+			}
+		}
+
+		var rep string
 		if s.Spec.Mode.Global != nil {
 			mode = "global"
-			rep = "global (1/node)"
+			targetReplicas = running
+			rep = fmt.Sprintf("%d (global)", running)
 		} else if s.Spec.Mode.Replicated != nil {
-			rep = fmt.Sprintf("%d replicas", s.Spec.Mode.Replicated.Replicas)
+			targetReplicas = s.Spec.Mode.Replicated.Replicas
+			rep = fmt.Sprintf("%d/%d", running, targetReplicas)
+		} else {
+			rep = fmt.Sprintf("%d", running)
 		}
 
 		var portList []string
@@ -178,12 +233,14 @@ func parseSwarmServices(body []byte) []SwarmService {
 		}
 
 		svcs = append(svcs, SwarmService{
-			ID:       sid,
-			Name:     s.Spec.Name,
-			Image:    img,
-			Mode:     mode,
-			Replicas: rep,
-			Ports:    strings.Join(portList, ", "),
+			ID:              sid,
+			Name:            s.Spec.Name,
+			Image:           img,
+			Mode:            mode,
+			Replicas:        rep,
+			RunningReplicas: running,
+			TargetReplicas:  targetReplicas,
+			Ports:           strings.Join(portList, ", "),
 		})
 	}
 	return svcs
@@ -226,8 +283,9 @@ func GetSwarmSummary() SwarmSummary {
 
 			if parsed, ok := parseSwarmInfo(body); ok {
 				summary = parsed
-				summary.Nodes = fetchSwarmNodes(client)
-				summary.Services = fetchSwarmServices(client)
+				svcTasks, nodeTasks := fetchSwarmTasks(client)
+				summary.Nodes = fetchSwarmNodes(client, nodeTasks)
+				summary.Services = fetchSwarmServices(client, svcTasks)
 				summary.Text = fmt.Sprintf("Кластер Swarm: %d нод (%d менеджеров), %d служб", summary.NodesCount, summary.ManagersCount, len(summary.Services))
 				return summary
 			}
@@ -254,7 +312,18 @@ func GetSwarmSummary() SwarmSummary {
 	return summary
 }
 
-func fetchSwarmNodes(client *http.Client) []SwarmNode {
+func fetchSwarmTasks(client *http.Client) (map[string]int, map[string]int) {
+	resp, err := client.Get("http://localhost/tasks")
+	if err != nil || resp.StatusCode != 200 {
+		return make(map[string]int), make(map[string]int)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	return parseSwarmTasks(body)
+}
+
+func fetchSwarmNodes(client *http.Client, nodeTasks map[string]int) []SwarmNode {
 	resp, err := client.Get("http://localhost/nodes")
 	if err != nil || resp.StatusCode != 200 {
 		return nil
@@ -262,10 +331,10 @@ func fetchSwarmNodes(client *http.Client) []SwarmNode {
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
-	return parseSwarmNodes(body)
+	return parseSwarmNodes(body, nodeTasks)
 }
 
-func fetchSwarmServices(client *http.Client) []SwarmService {
+func fetchSwarmServices(client *http.Client, runningTasks map[string]int) []SwarmService {
 	resp, err := client.Get("http://localhost/services")
 	if err != nil || resp.StatusCode != 200 {
 		return nil
@@ -273,5 +342,5 @@ func fetchSwarmServices(client *http.Client) []SwarmService {
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
-	return parseSwarmServices(body)
+	return parseSwarmServices(body, runningTasks)
 }
