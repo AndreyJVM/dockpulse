@@ -1,5 +1,6 @@
 # System & Docker Monitor (Go Edition)
 
+[![CI](https://github.com/AndreyJVM/system-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/AndreyJVM/system-monitor/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/AndreyJVM/system-monitor?color=blue&logo=github)](https://github.com/AndreyJVM/system-monitor/releases)
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://golang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
