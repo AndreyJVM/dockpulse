@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/AndreyJVM/dockpulse?color=blue&logo=github)](https://github.com/AndreyJVM/dockpulse/releases)
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://golang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://github.com/AndreyJVM/dockpulse/releases)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS-lightgrey)](https://github.com/AndreyJVM/dockpulse/releases)
 
 Сверхбыстрый автономный терминальный TUI-монитор системных ресурсов хоста, **Docker**, **Docker Compose** и кластеров **Docker Swarm**, написанный на **Go (Golang)** на базе фреймворков **Bubble Tea** и **Lip Gloss** с возможностью **интерактивного управления контейнерами**.
 
@@ -43,7 +43,7 @@
 - **Docker Compose**: Автоматическая группировка контейнеров по проектам и сервисам Compose, агрегированный статус стеков (активен, частичный, остановлен), интерактивная навигация по стекам (`↑`/`↓`), просмотр агрегированных логов стека (`L`) и перезапуск всех служб проекта в один клик (`P`).
 - **Docker Swarm**: Мониторинг кластера Swarm — роли нод (Manager/Worker, Leader), активность задач, реплицированные службы и число реплик с цветовой индикацией деградации, курсорная навигация по службам (`↑`/`↓`) и просмотр логов выбранной службы Swarm в реальном времени (`L`).
 - **Интерактивный TUI**: Полноэкранный псевдографический интерфейс на Charm Bubble Tea & Lip Gloss с цветными прогресс-барами, навигацией по вкладкам (`1-4`, `Tab`, стрелки), всплывающей справкой (`?`) и авто-тиком.
-- **Нулевые зависимости**: Скомпилированный статический бинарный файл без внешних библиотек и рантаймов (<12 МБ). Работает на любом дистрибутиве Linux, macOS (Apple Silicon и Intel) и Windows.
+- **Нулевые зависимости**: Скомпилированный статический бинарный файл без внешних библиотек и рантаймов (<12 МБ). Работает на любом дистрибутиве Linux и macOS (Apple Silicon и Intel).
 
 ---
 

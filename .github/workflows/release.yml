@@ -59,12 +59,11 @@ jobs:
             "linux arm64"
             "darwin amd64"
             "darwin arm64"
-            "windows amd64 .exe"
           )
 
           for PLATFORM in "${PLATFORMS[@]}"; do
-            read -r GOOS GOARCH EXT <<< "$PLATFORM"
-            BIN_NAME="dockpulse${EXT}"
+            read -r GOOS GOARCH <<< "$PLATFORM"
+            BIN_NAME="dockpulse"
             TARGET_DIR="dockpulse_${VERSION}_${GOOS}_${GOARCH}"
             
             echo "==> Building for ${GOOS}/${GOARCH}..."
@@ -75,11 +74,7 @@ jobs:
             cp LICENSE "bin/${TARGET_DIR}/" 2>/dev/null || true
 
             cd bin
-            if [ "${GOOS}" = "windows" ]; then
-              zip -r "../dist/${TARGET_DIR}.zip" "${TARGET_DIR}"
-            else
-              tar -czvf "../dist/${TARGET_DIR}.tar.gz" "${TARGET_DIR}"
-            fi
+            tar -czvf "../dist/${TARGET_DIR}.tar.gz" "${TARGET_DIR}"
             cd ..
           done
 
@@ -135,7 +130,7 @@ jobs:
           body: |
             ## Dockpulse ${{ steps.get_version.outputs.tag }} (Go Edition)
 
-            Полный переход проекта на **Go (Golang)**: сверхбыстрый интерактивный TUI-терминал с нулевыми зависимостями, молниеносным откликом (<2 мс) и кроссплатформенными бинарными файлами.
+            Полный переход проекта на **Go (Golang)**: сверхбыстрый интерактивный TUI-терминал с нулевыми зависимостями, молниеносным откликом (<2 мс) и кроссплатформенными бинарными файлами для Linux и macOS.
 
             ### Возможности:
             - **Хост-метрики в реальном времени**: ЦПУ (загрузка и ядра), RAM, дисковые разделы, сетевые IP/DNS и живая скорость сети (RX/TX).
@@ -143,7 +138,7 @@ jobs:
             - **Docker Compose Stacks**: Автоматическая группировка контейнеров в проекты Compose, подсчет сервисов и общий статус стека.
             - **Docker Swarm Clusters**: Определение состояния ноды (Manager / Worker, Leader), топология кластера и реплицированные сервисы.
             - **Современный TUI интерфейс**: Полноэкранный псевдографический дашборд на Charm Bubble Tea & Lip Gloss, цветные индикаторы, переключение вкладок `1-4`, обновление клавишей `r` или автоматический тик.
-            - **Одиночный автономный бинарник**: Никаких интерпретаторов, pip или зависимостей. Работает на любом дистрибутиве Linux, macOS и Windows.
+            - **Одиночный автономный бинарник**: Никаких интерпретаторов, pip или зависимостей. Работает на дистрибутивах Linux и macOS.
 
             ### Установка:
 

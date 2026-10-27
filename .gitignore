@@ -1,6 +1,5 @@
 # Go build artifacts
 dockpulse
-dockpulse.exe
 bin/
 dist/
 deb_pkg_*/
