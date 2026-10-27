@@ -92,6 +92,7 @@ type Model struct {
 	// Навигация и модальные окна
 	cursorIdx           int
 	composeCursorIdx    int
+	swarmCursorIdx      int
 	activeModal         string // "", "logs", "inspect"
 	logsTargetName      string
 	logsTargetID        string
@@ -149,6 +150,9 @@ func (m *Model) fetchAllData() {
 	m.clampCursor()
 	if m.composeCursorIdx >= len(m.compose) {
 		m.composeCursorIdx = max(0, len(m.compose)-1)
+	}
+	if m.swarmCursorIdx >= len(m.swarm.Services) {
+		m.swarmCursorIdx = max(0, len(m.swarm.Services)-1)
 	}
 }
 
@@ -316,7 +320,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-		// Навигация и действия в списке контейнеров (Вкладка 2)
+		// Навигация и действия в списке контейнеров (Вкладка 2), Compose (Вкладка 3), Swarm (Вкладка 4)
 		case "up", "k":
 			if m.activeTab == 2 {
 				containers := m.getFilteredContainers()
@@ -330,6 +334,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.composeCursorIdx--
 				if m.composeCursorIdx < 0 {
 					m.composeCursorIdx = len(m.compose) - 1
+				}
+			} else if m.activeTab == 4 && len(m.swarm.Services) > 0 {
+				m.swarmCursorIdx--
+				if m.swarmCursorIdx < 0 {
+					m.swarmCursorIdx = len(m.swarm.Services) - 1
 				}
 			}
 		case "down", "j":
@@ -346,9 +355,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.composeCursorIdx >= len(m.compose) {
 					m.composeCursorIdx = 0
 				}
+			} else if m.activeTab == 4 && len(m.swarm.Services) > 0 {
+				m.swarmCursorIdx++
+				if m.swarmCursorIdx >= len(m.swarm.Services) {
+					m.swarmCursorIdx = 0
+				}
 			}
 
-		// Просмотр логов контейнера или проекта Compose
+		// Просмотр логов контейнера, проекта Compose или службы Swarm
 		case "l", "L":
 			if m.activeTab == 2 {
 				containers := m.getFilteredContainers()
@@ -372,6 +386,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				logs, err := monitor.GetComposeProjectLogs(proj.Name, m.dockerInfo.Containers, 150)
 				if err != nil {
 					m.showToast("Ошибка чтения логов проекта: " + err.Error())
+				} else {
+					m.logsLines = strings.Split(strings.TrimSpace(logs), "\n")
+					m.logsScroll = max(0, len(m.logsLines)-18)
+					m.activeModal = "logs"
+				}
+			} else if m.activeTab == 4 && len(m.swarm.Services) > 0 && m.swarmCursorIdx < len(m.swarm.Services) {
+				svc := m.swarm.Services[m.swarmCursorIdx]
+				m.logsTargetName = "Swarm: " + svc.Name
+				m.logsTargetID = svc.ID
+				logs, err := monitor.GetSwarmServiceLogs(svc.ID, 150)
+				if err != nil {
+					m.showToast("Ошибка чтения логов службы: " + err.Error())
 				} else {
 					m.logsLines = strings.Split(strings.TrimSpace(logs), "\n")
 					m.logsScroll = max(0, len(m.logsLines)-18)
@@ -548,6 +574,12 @@ func (m Model) View() string {
 				boldStyle.Render("[P]") + " Перезапуск стека  |  " +
 				boldStyle.Render("[?]") + " Справка",
 		))
+	} else if m.activeTab == 4 {
+		b.WriteString(footerStyle.Render(
+			boldStyle.Render("[↑ / ↓]") + " Выбрать службу  |  " +
+				boldStyle.Render("[L]") + " Логи службы  |  " +
+				boldStyle.Render("[?]") + " Справка",
+		))
 	} else {
 		b.WriteString(footerStyle.Render(
 			boldStyle.Render("[1-4 / Tab / ← →]") + " Вкладки  |  " +
@@ -562,12 +594,12 @@ func (m Model) View() string {
 
 func (m Model) renderLogsModal() string {
 	var s strings.Builder
-	title := fmt.Sprintf("ЛОГИ КОНТЕЙНЕРА: %s (ID: %s)", boldStyle.Render(m.logsTargetName), dimStyle.Render(m.logsTargetID))
+	title := fmt.Sprintf("ЛОГИ: %s (ID: %s)", boldStyle.Render(m.logsTargetName), dimStyle.Render(m.logsTargetID))
 	s.WriteString(titleStyle.Render(title) + "\n\n")
 
 	maxVisible := 18
 	if len(m.logsLines) == 0 {
-		s.WriteString("  " + dimStyle.Render("Логи отсутствуют или контейнер не выводил сообщений.") + "\n")
+		s.WriteString("  " + dimStyle.Render("Логи отсутствуют или служба не выводила сообщений.") + "\n")
 	} else {
 		start := min(m.logsScroll, max(0, len(m.logsLines)-1))
 		end := min(start+maxVisible, len(m.logsLines))
@@ -632,9 +664,9 @@ func (m Model) renderHelpBox() string {
 
   %s   Переключение вкладок (1: Host, 2: Docker, 3: Compose, 4: Swarm)
   %s   След. / пред. вкладка
-  %s   Перемещение курсора по контейнерам (вкладка 2) или стекам Compose (вкладка 3)
+  %s   Перемещение курсора (контейнеры, стеки Compose, службы Swarm)
   %s   Поиск и фильтрация контейнеров по имени, образу или ID
-  %s   Просмотр логов контейнера или всех сервисов проекта Compose
+  %s   Просмотр логов контейнера, стека Compose или службы Swarm
   %s   Подробная инспекция выбранного контейнера (IP, тома, сеть)
   %s   Запуск / остановка контейнера
   %s   Перезапуск (restart) контейнера или проекта Compose
@@ -937,12 +969,12 @@ func (m Model) renderSwarmTab() string {
 
 	if len(m.swarm.Services) > 0 {
 		s.WriteString(boldStyle.Render("  СЛУЖБЫ SWARM (SERVICES):") + "\n")
-		s.WriteString(fmt.Sprintf("  %-14s %-20s %-24s %-16s %-18s\n",
+		s.WriteString(fmt.Sprintf("   %-14s %-20s %-24s %-16s %-18s\n",
 			dimStyle.Render("SERVICE ID"), dimStyle.Render("NAME"), dimStyle.Render("IMAGE"),
 			dimStyle.Render("REPLICAS"), dimStyle.Render("PORTS"),
 		))
-		s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 92)) + "\n")
-		for _, svc := range m.swarm.Services {
+		s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 94)) + "\n")
+		for i, svc := range m.swarm.Services {
 			ports := svc.Ports
 			if ports == "" {
 				ports = "-"
@@ -956,9 +988,18 @@ func (m Model) renderSwarmTab() string {
 				}
 			}
 
-			s.WriteString(fmt.Sprintf("  %-14s %-20s %-24s %-16s %-18s\n",
+			prefix := "  "
+			rowContent := fmt.Sprintf("%-14s %-20s %-24s %-16s %-18s",
 				svc.ID, boldStyle.Render(truncate(svc.Name, 18)), truncate(svc.Image, 22), repColored, truncate(ports, 18),
-			))
+			)
+			if i == m.swarmCursorIdx {
+				prefix = greenStyle.Render("► ")
+				rowContent = selectedRowStyle.Render(fmt.Sprintf("%-14s %-20s %-24s %-16s %-18s",
+					svc.ID, truncate(svc.Name, 18), truncate(svc.Image, 22), svc.Replicas, truncate(ports, 18),
+				))
+			}
+
+			s.WriteString(fmt.Sprintf("%s%s\n", prefix, rowContent))
 		}
 	}
 

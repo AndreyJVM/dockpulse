@@ -344,3 +344,29 @@ func fetchSwarmServices(client *http.Client, runningTasks map[string]int) []Swar
 	body, _ := io.ReadAll(resp.Body)
 	return parseSwarmServices(body, runningTasks)
 }
+
+// GetSwarmServiceLogs читает логи службы Swarm по её ID или имени.
+func GetSwarmServiceLogs(serviceID string, tailLines int) (string, error) {
+	if tailLines <= 0 {
+		tailLines = 100
+	}
+
+	sockPath := FindDockerSocket()
+	if sockPath != "" {
+		client := getSocketHTTPClient(sockPath)
+		url := fmt.Sprintf("http://localhost/services/%s/logs?stdout=1&stderr=1&tail=%d", serviceID, tailLines)
+		resp, err := client.Get(url)
+		if err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == 200 {
+				return demuxDockerLogs(resp.Body), nil
+			}
+		}
+	}
+
+	out, err := exec.Command("docker", "service", "logs", "--tail", fmt.Sprintf("%d", tailLines), serviceID).CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return string(out), nil
+}

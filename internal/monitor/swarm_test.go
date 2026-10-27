@@ -151,7 +151,7 @@ func TestParseSwarmNodes(t *testing.T) {
 	]`)
 
 	nodeTasks := map[string]int{
-		"node1234567890abcdef": 4,
+		"node1234567890abcdef":   4,
 		"worker9876543210fedcba": 1,
 	}
 
@@ -238,7 +238,7 @@ func TestParseSwarmServices(t *testing.T) {
 	]`)
 
 	svcTasks := map[string]int{
-		"svc1234567890abcdef": 3,
+		"svc1234567890abcdef":  3,
 		"svcGlobal9876543210fe": 2,
 	}
 
@@ -296,4 +296,17 @@ func TestParseSwarmCLIInfo(t *testing.T) {
 	if active {
 		t.Errorf("expected active=false for empty output")
 	}
+}
+
+func TestGetSwarmServiceLogs(t *testing.T) {
+	// Calling with non-existent service ID should safely return an error without panic
+	invalidID := "non-existent-swarm-service-99999"
+	_, err := GetSwarmServiceLogs(invalidID, 20)
+	if err == nil {
+		t.Errorf("expected error when fetching logs for non-existent Swarm service")
+	}
+
+	// Test default tail lines when <= 0
+	_, _ = GetSwarmServiceLogs(invalidID, 0)
+	_, _ = GetSwarmServiceLogs(invalidID, -10)
 }
