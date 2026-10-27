@@ -501,3 +501,88 @@ func TestComposeTabNavigationAndActions(t *testing.T) {
 		t.Errorf("expected actionMessage after pressing 'p'")
 	}
 }
+
+func TestDockerTabHealthBadges(t *testing.T) {
+	m := NewModel(2*time.Second, 2, "v0.4.1")
+	m.activeTab = 2
+	m.dockerInfo.Containers = []monitor.ContainerItem{
+		{ID: "c1", Name: "healthy-app", Image: "nginx", State: "running", Health: "healthy"},
+		{ID: "c2", Name: "broken-app", Image: "postgres", State: "running", Health: "unhealthy"},
+		{ID: "c3", Name: "booting-app", Image: "redis", State: "running", Health: "starting"},
+		{ID: "c4", Name: "plain-app", Image: "busybox", State: "running", Health: ""},
+	}
+
+	view := m.View()
+	if !strings.Contains(view, "HEALTH") {
+		t.Errorf("expected HEALTH column in header, got: %s", view)
+	}
+	if !strings.Contains(view, "[healthy]") {
+		t.Errorf("expected [healthy] badge in View(), got: %s", view)
+	}
+	if !strings.Contains(view, "[unhealthy]") {
+		t.Errorf("expected [unhealthy] badge in View(), got: %s", view)
+	}
+	if !strings.Contains(view, "[starting]") {
+		t.Errorf("expected [starting] badge in View(), got: %s", view)
+	}
+}
+
+func TestFilterContainersByHealth(t *testing.T) {
+	m := NewModel(2*time.Second, 2, "v0.4.1")
+	m.dockerInfo.Containers = []monitor.ContainerItem{
+		{ID: "c1", Name: "web", Image: "nginx", Health: "healthy"},
+		{ID: "c2", Name: "db", Image: "postgres", Health: "unhealthy"},
+		{ID: "c3", Name: "cache", Image: "redis", Health: "starting"},
+	}
+
+	m.filterQuery = "unhealthy"
+	filtered := m.getFilteredContainers()
+	if len(filtered) != 1 || filtered[0].Name != "db" {
+		t.Errorf("expected 1 result matching health 'unhealthy', got %v", filtered)
+	}
+
+	m.filterQuery = "healthy"
+	filtered = m.getFilteredContainers()
+	// "healthy" is substring of "unhealthy" as well, so matches c1 and c2
+	if len(filtered) != 2 {
+		t.Errorf("expected 2 results matching 'healthy', got %d", len(filtered))
+	}
+}
+
+func TestInspectModalHealthBadge(t *testing.T) {
+	m := NewModel(2*time.Second, 2, "v0.4.1")
+	m.activeModal = "inspect"
+	m.inspectTarget = monitor.ContainerDetail{
+		ID:     "c1",
+		Name:   "app-prod",
+		Image:  "my-app:v1",
+		Status: "Up 2 hours",
+		Health: "healthy",
+	}
+
+	view := m.View()
+	if !strings.Contains(view, "Здоровье:") || !strings.Contains(view, "[healthy]") {
+		t.Errorf("expected health badge in inspect modal view, got: %s", view)
+	}
+
+	// Test unhealthy
+	m.inspectTarget.Health = "unhealthy"
+	view = m.View()
+	if !strings.Contains(view, "[unhealthy]") {
+		t.Errorf("expected [unhealthy] badge in inspect modal view, got: %s", view)
+	}
+
+	// Test starting
+	m.inspectTarget.Health = "starting"
+	view = m.View()
+	if !strings.Contains(view, "[starting]") {
+		t.Errorf("expected [starting] badge in inspect modal view, got: %s", view)
+	}
+
+	// Test no health configured
+	m.inspectTarget.Health = ""
+	view = m.View()
+	if !strings.Contains(view, "Здоровье:") {
+		t.Errorf("expected 'Здоровье:' line even if health is empty, got: %s", view)
+	}
+}

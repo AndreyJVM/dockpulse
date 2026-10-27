@@ -101,3 +101,32 @@ func TestCalculateContainerStats(t *testing.T) {
 		t.Errorf("expected MemPerc 50.0%%, got %.2f%%", memPerc)
 	}
 }
+
+func TestParseHealthStatus(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"exact healthy", "healthy", "healthy"},
+		{"exact unhealthy", "unhealthy", "unhealthy"},
+		{"exact starting", "starting", "starting"},
+		{"status with (healthy)", "Up 2 hours (healthy)", "healthy"},
+		{"status with (unhealthy)", "Up 35 minutes (unhealthy)", "unhealthy"},
+		{"status with (health: starting)", "Up 12 seconds (health: starting)", "starting"},
+		{"status without healthcheck", "Up 4 days", ""},
+		{"empty string", "", ""},
+		{"whitespace string", "   ", ""},
+		{"case insensitive HEALTHY", "HEALTHY", "healthy"},
+		{"case insensitive (HEALTHY)", "Up 1 hour (HEALTHY)", "healthy"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ParseHealthStatus(tt.input)
+			if got != tt.expected {
+				t.Errorf("ParseHealthStatus(%q) = %q; want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}

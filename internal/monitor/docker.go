@@ -23,6 +23,7 @@ type ContainerItem struct {
 	Image          string
 	State          string
 	Status         string
+	Health         string
 	Ports          string
 	ComposeProject string
 	ComposeService string
@@ -41,6 +42,7 @@ type ContainerDetail struct {
 	Created    string
 	State      string
 	Status     string
+	Health     string
 	IP         string
 	Gateway    string
 	MACAddress string
@@ -62,6 +64,35 @@ type DockerSummary struct {
 	ImagesCount       int
 	Version           string
 	Containers        []ContainerItem
+}
+
+// ParseHealthStatus извлекает стандартизированный статус healthcheck ("healthy", "unhealthy", "starting" или "")
+// из поля State.Health.Status или строки Status контейнера Docker.
+func ParseHealthStatus(val string) string {
+	s := strings.ToLower(strings.TrimSpace(val))
+	if s == "" {
+		return ""
+	}
+	switch s {
+	case "healthy":
+		return "healthy"
+	case "unhealthy":
+		return "unhealthy"
+	case "starting":
+		return "starting"
+	}
+
+	if strings.Contains(s, "(healthy)") {
+		return "healthy"
+	}
+	if strings.Contains(s, "(unhealthy)") {
+		return "unhealthy"
+	}
+	if strings.Contains(s, "(health: starting)") || (strings.Contains(s, "starting") && strings.Contains(s, "health")) {
+		return "starting"
+	}
+
+	return ""
 }
 
 // ContainerStatsRaw описывает структуру ответа /containers/{id}/stats?stream=false от Docker Engine API.
@@ -277,6 +308,7 @@ func GetDockerSummary() DockerSummary {
 						Image:          c.Image,
 						State:          c.State,
 						Status:         c.Status,
+						Health:         ParseHealthStatus(c.Status),
 						Ports:          strings.Join(portsList, ", "),
 						ComposeProject: composeProject,
 						ComposeService: composeService,
@@ -467,6 +499,10 @@ func GetContainerDetail(containerID string) (ContainerDetail, error) {
 				State   struct {
 					Status   string `json:"Status"`
 					ExitCode int    `json:"ExitCode"`
+					Health   *struct {
+						Status        string `json:"Status"`
+						FailingStreak int    `json:"FailingStreak"`
+					} `json:"Health"`
 				} `json:"State"`
 				Config struct {
 					Image string   `json:"Image"`
@@ -491,6 +527,11 @@ func GetContainerDetail(containerID string) (ContainerDetail, error) {
 				detail.Created = data.Created
 				detail.State = data.State.Status
 				detail.Status = fmt.Sprintf("%s (ExitCode: %d)", data.State.Status, data.State.ExitCode)
+				if data.State.Health != nil && data.State.Health.Status != "" {
+					detail.Health = ParseHealthStatus(data.State.Health.Status)
+				} else {
+					detail.Health = ParseHealthStatus(detail.Status)
+				}
 				detail.IP = data.NetworkSettings.IPAddress
 				detail.Gateway = data.NetworkSettings.Gateway
 				detail.MACAddress = data.NetworkSettings.MacAddress
@@ -522,6 +563,20 @@ func GetContainerDetail(containerID string) (ContainerDetail, error) {
 			first := raw[0]
 			if name, ok := first["Name"].(string); ok {
 				detail.Name = strings.TrimPrefix(name, "/")
+			}
+			if state, ok := first["State"].(map[string]interface{}); ok {
+				if status, ok := state["Status"].(string); ok {
+					detail.State = status
+					detail.Status = status
+				}
+				if health, ok := state["Health"].(map[string]interface{}); ok {
+					if hStatus, ok := health["Status"].(string); ok {
+						detail.Health = ParseHealthStatus(hStatus)
+					}
+				}
+			}
+			if detail.Health == "" {
+				detail.Health = ParseHealthStatus(detail.Status)
 			}
 			return detail, nil
 		}

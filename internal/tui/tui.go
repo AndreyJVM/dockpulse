@@ -162,7 +162,8 @@ func (m Model) getFilteredContainers() []monitor.ContainerItem {
 		if strings.Contains(strings.ToLower(c.Name), q) ||
 			strings.Contains(strings.ToLower(c.Image), q) ||
 			strings.Contains(strings.ToLower(c.ID), q) ||
-			strings.Contains(strings.ToLower(c.ComposeProject), q) {
+			strings.Contains(strings.ToLower(c.ComposeProject), q) ||
+			strings.Contains(strings.ToLower(c.Health), q) {
 			res = append(res, c)
 		}
 	}
@@ -179,7 +180,6 @@ func (m *Model) clampCursor() {
 		m.cursorIdx = 0
 	}
 }
-
 
 func (m Model) Init() tea.Cmd {
 	return tickCmd(m.refreshInterval)
@@ -592,7 +592,21 @@ func (m Model) renderInspectModal() string {
 
 	s.WriteString(fmt.Sprintf("  %s %s\n", dimStyle.Render("ID:"), d.ID))
 	s.WriteString(fmt.Sprintf("  %s %s\n", dimStyle.Render("Образ:"), boldStyle.Render(d.Image)))
-	s.WriteString(fmt.Sprintf("  %s %s\n", dimStyle.Render("Статус:"), greenStyle.Render(d.Status)))
+
+	healthBadge := dimStyle.Render("-")
+	switch d.Health {
+	case "healthy":
+		healthBadge = greenStyle.Render("[healthy]")
+	case "unhealthy":
+		healthBadge = redStyle.Render("[unhealthy]")
+	case "starting":
+		healthBadge = yellowStyle.Render("[starting]")
+	}
+
+	s.WriteString(fmt.Sprintf("  %s %s    %s %s\n",
+		dimStyle.Render("Статус:"), greenStyle.Render(d.Status),
+		dimStyle.Render("Здоровье:"), healthBadge,
+	))
 	if d.State == "running" && (d.CPUPerc > 0 || d.MemUsageMB > 0) {
 		s.WriteString(fmt.Sprintf("  %s %.1f%%    %s %.1f MB (%.1f%%)\n",
 			dimStyle.Render("CPU:"), d.CPUPerc,
@@ -743,19 +757,45 @@ func (m Model) renderDockerTab() string {
 		return s.String()
 	}
 
-	s.WriteString(fmt.Sprintf("   %-12s %-18s %-18s %-8s %-15s %-10s %-18s\n",
+	s.WriteString(fmt.Sprintf("   %-12s %-18s %-18s %-8s %-15s %-9s %-11s %-18s\n",
 		dimStyle.Render("ID"), dimStyle.Render("NAME"), dimStyle.Render("IMAGE"),
 		dimStyle.Render("CPU%"), dimStyle.Render("MEM USAGE"),
-		dimStyle.Render("STATE"), dimStyle.Render("PORTS"),
+		dimStyle.Render("STATE"), dimStyle.Render("HEALTH"), dimStyle.Render("PORTS"),
 	))
-	s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 102)) + "\n")
+	s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 114)) + "\n")
 
 	for i, c := range containers {
-		stateColored := dimStyle.Render(c.State)
+		stateFormatted := fmt.Sprintf("%-9s", c.State)
+		var stateColored string
 		if c.State == "running" {
-			stateColored = greenStyle.Render("running")
+			stateColored = greenStyle.Render(stateFormatted)
 		} else if c.State == "paused" {
-			stateColored = yellowStyle.Render("paused")
+			stateColored = yellowStyle.Render(stateFormatted)
+		} else {
+			stateColored = dimStyle.Render(stateFormatted)
+		}
+
+		healthText := "-"
+		switch c.Health {
+		case "healthy":
+			healthText = "[healthy]"
+		case "unhealthy":
+			healthText = "[unhealthy]"
+		case "starting":
+			healthText = "[starting]"
+		}
+
+		healthFormatted := fmt.Sprintf("%-11s", healthText)
+		var healthColored string
+		switch c.Health {
+		case "healthy":
+			healthColored = greenStyle.Render(healthFormatted)
+		case "unhealthy":
+			healthColored = redStyle.Render(healthFormatted)
+		case "starting":
+			healthColored = yellowStyle.Render(healthFormatted)
+		default:
+			healthColored = dimStyle.Render(healthFormatted)
 		}
 
 		cpuStr := "-"
@@ -796,18 +836,18 @@ func (m Model) renderDockerTab() string {
 		}
 
 		prefix := "  "
-		rowContent := fmt.Sprintf("%-12s %-18s %-18s %s %s %-20s %s",
+		rowContent := fmt.Sprintf("%-12s %-18s %-18s %s %s %s %s %s",
 			c.ID, boldStyle.Render(truncate(c.Name, 16)), truncate(c.Image, 16),
 			cpuColored, memColored,
-			stateColored, truncate(c.Ports, 18),
+			stateColored, healthColored, truncate(c.Ports, 18),
 		)
 
 		if i == m.cursorIdx {
 			prefix = greenStyle.Render("► ")
-			rowContent = selectedRowStyle.Render(fmt.Sprintf("%-12s %-18s %-18s %-8s %-15s %-10s %-18s",
+			rowContent = selectedRowStyle.Render(fmt.Sprintf("%-12s %-18s %-18s %-8s %-15s %-9s %-11s %-18s",
 				c.ID, truncate(c.Name, 16), truncate(c.Image, 16),
 				cpuStr, truncate(memStr, 15),
-				c.State, truncate(c.Ports, 18),
+				c.State, healthText, truncate(c.Ports, 18),
 			))
 		}
 
