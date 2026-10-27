@@ -145,34 +145,35 @@ func GetComposeProjectLogs(projectName string, containers []ContainerItem, tailL
 
 // RestartComposeProject перезапускает все контейнеры проекта Compose.
 func RestartComposeProject(projectName string, containers []ContainerItem) error {
+	var projectContainers []ContainerItem
+	for _, c := range containers {
+		if c.ComposeProject == projectName {
+			projectContainers = append(projectContainers, c)
+		}
+	}
+
+	if len(projectContainers) == 0 {
+		return fmt.Errorf("не найдено контейнеров для проекта %q", projectName)
+	}
+
 	// 1. Попытка через docker compose CLI
 	if _, err := exec.LookPath("docker"); err == nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		cmd := exec.CommandContext(ctx, "docker", "compose", "-p", projectName, "restart")
-		if out, err := cmd.CombinedOutput(); err == nil {
+		if _, err := cmd.CombinedOutput(); err == nil {
 			return nil
-		} else if !strings.Contains(string(out), "unknown command") && len(strings.TrimSpace(string(out))) > 0 {
-			// Если docker compose вернул явную ошибку (не 'unknown command')
-			// пробуем fallback ниже
 		}
 	}
 
 	// 2. Fallback: перезапуск через сокет / список контейнеров проекта
-	var matched int
 	var errs []string
-	for _, c := range containers {
-		if c.ComposeProject == projectName {
-			matched++
-			if err := RestartContainer(c.ID); err != nil {
-				errs = append(errs, fmt.Sprintf("%s: %v", c.Name, err))
-			}
+	for _, c := range projectContainers {
+		if err := RestartContainer(c.ID); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", c.Name, err))
 		}
 	}
 
-	if matched == 0 {
-		return fmt.Errorf("не найдено контейнеров для проекта %q", projectName)
-	}
 	if len(errs) > 0 {
 		return fmt.Errorf("ошибки перезапуска: %s", strings.Join(errs, "; "))
 	}
