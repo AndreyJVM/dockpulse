@@ -1,15 +1,15 @@
-# System & Docker Monitor (Go Edition)
+# Dockpulse (Go Edition)
 
-[![CI](https://github.com/AndreyJVM/system-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/AndreyJVM/system-monitor/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/AndreyJVM/system-monitor?color=blue&logo=github)](https://github.com/AndreyJVM/system-monitor/releases)
+[![CI](https://github.com/AndreyJVM/dockpulse/actions/workflows/ci.yml/badge.svg)](https://github.com/AndreyJVM/dockpulse/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/AndreyJVM/dockpulse?color=blue&logo=github)](https://github.com/AndreyJVM/dockpulse/releases)
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://golang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://github.com/AndreyJVM/system-monitor/releases)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://github.com/AndreyJVM/dockpulse/releases)
 
 Сверхбыстрый автономный терминальный TUI-монитор системных ресурсов хоста, **Docker**, **Docker Compose** и кластеров **Docker Swarm**, написанный на **Go (Golang)** на базе фреймворков **Bubble Tea** и **Lip Gloss** с возможностью **интерактивного управления контейнерами**.
 
 ```text
-┌─ System & Docker Monitor ───────────────────────────────────────────┐
+┌─ Dockpulse ─────────────────────────────────────────────────────────┐
 │ [1: Host Overview]  [2: Docker Containers]  [3: Compose]  [4: Swarm]                            │
 ├─────────────────────────────────────────────────────────────────────────────────────────────────┤
 │    DOCKER КОНТЕЙНЕРЫ (ИНТЕРАКТИВНОЕ УПРАВЛЕНИЕ)                                                 │
@@ -52,39 +52,39 @@
 ### Вариант 1. Установка готового `.deb` пакета (Debian / Ubuntu / Linux Mint):
 ```bash
 # Для x86_64 / amd64:
-wget https://github.com/AndreyJVM/system-monitor/releases/download/v0.4.1/system-monitor_0.4.1_amd64.deb
-sudo dpkg -i system-monitor_0.4.1_amd64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/download/v0.4.1/dockpulse_0.4.1_amd64.deb
+sudo dpkg -i dockpulse_0.4.1_amd64.deb
 
 # Для ARM64 (Raspberry Pi, ARM-серверы):
-wget https://github.com/AndreyJVM/system-monitor/releases/download/v0.4.1/system-monitor_0.4.1_arm64.deb
-sudo dpkg -i system-monitor_0.4.1_arm64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/download/v0.4.1/dockpulse_0.4.1_arm64.deb
+sudo dpkg -i dockpulse_0.4.1_arm64.deb
 
 # Запуск из любого терминала
-system-monitor
+dockpulse
 ```
 
 ### Вариант 2. Запуск готового бинарника (Linux / macOS):
-Скачайте архив со страницы [Releases](https://github.com/AndreyJVM/system-monitor/releases):
+Скачайте архив со страницы [Releases](https://github.com/AndreyJVM/dockpulse/releases):
 ```bash
 # Linux amd64
-tar -xzf system-monitor_v0.4.1_linux_amd64.tar.gz
-./system-monitor
+tar -xzf dockpulse_v0.4.1_linux_amd64.tar.gz
+./dockpulse
 
 # macOS (Apple Silicon)
-tar -xzf system-monitor_v0.4.1_darwin_arm64.tar.gz
-./system-monitor
+tar -xzf dockpulse_v0.4.1_darwin_arm64.tar.gz
+./dockpulse
 ```
 
 ### Вариант 3. Сборка из исходников (Go 1.21+):
 ```bash
-git clone https://github.com/AndreyJVM/system-monitor.git
-cd system-monitor
+git clone https://github.com/AndreyJVM/dockpulse.git
+cd dockpulse
 
 # Сборка бинарника
 make build
 
 # Запуск
-./system-monitor
+./dockpulse
 ```
 
 ---
@@ -136,7 +136,7 @@ make build
 
 ```text
 Использование:
-  system-monitor [опции]
+  dockpulse [опции]
 
 Опции:
   -i, --interval <duration>  Интервал автообновления (по умолчанию: 2s, например: -i 1s или -i 5s)
@@ -150,8 +150,8 @@ make build
 ## Команды Makefile
 
 - `make test` — запустить unit-тесты Go (`go test -v ./...`)
-- `make build` — скомпилировать бинарный файл (`system-monitor`)
-- `make run` — запустить через `go run ./cmd/system-monitor`
+- `make build` — скомпилировать бинарный файл (`dockpulse`)
+- `make run` — запустить через `go run ./cmd/dockpulse`
 - `make version` — показать текущую версию
 - `make release-patch` — поднять patch-версию, обновить changelog и создать git-тег
 - `make release-minor` — поднять minor-версию, обновить changelog и создать git-тег

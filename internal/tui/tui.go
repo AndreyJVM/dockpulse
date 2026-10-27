@@ -7,7 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/AndreyJVM/system-monitor/internal/monitor"
+	"github.com/AndreyJVM/dockpulse/internal/monitor"
 )
 
 // Стили оформления Lip Gloss
@@ -484,7 +484,7 @@ func (m Model) View() string {
 	if verStr == "" {
 		verStr = "v0.4.0"
 	}
-	header := headerStyle.Render("System & Docker Monitor") +
+	header := headerStyle.Render("Dockpulse") +
 		dimStyle.Render(fmt.Sprintf("  %s (Go Edition)  ", verStr)) +
 		greenStyle.Render("["+m.lastUpdate+"]")
 	b.WriteString(header + "\n\n")

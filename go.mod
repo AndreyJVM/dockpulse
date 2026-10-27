@@ -1,4 +1,4 @@
-module github.com/AndreyJVM/system-monitor
+module github.com/AndreyJVM/dockpulse
 
 go 1.27.3
 

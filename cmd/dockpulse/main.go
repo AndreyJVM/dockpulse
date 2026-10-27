@@ -7,7 +7,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/AndreyJVM/system-monitor/internal/tui"
+	"github.com/AndreyJVM/dockpulse/internal/tui"
 )
 
 var (
@@ -32,9 +32,9 @@ func main() {
 	flag.BoolVar(&showHelp, "h", false, "Показать справку (короткий флаг)")
 
 	flag.Usage = func() {
-		fmt.Printf("System & Docker Monitor %s (Go Edition)\n\n", version)
+		fmt.Printf("Dockpulse %s (Go Edition)\n\n", version)
 		fmt.Printf("Использование:\n")
-		fmt.Printf("  system-monitor [опции]\n\n")
+		fmt.Printf("  dockpulse [опции]\n\n")
 		fmt.Printf("Опции:\n")
 		fmt.Printf("  -i, --interval <duration>  Интервал автообновления (по умолчанию: 2s)\n")
 		fmt.Printf("  -t, --tab <1-4>            Начальная вкладка (по умолчанию: 1)\n")
@@ -50,7 +50,7 @@ func main() {
 	flag.Parse()
 
 	if showVersion {
-		fmt.Printf("system-monitor %s (Go Edition)\n", version)
+		fmt.Printf("dockpulse %s (Go Edition)\n", version)
 		return
 	}
 
@@ -62,7 +62,7 @@ func main() {
 	model := tui.NewModel(interval, initialTab, version)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Ошибка запуска system-monitor: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Ошибка запуска dockpulse: %v\n", err)
 		os.Exit(1)
 	}
 }

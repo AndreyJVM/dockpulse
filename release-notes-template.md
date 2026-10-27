@@ -1,4 +1,4 @@
-# System & Docker Monitor v{VERSION}
+# Dockpulse v{VERSION}
 
 ### Что нового:
 - Переход на строгий профессиональный визуальный стиль без смайликов и эмодзи в CLI, TUI и документации
@@ -10,10 +10,10 @@
 ### Установка:
 ```bash
 # Debian / Ubuntu / Linux Mint (amd64):
-wget https://github.com/{REPO_OWNER}/{REPO_NAME}/releases/download/v{VERSION}/system-monitor_{VERSION}_amd64.deb
-sudo dpkg -i system-monitor_{VERSION}_amd64.deb
+wget https://github.com/{REPO_OWNER}/{REPO_NAME}/releases/download/v{VERSION}/dockpulse_{VERSION}_amd64.deb
+sudo dpkg -i dockpulse_{VERSION}_amd64.deb
 
 # Автономный бинарник:
-tar -xzf system-monitor_v{VERSION}_{OS}_{ARCH}.tar.gz
-./system-monitor
+tar -xzf dockpulse_v{VERSION}_{OS}_{ARCH}.tar.gz
+./dockpulse
 ```

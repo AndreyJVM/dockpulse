@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Dockpulse
+Comment=Monitor system resources, Docker, Compose, and Swarm
+Exec=dockpulse
+Icon=dockpulse
+Terminal=true
+Type=Application
+Categories=System;Utility;Monitor;
+StartupNotify=true
+Keywords=system;monitor;docker;compose;swarm;info;

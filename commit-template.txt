@@ -1,4 +1,4 @@
-# system-monitor: Краткое описание изменений
+# dockpulse: Краткое описание изменений
 #
 # Version: X.Y.Z
 # Type: bugfix|feature|release

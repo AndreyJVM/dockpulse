@@ -1,6 +1,6 @@
 # Go build artifacts
-system-monitor
-system-monitor.exe
+dockpulse
+dockpulse.exe
 bin/
 dist/
 deb_pkg_*/
@@ -13,7 +13,7 @@ debian/files
 debian/.debhelper/
 debian/*.log
 debian/*.substvars
-debian/system-monitor/
+debian/dockpulse/
 debian/.debhelper.log
 debian/debhelper-build-stamp
 

@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Предложить новую функцию для System Monitor
+about: Предложить новую функцию для Dockpulse
 title: '[Feature]: '
 labels: enhancement
 assignees: ''

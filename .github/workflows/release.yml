@@ -64,12 +64,12 @@ jobs:
 
           for PLATFORM in "${PLATFORMS[@]}"; do
             read -r GOOS GOARCH EXT <<< "$PLATFORM"
-            BIN_NAME="system-monitor${EXT}"
-            TARGET_DIR="system-monitor_${VERSION}_${GOOS}_${GOARCH}"
+            BIN_NAME="dockpulse${EXT}"
+            TARGET_DIR="dockpulse_${VERSION}_${GOOS}_${GOARCH}"
             
             echo "==> Building for ${GOOS}/${GOARCH}..."
             mkdir -p "bin/${TARGET_DIR}"
-            CGO_ENABLED=0 GOOS="${GOOS}" GOARCH="${GOARCH}" go build -ldflags="${LDFLAGS}" -o "bin/${TARGET_DIR}/${BIN_NAME}" ./cmd/system-monitor
+            CGO_ENABLED=0 GOOS="${GOOS}" GOARCH="${GOARCH}" go build -ldflags="${LDFLAGS}" -o "bin/${TARGET_DIR}/${BIN_NAME}" ./cmd/dockpulse
 
             cp README.md "bin/${TARGET_DIR}/" 2>/dev/null || true
             cp LICENSE "bin/${TARGET_DIR}/" 2>/dev/null || true
@@ -97,27 +97,27 @@ jobs:
             mkdir -p "${PKG_DIR}/usr/share/applications"
             mkdir -p "${PKG_DIR}/usr/share/icons/hicolor/128x128/apps"
 
-            cp "bin/system-monitor_${{ steps.get_version.outputs.tag }}_linux_${ARCH}/system-monitor" "${PKG_DIR}/usr/bin/"
-            chmod 755 "${PKG_DIR}/usr/bin/system-monitor"
+            cp "bin/dockpulse_${{ steps.get_version.outputs.tag }}_linux_${ARCH}/dockpulse" "${PKG_DIR}/usr/bin/"
+            chmod 755 "${PKG_DIR}/usr/bin/dockpulse"
 
-            cp system-monitor.desktop "${PKG_DIR}/usr/share/applications/" 2>/dev/null || true
-            cp icon.png "${PKG_DIR}/usr/share/icons/hicolor/128x128/apps/system-monitor.png" 2>/dev/null || true
+            cp dockpulse.desktop "${PKG_DIR}/usr/share/applications/" 2>/dev/null || true
+            cp icon.png "${PKG_DIR}/usr/share/icons/hicolor/128x128/apps/dockpulse.png" 2>/dev/null || true
 
             {
-              echo "Package: system-monitor"
+              echo "Package: dockpulse"
               echo "Version: ${PKG_VERSION}"
               echo "Section: utils"
               echo "Priority: optional"
               echo "Architecture: ${ARCH}"
               echo "Maintainer: Andrey Vorobev <andrey.vorobev.aqa@gmail.com>"
-              echo "Homepage: https://github.com/AndreyJVM/system-monitor"
+              echo "Homepage: https://github.com/AndreyJVM/dockpulse"
               echo "Description: Fast System, Docker, Compose & Swarm terminal monitor (Go Edition)"
               echo " A lightweight and fast terminal dashboard (TUI) written in Go to monitor"
               echo " host CPU, RAM, disk, network, Docker containers, Compose projects,"
               echo " and Swarm clusters."
             } > "${PKG_DIR}/DEBIAN/control"
 
-            dpkg-deb --build --root-owner-group "${PKG_DIR}" "dist/system-monitor_${PKG_VERSION}_${ARCH}.deb"
+            dpkg-deb --build --root-owner-group "${PKG_DIR}" "dist/dockpulse_${PKG_VERSION}_${ARCH}.deb"
             rm -rf "${PKG_DIR}"
           done
 
@@ -133,7 +133,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
           body: |
-            ## System Monitor ${{ steps.get_version.outputs.tag }} (Go Edition)
+            ## Dockpulse ${{ steps.get_version.outputs.tag }} (Go Edition)
 
             Полный переход проекта на **Go (Golang)**: сверхбыстрый интерактивный TUI-терминал с нулевыми зависимостями, молниеносным откликом (<2 мс) и кроссплатформенными бинарными файлами.
 
@@ -150,18 +150,18 @@ jobs:
             #### Debian / Ubuntu / Linux Mint (.deb):
             ```bash
             # Для x86_64 / amd64:
-            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/system-monitor_${{ steps.get_version.outputs.version }}_amd64.deb
-            sudo dpkg -i system-monitor_${{ steps.get_version.outputs.version }}_amd64.deb
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/dockpulse_${{ steps.get_version.outputs.version }}_amd64.deb
+            sudo dpkg -i dockpulse_${{ steps.get_version.outputs.version }}_amd64.deb
 
             # Для ARM64 (Raspberry Pi, ARM-серверы):
-            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/system-monitor_${{ steps.get_version.outputs.version }}_arm64.deb
-            sudo dpkg -i system-monitor_${{ steps.get_version.outputs.version }}_arm64.deb
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/dockpulse_${{ steps.get_version.outputs.version }}_arm64.deb
+            sudo dpkg -i dockpulse_${{ steps.get_version.outputs.version }}_arm64.deb
             ```
 
             #### Прямой запуск автономного бинарника (Linux / macOS):
             ```bash
-            tar -xzf system-monitor_${{ steps.get_version.outputs.tag }}_linux_amd64.tar.gz
-            ./system-monitor
+            tar -xzf dockpulse_${{ steps.get_version.outputs.tag }}_linux_amd64.tar.gz
+            ./dockpulse
             ```
           files: |
             dist/*

@@ -1,11 +1,11 @@
-Source: system-monitor
+Source: dockpulse
 Section: utils
 Priority: optional
 Maintainer: Andrey Vorobev <andrey.vorobev.aqa@gmail.com>
 Standards-Version: 4.6.0
-Homepage: https://github.com/AndreyJVM/system-monitor
+Homepage: https://github.com/AndreyJVM/dockpulse
 
-Package: system-monitor
+Package: dockpulse
 Architecture: any
 Description: Fast System, Docker, Compose & Swarm terminal monitor (Go Edition)
  A lightweight and fast terminal dashboard (TUI) written in Go to monitor

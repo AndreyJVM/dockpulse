@@ -29,7 +29,7 @@ jobs:
           cache: true
 
       - name: Run go vet
-        run: go vet ./...
+        run: go vet ./...\
 
       - name: Run unit tests with race detector (Linux & macOS)
         if: runner.os != 'Windows'
@@ -40,4 +40,4 @@ jobs:
         run: go test -v -coverprofile=coverage.txt ./...
 
       - name: Build binary
-        run: go build -v ./cmd/system-monitor
+        run: go build -v ./cmd/dockpulse

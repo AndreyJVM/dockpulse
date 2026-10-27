@@ -1,6 +1,6 @@
-PACKAGE_NAME = system-monitor
+PACKAGE_NAME = dockpulse
 VERSION = $(shell cat VERSION)
-BINARY = system-monitor
+BINARY = dockpulse
 
 .PHONY: all clean clean-all build install reinstall remove purge check test info files run help version version-patch version-minor version-major update-changelog release release-check release-help release-tag release-patch release-minor release-major
 
@@ -34,13 +34,13 @@ test:
 # Сборка автономного бинарника Go
 build:
 	@echo "Building $(BINARY) v$(VERSION)..."
-	go build -ldflags="-s -w -X main.version=v$(VERSION)" -o $(BINARY) ./cmd/system-monitor
+	go build -ldflags="-s -w -X main.version=v$(VERSION)" -o $(BINARY) ./cmd/dockpulse
 	@echo "Build complete: ./$(BINARY)"
 
 # Запуск приложения локально
 run:
 	@echo "Running $(BINARY)..."
-	go run ./cmd/system-monitor
+	go run ./cmd/dockpulse
 
 # Обновление changelog
 update-changelog:

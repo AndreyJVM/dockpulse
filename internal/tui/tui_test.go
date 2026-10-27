@@ -6,7 +6,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/AndreyJVM/system-monitor/internal/monitor"
+	"github.com/AndreyJVM/dockpulse/internal/monitor"
 )
 
 func TestTruncate(t *testing.T) {
