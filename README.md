@@ -53,12 +53,12 @@
 ### Вариант 1. Установка готового `.deb` пакета (Debian / Ubuntu / Linux Mint):
 ```bash
 # Для x86_64 / amd64:
-wget https://github.com/AndreyJVM/dockpulse/releases/download/v0.5.0/dockpulse_0.5.0_amd64.deb
-sudo dpkg -i dockpulse_0.5.0_amd64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/download/v0.5.1/dockpulse_0.5.1_amd64.deb
+sudo dpkg -i dockpulse_0.5.1_amd64.deb
 
 # Для ARM64 (Raspberry Pi, ARM-серверы):
-wget https://github.com/AndreyJVM/dockpulse/releases/download/v0.5.0/dockpulse_0.5.0_arm64.deb
-sudo dpkg -i dockpulse_0.5.0_arm64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/download/v0.5.1/dockpulse_0.5.1_arm64.deb
+sudo dpkg -i dockpulse_0.5.1_arm64.deb
 
 # Запуск из любого терминала
 dockpulse
@@ -68,11 +68,11 @@ dockpulse
 Скачайте архив со страницы [Releases](https://github.com/AndreyJVM/dockpulse/releases):
 ```bash
 # Linux amd64
-tar -xzf dockpulse_v0.5.0_linux_amd64.tar.gz
+tar -xzf dockpulse_v0.5.1_linux_amd64.tar.gz
 ./dockpulse
 
 # macOS (Apple Silicon)
-tar -xzf dockpulse_v0.5.0_darwin_arm64.tar.gz
+tar -xzf dockpulse_v0.5.1_darwin_arm64.tar.gz
 ./dockpulse
 ```
 
