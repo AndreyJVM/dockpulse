@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -654,5 +655,68 @@ func TestSwarmTabNavigationAndLogs(t *testing.T) {
 		}
 	} else if m.actionMessage == "" {
 		t.Errorf("expected logs modal or actionMessage on pressing 'l'")
+	}
+}
+
+func TestContainerExecHotkeysAndMessages(t *testing.T) {
+	m := NewModel(2*time.Second, 2, "v0.5.0")
+	m.dockerInfo = monitor.DockerSummary{
+		Status:        "running",
+		StatusDisplay: "[Запущен]",
+		Containers: []monitor.ContainerItem{
+			{ID: "c1", Name: "running-container", State: "running", Status: "Up 2 hours"},
+			{ID: "c2", Name: "stopped-container", State: "exited", Status: "Exited (0) 5 mins ago"},
+		},
+	}
+	m.cursorIdx = 0
+
+	// 1. Press 'e' on running container
+	res, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
+	m = res.(Model)
+	if monitor.IsDockerCLIAvailable() {
+		if cmd == nil {
+			t.Errorf("expected non-nil tea.Cmd from tea.ExecProcess on running container")
+		}
+	} else {
+		if !strings.Contains(m.actionMessage, "утилита docker не найдена") {
+			t.Errorf("expected docker not found message, got %q", m.actionMessage)
+		}
+	}
+
+	// 2. Press 'E' on stopped container
+	m.cursorIdx = 1
+	res, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("E")})
+	m = res.(Model)
+	if cmd != nil {
+		t.Errorf("expected nil cmd for stopped container, got non-nil")
+	}
+	if !strings.Contains(m.actionMessage, "Нельзя подключиться") {
+		t.Errorf("expected cannot connect message, got %q", m.actionMessage)
+	}
+
+	// 3. ExecFinishedMsg with nil error
+	res, _ = m.Update(execFinishedMsg{containerName: "running-container", err: nil})
+	m = res.(Model)
+	if !strings.Contains(m.actionMessage, "Сессия shell в running-container завершена") {
+		t.Errorf("expected shell session finished message, got %q", m.actionMessage)
+	}
+
+	// 4. ExecFinishedMsg with error
+	res, _ = m.Update(execFinishedMsg{containerName: "running-container", err: fmt.Errorf("shell not found")})
+	m = res.(Model)
+	if !strings.Contains(m.actionMessage, "Ошибка shell в running-container") {
+		t.Errorf("expected shell error message, got %q", m.actionMessage)
+	}
+
+	// 5. Check footer and help hints
+	view := m.View()
+	if !strings.Contains(view, "[E]") || !strings.Contains(view, "Shell") {
+		t.Errorf("expected '[E] Shell' in tab 2 footer view, got: %s", view)
+	}
+
+	m.showHelp = true
+	helpView := m.View()
+	if !strings.Contains(helpView, "[E]") || !strings.Contains(helpView, "Интерактивный shell") {
+		t.Errorf("expected '[E]' and 'Интерактивный shell' in help modal, got: %s", helpView)
 	}
 }

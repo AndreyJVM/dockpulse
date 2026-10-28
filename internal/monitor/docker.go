@@ -584,3 +584,14 @@ func GetContainerDetail(containerID string) (ContainerDetail, error) {
 
 	return detail, fmt.Errorf("container not found: %s", containerID)
 }
+
+// IsDockerCLIAvailable проверяет доступность утилиты docker в PATH.
+func IsDockerCLIAvailable() bool {
+	_, err := exec.LookPath("docker")
+	return err == nil
+}
+
+// GetContainerExecCommand возвращает команду exec.Cmd для запуска интерактивного шелла в контейнере.
+func GetContainerExecCommand(containerID string) *exec.Cmd {
+	return exec.Command("docker", "exec", "-it", containerID, "sh", "-c", "if command -v bash >/dev/null 2>&1; then exec bash; else exec sh; fi")
+}

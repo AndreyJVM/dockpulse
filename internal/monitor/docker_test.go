@@ -130,3 +130,31 @@ func TestParseHealthStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestGetContainerExecCommand(t *testing.T) {
+	containerID := "abc123def456"
+	cmd := GetContainerExecCommand(containerID)
+	if cmd == nil {
+		t.Fatal("expected non-nil *exec.Cmd")
+	}
+
+	expectedArgs := []string{
+		"docker", "exec", "-it", containerID, "sh", "-c",
+		"if command -v bash >/dev/null 2>&1; then exec bash; else exec sh; fi",
+	}
+
+	if len(cmd.Args) != len(expectedArgs) {
+		t.Fatalf("expected %d args, got %d (%v)", len(expectedArgs), len(cmd.Args), cmd.Args)
+	}
+
+	for i, arg := range cmd.Args {
+		if arg != expectedArgs[i] {
+			t.Errorf("arg[%d] = %q, want %q", i, arg, expectedArgs[i])
+		}
+	}
+}
+
+func TestIsDockerCLIAvailable(t *testing.T) {
+	// Function must execute safely without panics
+	_ = IsDockerCLIAvailable()
+}

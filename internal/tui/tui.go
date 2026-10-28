@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -70,6 +71,11 @@ var (
 )
 
 type tickMsg time.Time
+
+type execFinishedMsg struct {
+	containerName string
+	err           error
+}
 
 func tickCmd(d time.Duration) tea.Cmd {
 	if d <= 0 {
@@ -196,6 +202,23 @@ func (m *Model) showToast(msg string) {
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case execFinishedMsg:
+		if msg.err != nil {
+			if exitErr, ok := msg.err.(*exec.ExitError); ok {
+				if exitErr.ExitCode() == 130 {
+					m.showToast(fmt.Sprintf("Сессия shell в %s завершена", msg.containerName))
+				} else {
+					m.showToast(fmt.Sprintf("Сессия shell в %s завершена (код %d)", msg.containerName, exitErr.ExitCode()))
+				}
+			} else {
+				m.showToast(fmt.Sprintf("Ошибка shell в %s: %v", msg.containerName, msg.err))
+			}
+		} else {
+			m.showToast(fmt.Sprintf("Сессия shell в %s завершена", msg.containerName))
+		}
+		m.fetchAllData()
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -443,6 +466,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
+		// Подключение к Shell контейнера (Exec)
+		case "e", "E":
+			if m.activeTab == 2 {
+				containers := m.getFilteredContainers()
+				if len(containers) > 0 && m.cursorIdx < len(containers) {
+					c := containers[m.cursorIdx]
+					if c.State != "running" {
+						m.showToast(fmt.Sprintf("Нельзя подключиться: контейнер %s не запущен", c.Name))
+						return m, nil
+					}
+					if !monitor.IsDockerCLIAvailable() {
+						m.showToast("Ошибка: утилита docker не найдена в $PATH")
+						return m, nil
+					}
+					cmd := monitor.GetContainerExecCommand(c.ID)
+					return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
+						return execFinishedMsg{
+							containerName: c.Name,
+							err:           err,
+						}
+					})
+				}
+			}
+
 		// Перезапуск контейнера или проекта Compose
 		case "p", "P":
 			if m.activeTab == 2 {
@@ -553,6 +600,7 @@ func (m Model) View() string {
 					boldStyle.Render("[Esc]") + " Сбросить фильтр  |  " +
 					boldStyle.Render("[L]") + " Логи  |  " +
 					boldStyle.Render("[Enter/I]") + " Инфо  |  " +
+					boldStyle.Render("[E]") + " Shell  |  " +
 					boldStyle.Render("[S]") + " Старт/Стоп  |  " +
 					boldStyle.Render("[P]") + " Рестарт",
 			))
@@ -562,6 +610,7 @@ func (m Model) View() string {
 					boldStyle.Render("[/]") + " Поиск  |  " +
 					boldStyle.Render("[L]") + " Логи  |  " +
 					boldStyle.Render("[Enter/I]") + " Инфо  |  " +
+					boldStyle.Render("[E]") + " Shell  |  " +
 					boldStyle.Render("[S]") + " Старт/Стоп  |  " +
 					boldStyle.Render("[P]") + " Рестарт  |  " +
 					boldStyle.Render("[?]") + " Справка",
@@ -668,6 +717,7 @@ func (m Model) renderHelpBox() string {
   %s   Поиск и фильтрация контейнеров по имени, образу или ID
   %s   Просмотр логов контейнера, стека Compose или службы Swarm
   %s   Подробная инспекция выбранного контейнера (IP, тома, сеть)
+  %s   Интерактивный shell в контейнере (bash / sh)
   %s   Запуск / остановка контейнера
   %s   Перезапуск (restart) контейнера или проекта Compose
   %s   Принудительное обновление всех данных
@@ -682,6 +732,7 @@ func (m Model) renderHelpBox() string {
 		greenStyle.Render("[/]"),
 		greenStyle.Render("[L]"),
 		greenStyle.Render("[Enter] / [I]"),
+		greenStyle.Render("[E]"),
 		greenStyle.Render("[S]"),
 		greenStyle.Render("[P]"),
 		greenStyle.Render("[R]"),
