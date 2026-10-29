@@ -453,7 +453,7 @@ func RemoveContainer(containerID string) error {
 			resp, err := client.Do(req)
 			if err == nil {
 				defer resp.Body.Close()
-				if resp.StatusCode == http.StatusNoContent || resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound {
+				if resp.StatusCode == http.StatusNoContent || resp.StatusCode == http.StatusOK {
 					return nil
 				}
 				body, _ := io.ReadAll(resp.Body)
