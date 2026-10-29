@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AndreyJVM/dockpulse/internal/monitor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/AndreyJVM/dockpulse/internal/monitor"
 )
 
 // Стили оформления Lip Gloss
@@ -108,6 +108,15 @@ type Model struct {
 	actionMessage       string
 	actionMessageExpiry time.Time
 
+	// Prune модальное окно
+	pruneUsage    monitor.DockerDiskUsage
+	pruneUsageErr string
+	pruneConfirm  int // 0 - меню, 1 - containers, 2 - images, 3 - volumes, 4 - all
+
+	// История метрик (Sparklines)
+	cpuHistory []float64
+	memHistory []float64
+
 	// Поиск и фильтрация контейнеров
 	isFiltering bool
 	filterQuery string
@@ -152,6 +161,7 @@ func (m *Model) fetchAllData() {
 	m.compose = monitor.GetComposeProjects(m.dockerInfo.Containers)
 	m.swarm = monitor.GetSwarmSummary()
 	m.lastUpdate = time.Now().Format("15:04:05")
+	m.recordMetricHistory(m.cpuInfo.Percent, m.memInfo.Percent)
 
 	m.clampCursor()
 	if m.composeCursorIdx >= len(m.compose) {
@@ -253,6 +263,66 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Если активно модальное окно
 		if m.activeModal != "" {
+			if m.activeModal == "prune" {
+				switch msg.String() {
+				case "q":
+					m.activeModal = ""
+					m.pruneConfirm = 0
+					return m, nil
+				case "esc":
+					if m.pruneConfirm > 0 {
+						m.pruneConfirm = 0
+					} else {
+						m.activeModal = ""
+					}
+					return m, nil
+				case "1", "2", "3", "4":
+					if m.pruneConfirm == 0 {
+						switch msg.String() {
+						case "1":
+							m.pruneConfirm = 1
+						case "2":
+							m.pruneConfirm = 2
+						case "3":
+							m.pruneConfirm = 3
+						case "4":
+							m.pruneConfirm = 4
+						}
+					}
+					return m, nil
+				case "y", "Y":
+					if m.pruneConfirm > 0 {
+						var res string
+						var err error
+						switch m.pruneConfirm {
+						case 1:
+							res, err = monitor.PruneContainers()
+						case 2:
+							res, err = monitor.PruneImages()
+						case 3:
+							res, err = monitor.PruneVolumes()
+						case 4:
+							res, err = monitor.PruneAll()
+						}
+						if err != nil {
+							m.showToast("Ошибка очистки: " + err.Error())
+						} else {
+							m.showToast(res)
+						}
+						m.fetchAllData()
+						m.activeModal = ""
+						m.pruneConfirm = 0
+					}
+					return m, nil
+				case "n", "N":
+					if m.pruneConfirm > 0 {
+						m.pruneConfirm = 0
+					}
+					return m, nil
+				}
+				return m, nil
+			}
+
 			switch msg.String() {
 			case "q", "esc":
 				m.activeModal = ""
@@ -514,6 +584,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.showToast(fmt.Sprintf("Проект %s успешно перезапущен", proj.Name))
 				}
 			}
+
+		// Очистка неиспользуемых ресурсов Docker (Prune)
+		case "c", "C":
+			if (m.activeTab == 2 || m.activeTab == 3) && !m.isFiltering {
+				m.activeModal = "prune"
+				m.pruneConfirm = 0
+				usage, err := monitor.GetDockerDiskUsage()
+				m.pruneUsage = usage
+				if err != nil {
+					m.pruneUsageErr = err.Error()
+				} else {
+					m.pruneUsageErr = ""
+				}
+				return m, nil
+			}
 		}
 
 	case tickMsg:
@@ -566,6 +651,8 @@ func (m Model) View() string {
 		b.WriteString(m.renderLogsModal())
 	} else if m.activeModal == "inspect" {
 		b.WriteString(m.renderInspectModal())
+	} else if m.activeModal == "prune" {
+		b.WriteString(m.renderPruneModal())
 	} else if m.showHelp {
 		b.WriteString("\n" + m.renderHelpBox() + "\n")
 	} else {
@@ -584,10 +671,24 @@ func (m Model) View() string {
 	// 4. Подвал
 	b.WriteString("\n" + dimStyle.Render(strings.Repeat("─", max(m.width, 70))) + "\n")
 	if m.activeModal != "" {
-		b.WriteString(footerStyle.Render(
-			boldStyle.Render("[Esc / Q]") + " Закрыть окно  |  " +
-				boldStyle.Render("[↑ / ↓ / PgUp / PgDn]") + " Прокрутка",
-		))
+		if m.activeModal == "prune" {
+			if m.pruneConfirm > 0 {
+				b.WriteString(footerStyle.Render(
+					boldStyle.Render("[Y]") + " Подтвердить очистку  |  " +
+						boldStyle.Render("[N / Esc]") + " Отмена",
+				))
+			} else {
+				b.WriteString(footerStyle.Render(
+					boldStyle.Render("[1-4]") + " Выбрать действие  |  " +
+						boldStyle.Render("[Esc / Q]") + " Закрыть окно",
+				))
+			}
+		} else {
+			b.WriteString(footerStyle.Render(
+				boldStyle.Render("[Esc / Q]") + " Закрыть окно  |  " +
+					boldStyle.Render("[↑ / ↓ / PgUp / PgDn]") + " Прокрутка",
+			))
+		}
 	} else if m.activeTab == 2 {
 		if m.isFiltering {
 			b.WriteString(footerStyle.Render(
@@ -613,6 +714,7 @@ func (m Model) View() string {
 					boldStyle.Render("[E]") + " Shell  |  " +
 					boldStyle.Render("[S]") + " Старт/Стоп  |  " +
 					boldStyle.Render("[P]") + " Рестарт  |  " +
+					boldStyle.Render("[C]") + " Очистка  |  " +
 					boldStyle.Render("[?]") + " Справка",
 			))
 		}
@@ -621,6 +723,7 @@ func (m Model) View() string {
 			boldStyle.Render("[↑ / ↓]") + " Выбрать стек  |  " +
 				boldStyle.Render("[L]") + " Логи стека  |  " +
 				boldStyle.Render("[P]") + " Перезапуск стека  |  " +
+				boldStyle.Render("[C]") + " Очистка  |  " +
 				boldStyle.Render("[?]") + " Справка",
 		))
 	} else if m.activeTab == 4 {
@@ -708,6 +811,80 @@ func (m Model) renderInspectModal() string {
 	return boxStyle.Render(s.String())
 }
 
+func (m Model) renderPruneModal() string {
+	var s strings.Builder
+
+	title := "ОЧИСТКА РЕСУРСОВ DOCKER (SYSTEM PRUNE)"
+	s.WriteString(titleStyle.Render(title) + "\n\n")
+
+	if m.pruneUsageErr != "" {
+		s.WriteString(fmt.Sprintf("  %s %s\n\n", dimStyle.Render("Статус:"), redStyle.Render(m.pruneUsageErr)))
+	} else {
+		s.WriteString("  " + boldStyle.Render("ТЕКУЩЕЕ ИСПОЛЬЗОВАНИЕ ДИСКА:") + "\n")
+		s.WriteString(fmt.Sprintf("  %-16s %-12s %-14s %s\n",
+			dimStyle.Render("ТИП"), dimStyle.Render("ОБЪЕМ"), dimStyle.Render("АКТИВНО/ВСЕГО"), dimStyle.Render("ОСВОБОЖДАЕМО"),
+		))
+		s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 58)) + "\n")
+
+		u := m.pruneUsage
+		s.WriteString(fmt.Sprintf("  %-16s %-12s %-14s %s\n",
+			"Образы", monitor.FormatBytes(u.Images.TotalSize),
+			fmt.Sprintf("%d / %d", u.Images.ActiveCount, u.Images.TotalCount),
+			yellowStyle.Render(monitor.FormatBytes(u.Images.Reclaimable)),
+		))
+		s.WriteString(fmt.Sprintf("  %-16s %-12s %-14s %s\n",
+			"Контейнеры", monitor.FormatBytes(u.Containers.TotalSize),
+			fmt.Sprintf("%d / %d", u.Containers.ActiveCount, u.Containers.TotalCount),
+			yellowStyle.Render(monitor.FormatBytes(u.Containers.Reclaimable)),
+		))
+		s.WriteString(fmt.Sprintf("  %-16s %-12s %-14s %s\n",
+			"Тома", monitor.FormatBytes(u.Volumes.TotalSize),
+			fmt.Sprintf("%d / %d", u.Volumes.ActiveCount, u.Volumes.TotalCount),
+			yellowStyle.Render(monitor.FormatBytes(u.Volumes.Reclaimable)),
+		))
+		s.WriteString(fmt.Sprintf("  %-16s %-12s %-14s %s\n",
+			"Кэш сборки", monitor.FormatBytes(u.BuildCache.TotalSize),
+			fmt.Sprintf("%d / %d", u.BuildCache.ActiveCount, u.BuildCache.TotalCount),
+			yellowStyle.Render(monitor.FormatBytes(u.BuildCache.Reclaimable)),
+		))
+		s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 58)) + "\n")
+		s.WriteString(fmt.Sprintf("  %-16s %-12s %-14s %s\n\n",
+			boldStyle.Render("Всего"), boldStyle.Render(monitor.FormatBytes(u.TotalSize)),
+			"", greenStyle.Render(monitor.FormatBytes(u.TotalRecl)),
+		))
+	}
+
+	if m.pruneConfirm > 0 {
+		var actionName string
+		switch m.pruneConfirm {
+		case 1:
+			actionName = "Удаление всех остановленных контейнеров"
+		case 2:
+			actionName = "Удаление всех висячих образов (dangling images)"
+		case 3:
+			actionName = "Удаление всех неиспользуемых томов (volumes)"
+		case 4:
+			actionName = "ПОЛНАЯ очистка: остановленные контейнеры, образы, тома и кэш сборки"
+		}
+
+		s.WriteString("  " + redStyle.Render("[ВНИМАНИЕ] ") + boldStyle.Render(actionName) + "\n")
+		s.WriteString("  Это действие необратимо. Подтвердить выполнение?\n\n")
+		s.WriteString(fmt.Sprintf("  %s Подтвердить  |  %s Отмена\n",
+			greenStyle.Render("[Y]"),
+			dimStyle.Render("[N / Esc]"),
+		))
+	} else {
+		s.WriteString("  " + boldStyle.Render("ВЫБЕРИТЕ ДЕЙСТВИЕ ДЛЯ ОЧИСТКИ:") + "\n")
+		s.WriteString(fmt.Sprintf("  %s Очистить остановленные контейнеры (Prune stopped containers)\n", greenStyle.Render("[1]")))
+		s.WriteString(fmt.Sprintf("  %s Очистить висячие образы без тегов (Prune dangling images)\n", greenStyle.Render("[2]")))
+		s.WriteString(fmt.Sprintf("  %s Очистить неиспользуемые тома данных (Prune unused volumes)\n", greenStyle.Render("[3]")))
+		s.WriteString(fmt.Sprintf("  %s Полная очистка всех неиспользуемых ресурсов (Prune all)\n\n", yellowStyle.Render("[4]")))
+		s.WriteString(fmt.Sprintf("  %s Закрыть окно\n", dimStyle.Render("[Esc / Q]")))
+	}
+
+	return boxStyle.Render(s.String())
+}
+
 func (m Model) renderHelpBox() string {
 	content := fmt.Sprintf(`%s
 
@@ -720,6 +897,7 @@ func (m Model) renderHelpBox() string {
   %s   Интерактивный shell в контейнере (bash / sh)
   %s   Запуск / остановка контейнера
   %s   Перезапуск (restart) контейнера или проекта Compose
+  %s   Очистка неиспользуемых ресурсов Docker (Prune)
   %s   Принудительное обновление всех данных
   %s   Показать / скрыть эту справку
   %s   Выход из приложения
@@ -735,6 +913,7 @@ func (m Model) renderHelpBox() string {
 		greenStyle.Render("[E]"),
 		greenStyle.Render("[S]"),
 		greenStyle.Render("[P]"),
+		greenStyle.Render("[C]"),
 		greenStyle.Render("[R]"),
 		greenStyle.Render("[?]"),
 		greenStyle.Render("[Q] / [Esc]"),
@@ -756,11 +935,11 @@ func (m Model) renderHostTab() string {
 	))
 
 	s.WriteString(titleStyle.Render("ПРОИЗВОДИТЕЛЬНОСТЬ ХОСТА") + "\n")
-	s.WriteString(fmt.Sprintf("  CPU (%d cores): %s\n",
-		m.cpuInfo.Cores, formatBar(m.cpuInfo.Percent, 28),
+	s.WriteString(fmt.Sprintf("  CPU (%d cores): %s  %s\n",
+		m.cpuInfo.Cores, formatBar(m.cpuInfo.Percent, 22), renderSparkline(m.cpuHistory),
 	))
-	s.WriteString(fmt.Sprintf("  RAM (%.1f/%.1f GB): %s\n\n",
-		m.memInfo.UsedGB, m.memInfo.TotalGB, formatBar(m.memInfo.Percent, 28),
+	s.WriteString(fmt.Sprintf("  RAM (%.1f/%.1f GB): %s  %s\n\n",
+		m.memInfo.UsedGB, m.memInfo.TotalGB, formatBar(m.memInfo.Percent, 22), renderSparkline(m.memHistory),
 	))
 
 	s.WriteString(titleStyle.Render("СЕТЬ И ТРАФИК") + "\n")
@@ -1119,4 +1298,48 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+var sparkChars = []rune{' ', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+
+func renderSparkline(history []float64) string {
+	if len(history) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	for _, val := range history {
+		v := val
+		if v < 0 {
+			v = 0
+		} else if v > 100 {
+			v = 100
+		}
+
+		idx := int((v / 100.0) * float64(len(sparkChars)))
+		if idx >= len(sparkChars) {
+			idx = len(sparkChars) - 1
+		}
+		ch := string(sparkChars[idx])
+
+		if v >= 80 {
+			sb.WriteString(redStyle.Render(ch))
+		} else if v >= 60 {
+			sb.WriteString(yellowStyle.Render(ch))
+		} else {
+			sb.WriteString(greenStyle.Render(ch))
+		}
+	}
+	return sb.String()
+}
+
+func (m *Model) recordMetricHistory(cpu, mem float64) {
+	const maxHistory = 30
+	m.cpuHistory = append(m.cpuHistory, cpu)
+	if len(m.cpuHistory) > maxHistory {
+		m.cpuHistory = m.cpuHistory[len(m.cpuHistory)-maxHistory:]
+	}
+	m.memHistory = append(m.memHistory, mem)
+	if len(m.memHistory) > maxHistory {
+		m.memHistory = m.memHistory[len(m.memHistory)-maxHistory:]
+	}
 }

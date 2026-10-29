@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/AndreyJVM/dockpulse/internal/monitor"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func TestTruncate(t *testing.T) {
@@ -718,5 +718,194 @@ func TestContainerExecHotkeysAndMessages(t *testing.T) {
 	helpView := m.View()
 	if !strings.Contains(helpView, "[E]") || !strings.Contains(helpView, "Интерактивный shell") {
 		t.Errorf("expected '[E]' and 'Интерактивный shell' in help modal, got: %s", helpView)
+	}
+}
+
+func TestPruneModalAndWorkflow(t *testing.T) {
+	m := NewModel(2*time.Second, 2, "v0.5.0")
+	m.width = 100
+	m.height = 30
+
+	// 1. Open prune modal on tab 2 with "c"
+	res, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")})
+	m = res.(Model)
+	if m.activeModal != "prune" {
+		t.Fatalf("expected activeModal to be 'prune', got %q", m.activeModal)
+	}
+
+	// 2. View in menu state
+	view := m.View()
+	if !strings.Contains(view, "ОЧИСТКА РЕСУРСОВ DOCKER") {
+		t.Errorf("expected prune modal header in view, got: %s", view)
+	}
+	if !strings.Contains(view, "Очистить остановленные контейнеры") {
+		t.Errorf("expected menu item 1 in view, got: %s", view)
+	}
+	if !strings.Contains(view, "[1-4]") {
+		t.Errorf("expected [1-4] footer hint, got: %s", view)
+	}
+
+	// 3. Select option 1 (prune stopped containers)
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("1")})
+	m = res.(Model)
+	if m.pruneConfirm != 1 {
+		t.Errorf("expected pruneConfirm to be 1, got %d", m.pruneConfirm)
+	}
+	confirmView := m.View()
+	if !strings.Contains(confirmView, "Удаление всех остановленных контейнеров") {
+		t.Errorf("expected confirmation prompt in view, got: %s", confirmView)
+	}
+	if !strings.Contains(confirmView, "[Y]") {
+		t.Errorf("expected [Y] confirmation hint, got: %s", confirmView)
+	}
+
+	// 4. Cancel confirmation with "n"
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	m = res.(Model)
+	if m.pruneConfirm != 0 {
+		t.Errorf("expected pruneConfirm to be 0 after 'n', got %d", m.pruneConfirm)
+	}
+	if m.activeModal != "prune" {
+		t.Errorf("expected activeModal to remain 'prune', got %q", m.activeModal)
+	}
+
+	// 5. Select option 4 and confirm with "Y"
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("4")})
+	m = res.(Model)
+	if m.pruneConfirm != 4 {
+		t.Errorf("expected pruneConfirm to be 4, got %d", m.pruneConfirm)
+	}
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Y")})
+	m = res.(Model)
+	if m.activeModal != "" {
+		t.Errorf("expected activeModal to close after confirmation, got %q", m.activeModal)
+	}
+	if m.pruneConfirm != 0 {
+		t.Errorf("expected pruneConfirm to reset to 0, got %d", m.pruneConfirm)
+	}
+
+	// 6. Test opening prune modal on Tab 3 (Compose)
+	m.activeTab = 3
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("C")})
+	m = res.(Model)
+	if m.activeModal != "prune" {
+		t.Errorf("expected activeModal 'prune' on tab 3 with 'C', got %q", m.activeModal)
+	}
+
+	// 7. Close modal with Esc
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	m = res.(Model)
+	if m.activeModal != "" {
+		t.Errorf("expected activeModal to close on Esc, got %q", m.activeModal)
+	}
+
+	// 8. Check footer hints on tab 2 and tab 3
+	m.activeTab = 2
+	m.activeModal = ""
+	tab2View := m.View()
+	if !strings.Contains(tab2View, "[C]") || !strings.Contains(tab2View, "Очистка") {
+		t.Errorf("expected [C] Очистка in tab 2 footer, got: %s", tab2View)
+	}
+
+	m.activeTab = 3
+	tab3View := m.View()
+	if !strings.Contains(tab3View, "[C]") || !strings.Contains(tab3View, "Очистка") {
+		t.Errorf("expected [C] Очистка in tab 3 footer, got: %s", tab3View)
+	}
+
+	// 9. Check help box hint
+	m.showHelp = true
+	helpView := m.View()
+	if !strings.Contains(helpView, "[C]") || !strings.Contains(helpView, "Очистка неиспользуемых ресурсов Docker") {
+		t.Errorf("expected [C] hint in help view, got: %s", helpView)
+	}
+}
+
+func TestRenderSparkline(t *testing.T) {
+	t.Run("empty history", func(t *testing.T) {
+		if res := renderSparkline(nil); res != "" {
+			t.Errorf("expected empty string for nil history, got %q", res)
+		}
+		if res := renderSparkline([]float64{}); res != "" {
+			t.Errorf("expected empty string for empty history, got %q", res)
+		}
+	})
+
+	t.Run("boundary and clamped values", func(t *testing.T) {
+		history := []float64{-10.0, 0.0, 50.0, 100.0, 150.0}
+		res := renderSparkline(history)
+		if res == "" {
+			t.Fatal("expected non-empty rendered sparkline")
+		}
+	})
+
+	t.Run("color grading checks", func(t *testing.T) {
+		low := renderSparkline([]float64{10.0})
+		if !strings.Contains(low, string(sparkChars[0])) {
+			t.Errorf("expected low sparkline character, got %q", low)
+		}
+
+		med := renderSparkline([]float64{70.0})
+		if !strings.Contains(med, string(sparkChars[5])) {
+			t.Errorf("expected medium sparkline character, got %q", med)
+		}
+
+		high := renderSparkline([]float64{95.0})
+		if !strings.Contains(high, string(sparkChars[7])) {
+			t.Errorf("expected high sparkline character, got %q", high)
+		}
+	})
+}
+
+func TestRecordMetricHistory(t *testing.T) {
+	m := NewModel(2*time.Second, 1, "v0.5.0")
+	initialCPULen := len(m.cpuHistory)
+	initialMemLen := len(m.memHistory)
+
+	if initialCPULen == 0 || initialMemLen == 0 {
+		t.Errorf("expected initial history to have at least 1 point from fetchAllData")
+	}
+
+	// Push 40 entries to verify maxHistory truncation (limit = 30)
+	for i := 0; i < 40; i++ {
+		m.recordMetricHistory(float64(i), float64(i*2))
+	}
+
+	if len(m.cpuHistory) != 30 {
+		t.Errorf("expected cpuHistory to be capped at 30, got %d", len(m.cpuHistory))
+	}
+	if len(m.memHistory) != 30 {
+		t.Errorf("expected memHistory to be capped at 30, got %d", len(m.memHistory))
+	}
+
+	// Verify latest value is at the end
+	if m.cpuHistory[29] != 39.0 {
+		t.Errorf("expected latest cpu value 39.0, got %f", m.cpuHistory[29])
+	}
+	if m.memHistory[29] != 78.0 {
+		t.Errorf("expected latest mem value 78.0, got %f", m.memHistory[29])
+	}
+}
+
+func TestHostTabSparklineDisplay(t *testing.T) {
+	m := NewModel(2*time.Second, 1, "v0.5.0")
+	m.width = 100
+	m.height = 30
+	m.cpuHistory = []float64{10, 20, 30, 70, 90}
+	m.memHistory = []float64{15, 25, 35, 65, 85}
+
+	view := m.View()
+	if !strings.Contains(view, "CPU (") || !strings.Contains(view, "RAM (") {
+		t.Errorf("expected CPU and RAM in Host Overview view, got: %s", view)
+	}
+	var hasSparkChar bool
+	for _, ch := range sparkChars {
+		if strings.ContainsRune(view, ch) {
+			hasSparkChar = true
+			break
+		}
+	}
+	if !hasSparkChar {
+		t.Errorf("expected sparkline characters in view output, got: %s", view)
 	}
 }
