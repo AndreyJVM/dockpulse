@@ -1,6 +1,8 @@
 package monitor
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -218,7 +220,29 @@ func TestRestartComposeProject(t *testing.T) {
 		}
 	})
 
+	t.Run("cli restart succeeds", func(t *testing.T) {
+		oldRunner := composeCommandRunner
+		composeCommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
+			return []byte("Restarted"), nil
+		}
+		defer func() { composeCommandRunner = oldRunner }()
+
+		containers := []ContainerItem{
+			{ID: "c1", Name: "web", ComposeProject: "my-stack"},
+		}
+		err := RestartComposeProject("my-stack", containers)
+		if err != nil {
+			t.Fatalf("expected nil error on CLI success, got: %v", err)
+		}
+	})
+
 	t.Run("fallback restarts invalid containers with error aggregation", func(t *testing.T) {
+		oldRunner := composeCommandRunner
+		composeCommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
+			return nil, errors.New("compose cli unavailable")
+		}
+		defer func() { composeCommandRunner = oldRunner }()
+
 		containers := []ContainerItem{
 			{
 				ID:             "non-existent-id-001",
@@ -233,6 +257,153 @@ func TestRestartComposeProject(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "ошибки перезапуска") {
 			t.Errorf("expected 'ошибки перезапуска' in error message, got: %v", err)
+		}
+	})
+}
+
+func TestStopComposeProject(t *testing.T) {
+	t.Run("non-existent project returns error", func(t *testing.T) {
+		err := StopComposeProject("missing-proj", nil)
+		if err == nil {
+			t.Fatal("expected error for non-existent project, got nil")
+		}
+	})
+
+	t.Run("cli stop succeeds", func(t *testing.T) {
+		oldRunner := composeCommandRunner
+		composeCommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
+			return []byte("Stopped"), nil
+		}
+		defer func() { composeCommandRunner = oldRunner }()
+
+		containers := []ContainerItem{
+			{ID: "c1", Name: "web", ComposeProject: "my-stack"},
+		}
+		err := StopComposeProject("my-stack", containers)
+		if err != nil {
+			t.Fatalf("expected nil error on CLI success, got: %v", err)
+		}
+	})
+
+	t.Run("fallback stops invalid containers with error aggregation", func(t *testing.T) {
+		oldRunner := composeCommandRunner
+		composeCommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
+			return nil, errors.New("compose cli unavailable")
+		}
+		defer func() { composeCommandRunner = oldRunner }()
+
+		containers := []ContainerItem{
+			{
+				ID:             "non-existent-id-001",
+				Name:           "broken-web",
+				ComposeProject: "failing-stack",
+			},
+		}
+
+		err := StopComposeProject("failing-stack", containers)
+		if err == nil {
+			t.Fatal("expected error when stopping non-existent container ID, got nil")
+		}
+		if !strings.Contains(err.Error(), "ошибки остановки") {
+			t.Errorf("expected 'ошибки остановки' in error message, got: %v", err)
+		}
+	})
+}
+
+func TestStartComposeProject(t *testing.T) {
+	t.Run("non-existent project returns error", func(t *testing.T) {
+		err := StartComposeProject("missing-proj", nil)
+		if err == nil {
+			t.Fatal("expected error for non-existent project, got nil")
+		}
+	})
+
+	t.Run("cli start succeeds", func(t *testing.T) {
+		oldRunner := composeCommandRunner
+		composeCommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
+			return []byte("Started"), nil
+		}
+		defer func() { composeCommandRunner = oldRunner }()
+
+		containers := []ContainerItem{
+			{ID: "c1", Name: "web", ComposeProject: "my-stack"},
+		}
+		err := StartComposeProject("my-stack", containers)
+		if err != nil {
+			t.Fatalf("expected nil error on CLI success, got: %v", err)
+		}
+	})
+
+	t.Run("fallback starts invalid containers with error aggregation", func(t *testing.T) {
+		oldRunner := composeCommandRunner
+		composeCommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
+			return nil, errors.New("compose cli unavailable")
+		}
+		defer func() { composeCommandRunner = oldRunner }()
+
+		containers := []ContainerItem{
+			{
+				ID:             "non-existent-id-001",
+				Name:           "broken-web",
+				ComposeProject: "failing-stack",
+			},
+		}
+
+		err := StartComposeProject("failing-stack", containers)
+		if err == nil {
+			t.Fatal("expected error when starting non-existent container ID, got nil")
+		}
+		if !strings.Contains(err.Error(), "ошибки запуска") {
+			t.Errorf("expected 'ошибки запуска' in error message, got: %v", err)
+		}
+	})
+}
+
+func TestDownComposeProject(t *testing.T) {
+	t.Run("non-existent project returns error", func(t *testing.T) {
+		err := DownComposeProject("missing-proj", nil)
+		if err == nil {
+			t.Fatal("expected error for non-existent project, got nil")
+		}
+	})
+
+	t.Run("cli down succeeds", func(t *testing.T) {
+		oldRunner := composeCommandRunner
+		composeCommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
+			return []byte("Removed"), nil
+		}
+		defer func() { composeCommandRunner = oldRunner }()
+
+		containers := []ContainerItem{
+			{ID: "c1", Name: "web", ComposeProject: "my-stack"},
+		}
+		err := DownComposeProject("my-stack", containers)
+		if err != nil {
+			t.Fatalf("expected nil error on CLI success, got: %v", err)
+		}
+	})
+
+	t.Run("fallback down invalid containers with error aggregation", func(t *testing.T) {
+		oldRunner := composeCommandRunner
+		composeCommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
+			return nil, errors.New("compose cli unavailable")
+		}
+		defer func() { composeCommandRunner = oldRunner }()
+
+		containers := []ContainerItem{
+			{
+				ID:             "non-existent-id-001",
+				Name:           "broken-web",
+				ComposeProject: "failing-stack",
+			},
+		}
+
+		err := DownComposeProject("failing-stack", containers)
+		if err == nil {
+			t.Fatal("expected error when downing non-existent container ID, got nil")
+		}
+		if !strings.Contains(err.Error(), "ошибки сворачивания (down)") {
+			t.Errorf("expected 'ошибки сворачивания (down)' in error message, got: %v", err)
 		}
 	})
 }

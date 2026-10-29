@@ -438,6 +438,37 @@ func RestartContainer(containerID string) error {
 	return containerAction(containerID, "restart", http.StatusNoContent)
 }
 
+// RemoveContainer удаляет контейнер по ID (с флагом force=true).
+func RemoveContainer(containerID string) error {
+	if strings.TrimSpace(containerID) == "" {
+		return fmt.Errorf("container ID cannot be empty")
+	}
+
+	sockPath := FindDockerSocket()
+	if sockPath != "" {
+		client := getSocketHTTPClient(sockPath)
+		url := fmt.Sprintf("http://localhost/containers/%s?v=1&force=true", containerID)
+		req, err := http.NewRequest(http.MethodDelete, url, nil)
+		if err == nil {
+			resp, err := client.Do(req)
+			if err == nil {
+				defer resp.Body.Close()
+				if resp.StatusCode == http.StatusNoContent || resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound {
+					return nil
+				}
+				body, _ := io.ReadAll(resp.Body)
+				return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+			}
+		}
+	}
+
+	out, err := exec.Command("docker", "rm", "-f", containerID).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 // GetContainerLogs читает последние N строк логов контейнера.
 func GetContainerLogs(containerID string, tailLines int) (string, error) {
 	if strings.TrimSpace(containerID) == "" {

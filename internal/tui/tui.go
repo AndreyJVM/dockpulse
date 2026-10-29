@@ -108,6 +108,9 @@ type Model struct {
 	actionMessage       string
 	actionMessageExpiry time.Time
 
+	// Compose down модальное окно
+	composeDownTarget string
+
 	// Prune модальное окно
 	pruneUsage    monitor.DockerDiskUsage
 	pruneUsageErr string
@@ -263,6 +266,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Если активно модальное окно
 		if m.activeModal != "" {
+			if m.activeModal == "compose_down" {
+				switch msg.String() {
+				case "esc", "q", "n", "N":
+					m.activeModal = ""
+					m.composeDownTarget = ""
+					return m, nil
+				case "y", "Y":
+					target := m.composeDownTarget
+					m.activeModal = ""
+					m.composeDownTarget = ""
+					m.showToast(fmt.Sprintf("Сворачивание Compose проекта %s (down)...", target))
+					if err := monitor.DownComposeProject(target, m.dockerInfo.Containers); err != nil {
+						m.showToast("Ошибка сворачивания проекта: " + err.Error())
+					} else {
+						m.fetchAllData()
+						m.showToast(fmt.Sprintf("Проект %s успешно свернут (down)", target))
+					}
+					return m, nil
+				}
+				return m, nil
+			}
+
 			if m.activeModal == "prune" {
 				switch msg.String() {
 				case "q":
@@ -512,28 +537,61 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-		// Старт / Стоп контейнера
+		// Старт / Стоп контейнера или проекта Compose
 		case "s", "S":
-			containers := m.getFilteredContainers()
-			if m.activeTab == 2 && len(containers) > 0 && m.cursorIdx < len(containers) {
-				c := containers[m.cursorIdx]
-				if c.State == "running" {
-					m.showToast(fmt.Sprintf("Остановка контейнера %s...", c.Name))
-					if err := monitor.StopContainer(c.ID); err != nil {
-						m.showToast("Ошибка остановки: " + err.Error())
+			if m.activeTab == 2 {
+				containers := m.getFilteredContainers()
+				if len(containers) > 0 && m.cursorIdx < len(containers) {
+					c := containers[m.cursorIdx]
+					if c.State == "running" {
+						m.showToast(fmt.Sprintf("Остановка контейнера %s...", c.Name))
+						if err := monitor.StopContainer(c.ID); err != nil {
+							m.showToast("Ошибка остановки: " + err.Error())
+						} else {
+							m.fetchAllData()
+							m.showToast(fmt.Sprintf("Контейнер %s остановлен", c.Name))
+						}
 					} else {
-						m.fetchAllData()
-						m.showToast(fmt.Sprintf("Контейнер %s остановлен", c.Name))
-					}
-				} else {
-					m.showToast(fmt.Sprintf("Запуск контейнера %s...", c.Name))
-					if err := monitor.StartContainer(c.ID); err != nil {
-						m.showToast("Ошибка запуска: " + err.Error())
-					} else {
-						m.fetchAllData()
-						m.showToast(fmt.Sprintf("Контейнер %s запущен", c.Name))
+						m.showToast(fmt.Sprintf("Запуск контейнера %s...", c.Name))
+						if err := monitor.StartContainer(c.ID); err != nil {
+							m.showToast("Ошибка запуска: " + err.Error())
+						} else {
+							m.fetchAllData()
+							m.showToast(fmt.Sprintf("Контейнер %s запущен", c.Name))
+						}
 					}
 				}
+			} else if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
+				proj := m.compose[m.composeCursorIdx]
+				m.showToast(fmt.Sprintf("Остановка Compose проекта %s...", proj.Name))
+				if err := monitor.StopComposeProject(proj.Name, m.dockerInfo.Containers); err != nil {
+					m.showToast("Ошибка остановки проекта: " + err.Error())
+				} else {
+					m.fetchAllData()
+					m.showToast(fmt.Sprintf("Проект %s успешно остановлен", proj.Name))
+				}
+			}
+
+		// Запуск проекта Compose
+		case "u", "U":
+			if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
+				proj := m.compose[m.composeCursorIdx]
+				m.showToast(fmt.Sprintf("Запуск Compose проекта %s...", proj.Name))
+				if err := monitor.StartComposeProject(proj.Name, m.dockerInfo.Containers); err != nil {
+					m.showToast("Ошибка запуска проекта: " + err.Error())
+				} else {
+					m.fetchAllData()
+					m.showToast(fmt.Sprintf("Проект %s успешно запущен", proj.Name))
+				}
+			}
+
+		// Сворачивание проекта Compose (Down)
+		case "d", "D":
+			if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
+				proj := m.compose[m.composeCursorIdx]
+				m.composeDownTarget = proj.Name
+				m.activeModal = "compose_down"
+				return m, nil
 			}
 
 		// Подключение к Shell контейнера (Exec)
@@ -651,6 +709,8 @@ func (m Model) View() string {
 		b.WriteString(m.renderLogsModal())
 	} else if m.activeModal == "inspect" {
 		b.WriteString(m.renderInspectModal())
+	} else if m.activeModal == "compose_down" {
+		b.WriteString(m.renderComposeDownModal())
 	} else if m.activeModal == "prune" {
 		b.WriteString(m.renderPruneModal())
 	} else if m.showHelp {
@@ -671,7 +731,12 @@ func (m Model) View() string {
 	// 4. Подвал
 	b.WriteString("\n" + dimStyle.Render(strings.Repeat("─", max(m.width, 70))) + "\n")
 	if m.activeModal != "" {
-		if m.activeModal == "prune" {
+		if m.activeModal == "compose_down" {
+			b.WriteString(footerStyle.Render(
+				boldStyle.Render("[Y]") + " Подтвердить (Down)  |  " +
+					boldStyle.Render("[N / Esc]") + " Отмена",
+			))
+		} else if m.activeModal == "prune" {
 			if m.pruneConfirm > 0 {
 				b.WriteString(footerStyle.Render(
 					boldStyle.Render("[Y]") + " Подтвердить очистку  |  " +
@@ -721,8 +786,11 @@ func (m Model) View() string {
 	} else if m.activeTab == 3 {
 		b.WriteString(footerStyle.Render(
 			boldStyle.Render("[↑ / ↓]") + " Выбрать стек  |  " +
-				boldStyle.Render("[L]") + " Логи стека  |  " +
-				boldStyle.Render("[P]") + " Перезапуск стека  |  " +
+				boldStyle.Render("[L]") + " Логи  |  " +
+				boldStyle.Render("[S]") + " Стоп  |  " +
+				boldStyle.Render("[U]") + " Старт  |  " +
+				boldStyle.Render("[P]") + " Рестарт  |  " +
+				boldStyle.Render("[D]") + " Down  |  " +
 				boldStyle.Render("[C]") + " Очистка  |  " +
 				boldStyle.Render("[?]") + " Справка",
 		))
@@ -885,6 +953,16 @@ func (m Model) renderPruneModal() string {
 	return boxStyle.Render(s.String())
 }
 
+func (m Model) renderComposeDownModal() string {
+	var s strings.Builder
+	s.WriteString(titleStyle.Render("ПОДТВЕРЖДЕНИЕ СВОРАЧИВАНИЯ COMPOSE СТЕКА") + "\n\n")
+	s.WriteString(fmt.Sprintf("  Стек: %s\n\n", boldStyle.Render(m.composeDownTarget)))
+	s.WriteString(fmt.Sprintf("  %s Остановка и удаление всех контейнеров проекта (docker compose down)\n\n", yellowStyle.Render("Внимание:")))
+	s.WriteString(fmt.Sprintf("  Вы уверены, что хотите выполнить down для проекта %s?\n\n", boldStyle.Render(m.composeDownTarget)))
+	s.WriteString(fmt.Sprintf("  %s Подтвердить (Down)    %s Отмена\n", greenStyle.Render("[Y]"), dimStyle.Render("[N / Esc]")))
+	return boxStyle.Render(s.String())
+}
+
 func (m Model) renderHelpBox() string {
 	content := fmt.Sprintf(`%s
 
@@ -895,8 +973,10 @@ func (m Model) renderHelpBox() string {
   %s   Просмотр логов контейнера, стека Compose или службы Swarm
   %s   Подробная инспекция выбранного контейнера (IP, тома, сеть)
   %s   Интерактивный shell в контейнере (bash / sh)
-  %s   Запуск / остановка контейнера
+  %s   Запуск / остановка контейнера, остановка Compose проекта
+  %s   Запуск остановленного проекта Compose (Start)
   %s   Перезапуск (restart) контейнера или проекта Compose
+  %s   Сворачивание и удаление проекта Compose (Down)
   %s   Очистка неиспользуемых ресурсов Docker (Prune)
   %s   Принудительное обновление всех данных
   %s   Показать / скрыть эту справку
@@ -912,7 +992,9 @@ func (m Model) renderHelpBox() string {
 		greenStyle.Render("[Enter] / [I]"),
 		greenStyle.Render("[E]"),
 		greenStyle.Render("[S]"),
+		greenStyle.Render("[U]"),
 		greenStyle.Render("[P]"),
+		greenStyle.Render("[D]"),
 		greenStyle.Render("[C]"),
 		greenStyle.Render("[R]"),
 		greenStyle.Render("[?]"),
