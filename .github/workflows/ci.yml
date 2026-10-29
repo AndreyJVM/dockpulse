@@ -3,8 +3,31 @@ name: CI
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'images/**'
+      - '.gitignore'
+      - 'commit-template.txt'
+      - 'release-notes-template.md'
+      - 'dockpulse.desktop'
+      - 'debian/**'
+      - 'update-changelog.sh'
   pull_request:
     branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'images/**'
+      - '.gitignore'
+      - 'commit-template.txt'
+      - 'release-notes-template.md'
+      - 'dockpulse.desktop'
+      - 'debian/**'
+      - 'update-changelog.sh'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -13,10 +36,15 @@ jobs:
   test:
     name: Test & Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
         os: [ ubuntu-latest, macos-latest ]
+
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout repository
@@ -25,8 +53,12 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 'stable'
+          go-version-file: 'go.mod'
           cache: true
+          cache-dependency-path: go.sum
+
+      - name: Verify dependencies
+        run: go mod verify
 
       - name: Run go vet
         run: go vet ./...
@@ -34,5 +66,21 @@ jobs:
       - name: Run unit tests with race detector
         run: go test -v -race -coverprofile=coverage.txt ./...
 
+      - name: Publish coverage summary
+        if: runner.os == 'Linux'
+        run: |
+          echo "### Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          go tool cover -func=coverage.txt | tail -n 1 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload test coverage artifact
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.txt
+          retention-days: 14
+
       - name: Build binary
-        run: go build -v ./cmd/dockpulse
+        run: go build -v -ldflags="-s -w -X main.version=${{ github.sha }}" -o bin/dockpulse ./cmd/dockpulse

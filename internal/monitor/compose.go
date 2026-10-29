@@ -4,9 +4,27 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"sort"
+	"slices"
 	"strings"
 	"time"
+)
+
+const (
+	// Project statuses
+	StatusRunning = "running"
+	StatusPartial = "partial"
+	StatusStopped = "stopped"
+
+	// Localized status displays
+	StatusDisplayRunning = "Запущен"
+	StatusDisplayPartial = "Частично"
+	StatusDisplayStopped = "Остановлен"
+
+	// Tail and timeout defaults
+	defaultTailLines      = 100
+	minPerContainerTail   = 20
+	composeLogsTimeout    = 5 * time.Second
+	composeRestartTimeout = 30 * time.Second
 )
 
 // ComposeService представляет сервис внутри проекта Compose.
@@ -61,7 +79,7 @@ func GetComposeProjects(containers []ContainerItem) []ComposeProject {
 		})
 	}
 
-	var res []ComposeProject
+	res := make([]ComposeProject, 0, len(projectsMap))
 	for _, proj := range projectsMap {
 		proj.TotalServices = len(proj.Services)
 		running := 0
@@ -72,36 +90,56 @@ func GetComposeProjects(containers []ContainerItem) []ComposeProject {
 		}
 		proj.RunningServices = running
 
-		if running == proj.TotalServices && proj.TotalServices > 0 {
-			proj.Status = "running"
-			proj.StatusDisplay = "Запущен"
-		} else if running > 0 {
-			proj.Status = "partial"
-			proj.StatusDisplay = "Частично"
-		} else {
-			proj.Status = "stopped"
-			proj.StatusDisplay = "Остановлен"
+		// Стабильная сортировка сервисов внутри каждого проекта
+		slices.SortFunc(proj.Services, func(a, b ComposeService) int {
+			return strings.Compare(a.Name, b.Name)
+		})
+
+		switch {
+		case running == proj.TotalServices && proj.TotalServices > 0:
+			proj.Status = StatusRunning
+			proj.StatusDisplay = StatusDisplayRunning
+		case running > 0:
+			proj.Status = StatusPartial
+			proj.StatusDisplay = StatusDisplayPartial
+		default:
+			proj.Status = StatusStopped
+			proj.StatusDisplay = StatusDisplayStopped
 		}
 
 		res = append(res, *proj)
 	}
 
-	sort.Slice(res, func(i, j int) bool {
-		return res[i].Name < res[j].Name
+	slices.SortFunc(res, func(a, b ComposeProject) int {
+		return strings.Compare(a.Name, b.Name)
 	})
 
+	return res
+}
+
+// filterContainersByProject возвращает контейнеры, принадлежащие указанному проекту Compose.
+func filterContainersByProject(containers []ContainerItem, projectName string) []ContainerItem {
+	if projectName == "" {
+		return nil
+	}
+	var res []ContainerItem
+	for _, c := range containers {
+		if c.ComposeProject == projectName {
+			res = append(res, c)
+		}
+	}
 	return res
 }
 
 // GetComposeProjectLogs читает логи всех сервисов проекта Compose.
 func GetComposeProjectLogs(projectName string, containers []ContainerItem, tailLines int) (string, error) {
 	if tailLines <= 0 {
-		tailLines = 100
+		tailLines = defaultTailLines
 	}
 
 	// 1. Попытка через docker compose CLI
-	if _, err := exec.LookPath("docker"); err == nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if _, err := exec.LookPath("docker"); err == nil && projectName != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), composeLogsTimeout)
 		defer cancel()
 		cmd := exec.CommandContext(ctx, "docker", "compose", "-p", projectName, "logs", "--tail", fmt.Sprintf("%d", tailLines))
 		out, err := cmd.CombinedOutput()
@@ -111,20 +149,14 @@ func GetComposeProjectLogs(projectName string, containers []ContainerItem, tailL
 	}
 
 	// 2. Fallback: сбор логов по найденным контейнерам проекта
-	var projectContainers []ContainerItem
-	for _, c := range containers {
-		if c.ComposeProject == projectName {
-			projectContainers = append(projectContainers, c)
-		}
-	}
-
+	projectContainers := filterContainersByProject(containers, projectName)
 	if len(projectContainers) == 0 {
 		return "", fmt.Errorf("контейнеры проекта %q не найдены", projectName)
 	}
 
 	perContainerTail := tailLines / len(projectContainers)
-	if perContainerTail < 20 {
-		perContainerTail = 20
+	if perContainerTail < minPerContainerTail {
+		perContainerTail = minPerContainerTail
 	}
 
 	var sb strings.Builder
@@ -132,7 +164,10 @@ func GetComposeProjectLogs(projectName string, containers []ContainerItem, tailL
 		logs, err := GetContainerLogs(c.ID, perContainerTail)
 		if err == nil && strings.TrimSpace(logs) != "" {
 			for _, line := range strings.Split(strings.TrimSpace(logs), "\n") {
-				sb.WriteString(fmt.Sprintf("%s | %s\n", c.Name, line))
+				sb.WriteString(c.Name)
+				sb.WriteString(" | ")
+				sb.WriteString(line)
+				sb.WriteByte('\n')
 			}
 		}
 	}
@@ -145,20 +180,14 @@ func GetComposeProjectLogs(projectName string, containers []ContainerItem, tailL
 
 // RestartComposeProject перезапускает все контейнеры проекта Compose.
 func RestartComposeProject(projectName string, containers []ContainerItem) error {
-	var projectContainers []ContainerItem
-	for _, c := range containers {
-		if c.ComposeProject == projectName {
-			projectContainers = append(projectContainers, c)
-		}
-	}
-
+	projectContainers := filterContainersByProject(containers, projectName)
 	if len(projectContainers) == 0 {
 		return fmt.Errorf("не найдено контейнеров для проекта %q", projectName)
 	}
 
 	// 1. Попытка через docker compose CLI
-	if _, err := exec.LookPath("docker"); err == nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if _, err := exec.LookPath("docker"); err == nil && projectName != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), composeRestartTimeout)
 		defer cancel()
 		cmd := exec.CommandContext(ctx, "docker", "compose", "-p", projectName, "restart")
 		if _, err := cmd.CombinedOutput(); err == nil {

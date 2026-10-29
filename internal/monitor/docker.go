@@ -16,6 +16,24 @@ import (
 	"time"
 )
 
+const (
+	// Docker statuses
+	DockerStatusRunning      = "running"
+	DockerStatusStopped      = "stopped"
+	DockerStatusNotInstalled = "not_installed"
+
+	// Localized status displays
+	DockerStatusDisplayRunning      = "Запущен"
+	DockerStatusDisplayStopped      = "Остановлен"
+	DockerStatusDisplayNotInstalled = "Не установлен"
+
+	// Defaults and timeouts
+	maxConcurrentStatsFetch = 10
+	socketDialTimeout       = 500 * time.Millisecond
+	socketClientTimeout     = 5 * time.Second
+	containerStatsTimeout   = 2 * time.Second
+)
+
 // ContainerItem содержит описание отдельного контейнера.
 type ContainerItem struct {
 	ID             string
@@ -151,14 +169,16 @@ func calculateContainerStats(s ContainerStatsRaw) (cpuPerc float64, memUsageMB f
 }
 
 func fetchContainerStats(client *http.Client, containerID string) (cpuPerc float64, memUsageMB float64, memLimitMB float64, memPerc float64) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), containerStatsTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://localhost/containers/%s/stats?stream=false&one-shot=true", containerID), nil)
+
+	url := fmt.Sprintf("http://localhost/containers/%s/stats?stream=false&one-shot=true", containerID)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return 0, 0, 0, 0
 	}
 	resp, err := client.Do(req)
-	if err != nil || resp.StatusCode != 200 {
+	if err != nil || resp.StatusCode != http.StatusOK {
 		return 0, 0, 0, 0
 	}
 	defer resp.Body.Close()
@@ -180,18 +200,24 @@ func FindDockerSocket() string {
 		}
 	}
 
-	home, _ := os.UserHomeDir()
-	uid := os.Getuid()
-
 	candidates := []string{
 		"/var/run/docker.sock",
 		"/run/docker.sock",
+	}
+
+	uid := os.Getuid()
+	candidates = append(candidates,
 		fmt.Sprintf("/run/user/%d/docker.sock", uid),
-		filepath.Join(home, ".docker/run/docker.sock"),
-		filepath.Join(home, ".docker/desktop/docker.sock"),
 		fmt.Sprintf("/run/user/%d/podman/podman.sock", uid),
 		"/run/podman/podman.sock",
-		filepath.Join(home, ".local/share/containers/podman/machine/podman.sock"),
+	)
+
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		candidates = append(candidates,
+			filepath.Join(home, ".docker/run/docker.sock"),
+			filepath.Join(home, ".docker/desktop/docker.sock"),
+			filepath.Join(home, ".local/share/containers/podman/machine/podman.sock"),
+		)
 	}
 
 	for _, p := range candidates {
@@ -206,11 +232,35 @@ func getSocketHTTPClient(sockPath string) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				return net.DialTimeout("unix", sockPath, 500*time.Millisecond)
+				var d net.Dialer
+				d.Timeout = socketDialTimeout
+				return d.DialContext(ctx, "unix", sockPath)
 			},
 		},
-		Timeout: 5 * time.Second,
+		Timeout: socketClientTimeout,
 	}
+}
+
+type rawPort struct {
+	IP          string `json:"IP"`
+	PrivatePort int    `json:"PrivatePort"`
+	PublicPort  int    `json:"PublicPort"`
+	Type        string `json:"Type"`
+}
+
+func formatPorts(ports []rawPort) string {
+	if len(ports) == 0 {
+		return ""
+	}
+	portsList := make([]string, 0, len(ports))
+	for _, p := range ports {
+		if p.PublicPort > 0 {
+			portsList = append(portsList, fmt.Sprintf("%d->%d/%s", p.PublicPort, p.PrivatePort, p.Type))
+		} else if p.PrivatePort > 0 {
+			portsList = append(portsList, fmt.Sprintf("%d/%s", p.PrivatePort, p.Type))
+		}
+	}
+	return strings.Join(portsList, ", ")
 }
 
 // GetDockerSummary собирает статус службы Docker и список контейнеров с живыми метриками.
@@ -220,14 +270,14 @@ func GetDockerSummary() DockerSummary {
 
 	if cliErr != nil && sockPath == "" {
 		return DockerSummary{
-			Status:        "not_installed",
-			StatusDisplay: "Не установлен",
+			Status:        DockerStatusNotInstalled,
+			StatusDisplay: DockerStatusDisplayNotInstalled,
 		}
 	}
 
 	summary := DockerSummary{
-		Status:        "stopped",
-		StatusDisplay: "Остановлен",
+		Status:        DockerStatusStopped,
+		StatusDisplay: DockerStatusDisplayStopped,
 	}
 
 	if sockPath != "" {
@@ -235,7 +285,7 @@ func GetDockerSummary() DockerSummary {
 
 		// 1. Опрос /info
 		resp, err := client.Get("http://localhost/info")
-		if err == nil && resp.StatusCode == 200 {
+		if err == nil && resp.StatusCode == http.StatusOK {
 			defer resp.Body.Close()
 			body, _ := io.ReadAll(resp.Body)
 
@@ -247,8 +297,8 @@ func GetDockerSummary() DockerSummary {
 				ServerVersion     string `json:"ServerVersion"`
 			}
 			if json.Unmarshal(body, &infoData) == nil {
-				summary.Status = "running"
-				summary.StatusDisplay = "Запущен"
+				summary.Status = DockerStatusRunning
+				summary.StatusDisplay = DockerStatusDisplayRunning
 				summary.TotalContainers = infoData.Containers
 				summary.RunningContainers = infoData.ContainersRunning
 				summary.StoppedContainers = infoData.ContainersStopped
@@ -259,26 +309,22 @@ func GetDockerSummary() DockerSummary {
 
 		// 2. Опрос /containers/json?all=1
 		respC, errC := client.Get("http://localhost/containers/json?all=1")
-		if errC == nil && respC.StatusCode == 200 {
+		if errC == nil && respC.StatusCode == http.StatusOK {
 			defer respC.Body.Close()
 			bodyC, _ := io.ReadAll(respC.Body)
 
 			var rawContainers []struct {
-				ID     string   `json:"Id"`
-				Names  []string `json:"Names"`
-				Image  string   `json:"Image"`
-				State  string   `json:"State"`
-				Status string   `json:"Status"`
-				Ports  []struct {
-					IP          string `json:"IP"`
-					PrivatePort int    `json:"PrivatePort"`
-					PublicPort  int    `json:"PublicPort"`
-					Type        string `json:"Type"`
-				} `json:"Ports"`
+				ID     string            `json:"Id"`
+				Names  []string          `json:"Names"`
+				Image  string            `json:"Image"`
+				State  string            `json:"State"`
+				Status string            `json:"Status"`
+				Ports  []rawPort         `json:"Ports"`
 				Labels map[string]string `json:"Labels"`
 			}
 
 			if json.Unmarshal(bodyC, &rawContainers) == nil {
+				summary.Containers = make([]ContainerItem, 0, len(rawContainers))
 				for _, c := range rawContainers {
 					cID := c.ID
 					if len(cID) > 12 {
@@ -288,15 +334,6 @@ func GetDockerSummary() DockerSummary {
 					name := ""
 					if len(c.Names) > 0 {
 						name = strings.TrimPrefix(c.Names[0], "/")
-					}
-
-					var portsList []string
-					for _, p := range c.Ports {
-						if p.PublicPort > 0 {
-							portsList = append(portsList, fmt.Sprintf("%d->%d/%s", p.PublicPort, p.PrivatePort, p.Type))
-						} else if p.PrivatePort > 0 {
-							portsList = append(portsList, fmt.Sprintf("%d/%s", p.PrivatePort, p.Type))
-						}
 					}
 
 					composeProject := c.Labels["com.docker.compose.project"]
@@ -309,21 +346,24 @@ func GetDockerSummary() DockerSummary {
 						State:          c.State,
 						Status:         c.Status,
 						Health:         ParseHealthStatus(c.Status),
-						Ports:          strings.Join(portsList, ", "),
+						Ports:          formatPorts(c.Ports),
 						ComposeProject: composeProject,
 						ComposeService: composeService,
 						Labels:         c.Labels,
 					})
 				}
 
-				// Параллельный опрос метрик CPU и памяти для работающих контейнеров
+				// Параллельный опрос метрик CPU и памяти с ограниченным числом горутин
 				if len(summary.Containers) > 0 {
 					var wg sync.WaitGroup
+					sem := make(chan struct{}, maxConcurrentStatsFetch)
 					for i := range summary.Containers {
 						if summary.Containers[i].State == "running" {
 							wg.Add(1)
+							sem <- struct{}{}
 							go func(idx int, cID string) {
 								defer wg.Done()
+								defer func() { <-sem }()
 								cpu, memUsage, memLimit, memPerc := fetchContainerStats(client, cID)
 								summary.Containers[idx].CPUPerc = cpu
 								summary.Containers[idx].MemUsageMB = memUsage
@@ -344,8 +384,8 @@ func GetDockerSummary() DockerSummary {
 	if err == nil {
 		parts := strings.Fields(string(out))
 		if len(parts) >= 5 {
-			summary.Status = "running"
-			summary.StatusDisplay = "Запущен"
+			summary.Status = DockerStatusRunning
+			summary.StatusDisplay = DockerStatusDisplayRunning
 			summary.Version = parts[4]
 		}
 	}
@@ -353,82 +393,58 @@ func GetDockerSummary() DockerSummary {
 	return summary
 }
 
-// StartContainer запускает контейнер по ID.
-func StartContainer(containerID string) error {
+// containerAction выполняет стандартное действие жизненного цикла контейнера через сокет с фоллбэком на CLI.
+func containerAction(containerID, action string, validCodes ...int) error {
+	if strings.TrimSpace(containerID) == "" {
+		return fmt.Errorf("container ID cannot be empty")
+	}
+
 	sockPath := FindDockerSocket()
 	if sockPath != "" {
 		client := getSocketHTTPClient(sockPath)
-		url := fmt.Sprintf("http://localhost/containers/%s/start", containerID)
+		url := fmt.Sprintf("http://localhost/containers/%s/%s", containerID, action)
 		resp, err := client.Post(url, "application/json", nil)
 		if err == nil {
 			defer resp.Body.Close()
-			if resp.StatusCode == 204 || resp.StatusCode == 304 {
-				return nil
+			for _, code := range validCodes {
+				if resp.StatusCode == code {
+					return nil
+				}
 			}
 			body, _ := io.ReadAll(resp.Body)
 			return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
 		}
 	}
 
-	out, err := exec.Command("docker", "start", containerID).CombinedOutput()
+	out, err := exec.Command("docker", action, containerID).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+// StartContainer запускает контейнер по ID.
+func StartContainer(containerID string) error {
+	return containerAction(containerID, "start", http.StatusNoContent, http.StatusNotModified)
 }
 
 // StopContainer останавливает контейнер по ID.
 func StopContainer(containerID string) error {
-	sockPath := FindDockerSocket()
-	if sockPath != "" {
-		client := getSocketHTTPClient(sockPath)
-		url := fmt.Sprintf("http://localhost/containers/%s/stop", containerID)
-		resp, err := client.Post(url, "application/json", nil)
-		if err == nil {
-			defer resp.Body.Close()
-			if resp.StatusCode == 204 || resp.StatusCode == 304 {
-				return nil
-			}
-			body, _ := io.ReadAll(resp.Body)
-			return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
-		}
-	}
-
-	out, err := exec.Command("docker", "stop", containerID).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	return containerAction(containerID, "stop", http.StatusNoContent, http.StatusNotModified)
 }
 
 // RestartContainer перезапускает контейнер по ID.
 func RestartContainer(containerID string) error {
-	sockPath := FindDockerSocket()
-	if sockPath != "" {
-		client := getSocketHTTPClient(sockPath)
-		url := fmt.Sprintf("http://localhost/containers/%s/restart", containerID)
-		resp, err := client.Post(url, "application/json", nil)
-		if err == nil {
-			defer resp.Body.Close()
-			if resp.StatusCode == 204 {
-				return nil
-			}
-			body, _ := io.ReadAll(resp.Body)
-			return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
-		}
-	}
-
-	out, err := exec.Command("docker", "restart", containerID).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return nil
+	return containerAction(containerID, "restart", http.StatusNoContent)
 }
 
 // GetContainerLogs читает последние N строк логов контейнера.
 func GetContainerLogs(containerID string, tailLines int) (string, error) {
+	if strings.TrimSpace(containerID) == "" {
+		return "", fmt.Errorf("container ID cannot be empty")
+	}
 	if tailLines <= 0 {
-		tailLines = 100
+		tailLines = defaultTailLines
 	}
 
 	sockPath := FindDockerSocket()
@@ -438,7 +454,7 @@ func GetContainerLogs(containerID string, tailLines int) (string, error) {
 		resp, err := client.Get(url)
 		if err == nil {
 			defer resp.Body.Close()
-			if resp.StatusCode == 200 {
+			if resp.StatusCode == http.StatusOK {
 				return demuxDockerLogs(resp.Body), nil
 			}
 		}
@@ -466,7 +482,7 @@ func demuxDockerLogs(r io.Reader) string {
 			return string(all)
 		}
 		size := int(binary.BigEndian.Uint32(all[idx+4 : idx+8]))
-		if idx+8+size > len(all) {
+		if size < 0 || idx+8+size > len(all) {
 			return string(all)
 		}
 		sb.Write(all[idx+8 : idx+8+size])
@@ -482,6 +498,9 @@ func demuxDockerLogs(r io.Reader) string {
 // GetContainerDetail возвращает подробную инспекцию контейнера.
 func GetContainerDetail(containerID string) (ContainerDetail, error) {
 	var detail ContainerDetail
+	if strings.TrimSpace(containerID) == "" {
+		return detail, fmt.Errorf("container ID cannot be empty")
+	}
 	detail.ID = containerID
 
 	sockPath := FindDockerSocket()
@@ -489,7 +508,7 @@ func GetContainerDetail(containerID string) (ContainerDetail, error) {
 		client := getSocketHTTPClient(sockPath)
 		url := fmt.Sprintf("http://localhost/containers/%s/json", containerID)
 		resp, err := client.Get(url)
-		if err == nil && resp.StatusCode == 200 {
+		if err == nil && resp.StatusCode == http.StatusOK {
 			defer resp.Body.Close()
 			body, _ := io.ReadAll(resp.Body)
 
@@ -593,5 +612,8 @@ func IsDockerCLIAvailable() bool {
 
 // GetContainerExecCommand возвращает команду exec.Cmd для запуска интерактивного шелла в контейнере.
 func GetContainerExecCommand(containerID string) *exec.Cmd {
+	if strings.TrimSpace(containerID) == "" {
+		return nil
+	}
 	return exec.Command("docker", "exec", "-it", containerID, "sh", "-c", "if command -v bash >/dev/null 2>&1; then exec bash; else exec sh; fi")
 }
