@@ -43,12 +43,12 @@
 
 ```bash
 # AMD64 (x86_64)
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.6.1_amd64.deb
-sudo dpkg -i dockpulse_0.6.1_amd64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.6.2_amd64.deb
+sudo dpkg -i dockpulse_0.6.2_amd64.deb
 
 # ARM64
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.6.1_arm64.deb
-sudo dpkg -i dockpulse_0.6.1_arm64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.6.2_arm64.deb
+sudo dpkg -i dockpulse_0.6.2_arm64.deb
 ```
 
 #### Pre-built Binaries (Linux / macOS)
@@ -57,11 +57,11 @@ Download the latest archive from [Releases](https://github.com/AndreyJVM/dockpul
 
 ```bash
 # Linux AMD64
-tar -xzf dockpulse_v0.6.1_linux_amd64.tar.gz
+tar -xzf dockpulse_v0.6.2_linux_amd64.tar.gz
 ./dockpulse
 
 # macOS (Apple Silicon)
-tar -xzf dockpulse_v0.6.1_darwin_arm64.tar.gz
+tar -xzf dockpulse_v0.6.2_darwin_arm64.tar.gz
 ./dockpulse
 ```
 
@@ -135,12 +135,12 @@ Options:
 
 ```bash
 # AMD64 (x86_64)
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.6.1_amd64.deb
-sudo dpkg -i dockpulse_0.6.1_amd64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.6.2_amd64.deb
+sudo dpkg -i dockpulse_0.6.2_amd64.deb
 
 # ARM64
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.6.1_arm64.deb
-sudo dpkg -i dockpulse_0.6.1_arm64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.6.2_arm64.deb
+sudo dpkg -i dockpulse_0.6.2_arm64.deb
 ```
 
 #### Готовые бинарные файлы (Linux / macOS)
@@ -149,11 +149,11 @@ sudo dpkg -i dockpulse_0.6.1_arm64.deb
 
 ```bash
 # Linux AMD64
-tar -xzf dockpulse_v0.6.1_linux_amd64.tar.gz
+tar -xzf dockpulse_v0.6.2_linux_amd64.tar.gz
 ./dockpulse
 
 # macOS (Apple Silicon)
-tar -xzf dockpulse_v0.6.1_darwin_arm64.tar.gz
+tar -xzf dockpulse_v0.6.2_darwin_arm64.tar.gz
 ./dockpulse
 ```
 
