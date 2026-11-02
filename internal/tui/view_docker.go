@@ -3,8 +3,6 @@ package tui
 import (
 	"fmt"
 	"strings"
-
-	"github.com/AndreyJVM/dockpulse/internal/monitor"
 )
 
 func (m Model) renderDockerTab() string {
