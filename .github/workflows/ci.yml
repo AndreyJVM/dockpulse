@@ -9,7 +9,6 @@ on:
       - '.gitignore'
       - 'commit-template.txt'
       - 'release-notes-template.md'
-      - 'dockpulse.desktop'
       - 'debian/**'
       - 'update-changelog.sh'
   pull_request:
@@ -20,7 +19,6 @@ on:
       - '.gitignore'
       - 'commit-template.txt'
       - 'release-notes-template.md'
-      - 'dockpulse.desktop'
       - 'debian/**'
       - 'update-changelog.sh'
   workflow_dispatch:
@@ -61,7 +59,7 @@ jobs:
         run: go mod verify
 
       - name: Run go vet
-        run: go vet ./...
+        run: go vet ./...\
 
       - name: Run unit tests with race detector
         run: go test -v -race -coverprofile=coverage.txt ./...

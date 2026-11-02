@@ -1,81 +1,70 @@
-name: Build and Release
+name: Release
 
 on:
   push:
     tags:
-      - 'v*'
-  workflow_dispatch:
+      - 'v*.*.*'
 
 permissions:
   contents: write
 
 jobs:
-  test:
-    name: Run Tests
+  release:
+    name: Build & Release Dockpulse
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 'stable'
+          go-version-file: 'go.mod'
           cache: true
+          cache-dependency-path: go.sum
 
-      - name: Run Go tests
-        run: go test -v ./...
-
-  build-and-release:
-    name: Build and Release Binaries & Deb
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: 'stable'
-          cache: true
-
-      - name: Extract version
+      - name: Extract tag and version
         id: get_version
         run: |
-          VERSION=$(cat VERSION)
-          TAG_NAME=${GITHUB_REF_NAME:-v$VERSION}
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Run unit tests
+        run: go test -v ./...
+
+      - name: Create dist directory
+        run: mkdir -p dist
 
       - name: Cross-compile Go binaries
         run: |
-          mkdir -p dist bin
-          VERSION="${{ steps.get_version.outputs.tag }}"
-          LDFLAGS="-s -w -X main.version=${VERSION}"
+          VERSION="${{ steps.get_version.outputs.version }}"
+          TAG="${{ steps.get_version.outputs.tag }}"
+          LDFLAGS="-s -w -X main.version=${TAG}"
 
-          PLATFORMS=(
-            "linux amd64"
-            "linux arm64"
-            "darwin amd64"
-            "darwin arm64"
+          TARGETS=(
+            "linux/amd64"
+            "linux/arm64"
+            "darwin/amd64"
+            "darwin/arm64"
           )
 
-          for PLATFORM in "${PLATFORMS[@]}"; do
-            read -r GOOS GOARCH <<< "$PLATFORM"
-            BIN_NAME="dockpulse"
-            TARGET_DIR="dockpulse_${VERSION}_${GOOS}_${GOARCH}"
-            
-            echo "==> Building for ${GOOS}/${GOARCH}..."
-            mkdir -p "bin/${TARGET_DIR}"
-            CGO_ENABLED=0 GOOS="${GOOS}" GOARCH="${GOARCH}" go build -ldflags="${LDFLAGS}" -o "bin/${TARGET_DIR}/${BIN_NAME}" ./cmd/dockpulse
+          for TARGET in "${TARGETS[@]}"; do
+            OS="${TARGET%%/*}"
+            ARCH="${TARGET##*/}"
+            OUT_DIR="bin/dockpulse_${TAG}_${OS}_${ARCH}"
+            mkdir -p "${OUT_DIR}"
+            echo "==> Building ${OS}/${ARCH}..."
+            GOOS="${OS}" GOARCH="${ARCH}" go build -ldflags="${LDFLAGS}" -o "${OUT_DIR}/dockpulse" ./cmd/dockpulse
 
-            cp README.md "bin/${TARGET_DIR}/" 2>/dev/null || true
-            cp LICENSE "bin/${TARGET_DIR}/" 2>/dev/null || true
-
-            cd bin
-            tar -czvf "../dist/${TARGET_DIR}.tar.gz" "${TARGET_DIR}"
-            cd ..
+            ARCHIVE="dist/dockpulse_${TAG}_${OS}_${ARCH}.tar.gz"
+            tar -czf "${ARCHIVE}" -C "${OUT_DIR}" dockpulse
+            echo "Created ${ARCHIVE}"
           done
 
       - name: Build Debian packages (.deb)
@@ -89,14 +78,9 @@ jobs:
             rm -rf "${PKG_DIR}"
             mkdir -p "${PKG_DIR}/DEBIAN"
             mkdir -p "${PKG_DIR}/usr/bin"
-            mkdir -p "${PKG_DIR}/usr/share/applications"
-            mkdir -p "${PKG_DIR}/usr/share/icons/hicolor/128x128/apps"
 
             cp "bin/dockpulse_${{ steps.get_version.outputs.tag }}_linux_${ARCH}/dockpulse" "${PKG_DIR}/usr/bin/"
             chmod 755 "${PKG_DIR}/usr/bin/dockpulse"
-
-            cp dockpulse.desktop "${PKG_DIR}/usr/share/applications/" 2>/dev/null || true
-            cp icon.png "${PKG_DIR}/usr/share/icons/hicolor/128x128/apps/dockpulse.png" 2>/dev/null || true
 
             {
               echo "Package: dockpulse"

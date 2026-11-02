@@ -1,0 +1,449 @@
+package tui
+
+import (
+	"fmt"
+	"os/exec"
+	"strings"
+
+	"github.com/AndreyJVM/dockpulse/internal/monitor"
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case execFinishedMsg:
+		return m.handleExecFinished(msg)
+
+	case actionFinishedMsg:
+		if msg.err != nil {
+			m.showToast(msg.err.Error())
+		} else if msg.message != "" {
+			m.showToast(msg.message)
+		}
+		if msg.refresh {
+			return m, fetchDataCmd()
+		}
+		return m, nil
+
+	case dataFetchedMsg:
+		m.applyFetchedData(msg)
+		return m, nil
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
+
+	case tea.KeyMsg:
+		// Если активен ввод фильтра
+		if m.isFiltering {
+			return m.handleFilterInput(msg)
+		}
+
+		// Если активно модальное окно
+		if m.activeModal != "" {
+			return m.handleModalInput(msg)
+		}
+
+		// Если открыта справка
+		if m.showHelp {
+			return m.handleHelpInput(msg)
+		}
+
+		// Основной режим
+		return m.handleMainKeys(msg)
+
+	case tickMsg:
+		return m, tea.Batch(
+			tickCmd(m.refreshInterval),
+			fetchDataCmd(),
+		)
+	}
+	return m, nil
+}
+
+func (m Model) handleExecFinished(msg execFinishedMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		if exitErr, ok := msg.err.(*exec.ExitError); ok {
+			if exitErr.ExitCode() == 130 {
+				m.showToast(fmt.Sprintf("Сессия shell в %s завершена", msg.containerName))
+			} else {
+				m.showToast(fmt.Sprintf("Сессия shell в %s завершена (код %d)", msg.containerName, exitErr.ExitCode()))
+			}
+		} else {
+			m.showToast(fmt.Sprintf("Ошибка shell в %s: %v", msg.containerName, msg.err))
+		}
+	} else {
+		m.showToast(fmt.Sprintf("Сессия shell в %s завершена", msg.containerName))
+	}
+	m.fetchAllData()
+	return m, nil
+}
+
+func (m Model) handleFilterInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.isFiltering = false
+		m.filterQuery = ""
+		m.clampCursor()
+		return m, nil
+	case tea.KeyEnter:
+		m.isFiltering = false
+		return m, nil
+	case tea.KeyBackspace:
+		if len(m.filterQuery) > 0 {
+			runes := []rune(m.filterQuery)
+			m.filterQuery = string(runes[:len(runes)-1])
+			m.clampCursor()
+		}
+		return m, nil
+	case tea.KeyRunes, tea.KeySpace:
+		m.filterQuery += msg.String()
+		m.clampCursor()
+		return m, nil
+	}
+	return m, nil
+}
+
+func (m Model) handleModalInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.activeModal == "compose_down" {
+		switch msg.String() {
+		case "esc", "q", "n", "N":
+			m.activeModal = ""
+			m.composeDownTarget = ""
+			return m, nil
+		case "y", "Y":
+			target := m.composeDownTarget
+			m.activeModal = ""
+			m.composeDownTarget = ""
+			m.showToast(fmt.Sprintf("Сворачивание Compose проекта %s (down)...", target))
+			return m, downComposeCmd(target, m.dockerInfo.Containers)
+		}
+		return m, nil
+	}
+
+	if m.activeModal == "prune" {
+		switch msg.String() {
+		case "q":
+			m.activeModal = ""
+			m.pruneConfirm = 0
+			return m, nil
+		case "esc":
+			if m.pruneConfirm > 0 {
+				m.pruneConfirm = 0
+			} else {
+				m.activeModal = ""
+			}
+			return m, nil
+		case "1", "2", "3", "4":
+			if m.pruneConfirm == 0 {
+				switch msg.String() {
+				case "1":
+					m.pruneConfirm = 1
+				case "2":
+					m.pruneConfirm = 2
+				case "3":
+					m.pruneConfirm = 3
+				case "4":
+					m.pruneConfirm = 4
+				}
+			}
+			return m, nil
+		case "y", "Y":
+			if m.pruneConfirm > 0 {
+				opt := m.pruneConfirm
+				m.activeModal = ""
+				m.pruneConfirm = 0
+				m.showToast("Выполняется очистка ресурсов Docker...")
+				return m, pruneCmd(opt)
+			}
+			return m, nil
+		case "n", "N":
+			if m.pruneConfirm > 0 {
+				m.pruneConfirm = 0
+			}
+			return m, nil
+		}
+		return m, nil
+	}
+
+	switch msg.String() {
+	case "q", "esc":
+		m.activeModal = ""
+		return m, nil
+
+	case "up", "k":
+		if m.activeModal == "logs" && m.logsScroll > 0 {
+			m.logsScroll--
+		}
+		return m, nil
+
+	case "down", "j":
+		if m.activeModal == "logs" && m.logsScroll < len(m.logsLines)-10 {
+			m.logsScroll++
+		}
+		return m, nil
+
+	case "pgup":
+		if m.activeModal == "logs" {
+			m.logsScroll = max(0, m.logsScroll-10)
+		}
+		return m, nil
+
+	case "pgdown":
+		if m.activeModal == "logs" {
+			m.logsScroll = min(max(0, len(m.logsLines)-10), m.logsScroll+10)
+		}
+		return m, nil
+	}
+	return m, nil
+}
+
+func (m Model) handleHelpInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "esc", "?":
+		m.showHelp = false
+		return m, nil
+	}
+	return m, nil
+}
+
+func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		return m, tea.Quit
+
+	case "?":
+		m.showHelp = true
+		return m, nil
+
+	// Навигация по вкладкам
+	case "tab", "right":
+		m.activeTab++
+		if m.activeTab > 4 {
+			m.activeTab = 1
+		}
+	case "shift+tab", "left":
+		m.activeTab--
+		if m.activeTab < 1 {
+			m.activeTab = 4
+		}
+
+	case "1":
+		m.activeTab = 1
+	case "2":
+		m.activeTab = 2
+	case "3":
+		m.activeTab = 3
+	case "4":
+		m.activeTab = 4
+
+	case "r", "R":
+		m.showToast("Обновление данных...")
+		return m, fetchDataCmd()
+
+	// Поиск по списку контейнеров
+	case "/":
+		if m.activeTab == 2 {
+			m.isFiltering = true
+			return m, nil
+		}
+
+	case "esc":
+		if m.filterQuery != "" {
+			m.filterQuery = ""
+			m.clampCursor()
+			return m, nil
+		}
+
+	// Навигация в списке контейнеров (Вкладка 2), Compose (Вкладка 3), Swarm (Вкладка 4)
+	case "up", "k":
+		if m.activeTab == 2 {
+			containers := m.getFilteredContainers()
+			if len(containers) > 0 {
+				m.cursorIdx--
+				if m.cursorIdx < 0 {
+					m.cursorIdx = len(containers) - 1
+				}
+			}
+		} else if m.activeTab == 3 && len(m.compose) > 0 {
+			m.composeCursorIdx--
+			if m.composeCursorIdx < 0 {
+				m.composeCursorIdx = len(m.compose) - 1
+			}
+		} else if m.activeTab == 4 && len(m.swarm.Services) > 0 {
+			m.swarmCursorIdx--
+			if m.swarmCursorIdx < 0 {
+				m.swarmCursorIdx = len(m.swarm.Services) - 1
+			}
+		}
+	case "down", "j":
+		if m.activeTab == 2 {
+			containers := m.getFilteredContainers()
+			if len(containers) > 0 {
+				m.cursorIdx++
+				if m.cursorIdx >= len(containers) {
+					m.cursorIdx = 0
+				}
+			}
+		} else if m.activeTab == 3 && len(m.compose) > 0 {
+			m.composeCursorIdx++
+			if m.composeCursorIdx >= len(m.compose) {
+				m.composeCursorIdx = 0
+			}
+		} else if m.activeTab == 4 && len(m.swarm.Services) > 0 {
+			m.swarmCursorIdx++
+			if m.swarmCursorIdx >= len(m.swarm.Services) {
+				m.swarmCursorIdx = 0
+			}
+		}
+
+	// Просмотр логов контейнера, проекта Compose или службы Swarm
+	case "l", "L":
+		if m.activeTab == 2 {
+			containers := m.getFilteredContainers()
+			if len(containers) > 0 && m.cursorIdx < len(containers) {
+				c := containers[m.cursorIdx]
+				m.logsTargetName = c.Name
+				m.logsTargetID = c.ID
+				logs, err := monitor.GetContainerLogs(c.ID, 120)
+				if err != nil {
+					m.showToast("Ошибка чтения логов: " + err.Error())
+				} else {
+					m.logsLines = strings.Split(strings.TrimSpace(logs), "\n")
+					m.logsScroll = max(0, len(m.logsLines)-18)
+					m.activeModal = "logs"
+				}
+			}
+		} else if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
+			proj := m.compose[m.composeCursorIdx]
+			m.logsTargetName = "Compose: " + proj.Name
+			m.logsTargetID = proj.Name
+			logs, err := monitor.GetComposeProjectLogs(proj.Name, m.dockerInfo.Containers, 150)
+			if err != nil {
+				m.showToast("Ошибка чтения логов проекта: " + err.Error())
+			} else {
+				m.logsLines = strings.Split(strings.TrimSpace(logs), "\n")
+				m.logsScroll = max(0, len(m.logsLines)-18)
+				m.activeModal = "logs"
+			}
+		} else if m.activeTab == 4 && len(m.swarm.Services) > 0 && m.swarmCursorIdx < len(m.swarm.Services) {
+			svc := m.swarm.Services[m.swarmCursorIdx]
+			m.logsTargetName = "Swarm: " + svc.Name
+			m.logsTargetID = svc.ID
+			logs, err := monitor.GetSwarmServiceLogs(svc.ID, 150)
+			if err != nil {
+				m.showToast("Ошибка чтения логов службы: " + err.Error())
+			} else {
+				m.logsLines = strings.Split(strings.TrimSpace(logs), "\n")
+				m.logsScroll = max(0, len(m.logsLines)-18)
+				m.activeModal = "logs"
+			}
+		}
+
+	// Детали контейнера (Inspect)
+	case "enter", "i", "I":
+		containers := m.getFilteredContainers()
+		if m.activeTab == 2 && len(containers) > 0 && m.cursorIdx < len(containers) {
+			c := containers[m.cursorIdx]
+			detail, err := monitor.GetContainerDetail(c.ID)
+			if err != nil {
+				m.showToast("Ошибка inspect: " + err.Error())
+			} else {
+				m.inspectTarget = detail
+				m.activeModal = "inspect"
+			}
+		}
+
+	// Старт / Стоп контейнера или проекта Compose
+	case "s", "S":
+		if m.activeTab == 2 {
+			containers := m.getFilteredContainers()
+			if len(containers) > 0 && m.cursorIdx < len(containers) {
+				c := containers[m.cursorIdx]
+				if c.State == "running" {
+					m.showToast(fmt.Sprintf("Остановка контейнера %s...", c.Name))
+					return m, stopContainerCmd(c.ID, c.Name)
+				}
+				m.showToast(fmt.Sprintf("Запуск контейнера %s...", c.Name))
+				return m, startContainerCmd(c.ID, c.Name)
+			}
+		} else if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
+			proj := m.compose[m.composeCursorIdx]
+			m.showToast(fmt.Sprintf("Остановка Compose проекта %s...", proj.Name))
+			return m, stopComposeCmd(proj.Name, m.dockerInfo.Containers)
+		}
+
+	// Запуск проекта Compose
+	case "u", "U":
+		if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
+			proj := m.compose[m.composeCursorIdx]
+			m.showToast(fmt.Sprintf("Запуск Compose проекта %s...", proj.Name))
+			return m, startComposeCmd(proj.Name, m.dockerInfo.Containers)
+		}
+
+	// Сворачивание проекта Compose (Down)
+	case "d", "D":
+		if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
+			proj := m.compose[m.composeCursorIdx]
+			m.composeDownTarget = proj.Name
+			m.activeModal = "compose_down"
+			return m, nil
+		}
+
+	// Подключение к Shell контейнера (Exec)
+	case "e", "E":
+		if m.activeTab == 2 {
+			containers := m.getFilteredContainers()
+			if len(containers) > 0 && m.cursorIdx < len(containers) {
+				c := containers[m.cursorIdx]
+				if c.State != "running" {
+					m.showToast(fmt.Sprintf("Нельзя подключиться: контейнер %s не запущен", c.Name))
+					return m, nil
+				}
+				if !monitor.IsDockerCLIAvailable() {
+					m.showToast("Ошибка: утилита docker не найдена в $PATH")
+					return m, nil
+				}
+				cmd := monitor.GetContainerExecCommand(c.ID)
+				return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
+					return execFinishedMsg{
+						containerName: c.Name,
+						err:           err,
+					}
+				})
+			}
+		}
+
+	// Перезапуск контейнера или проекта Compose
+	case "p", "P":
+		if m.activeTab == 2 {
+			containers := m.getFilteredContainers()
+			if len(containers) > 0 && m.cursorIdx < len(containers) {
+				c := containers[m.cursorIdx]
+				m.showToast(fmt.Sprintf("Перезапуск %s...", c.Name))
+				return m, restartContainerCmd(c.ID, c.Name)
+			}
+		} else if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
+			proj := m.compose[m.composeCursorIdx]
+			m.showToast(fmt.Sprintf("Перезапуск Compose проекта %s...", proj.Name))
+			return m, restartComposeCmd(proj.Name, m.dockerInfo.Containers)
+		}
+
+	// Очистка неиспользуемых ресурсов Docker (Prune)
+	case "c", "C":
+		if (m.activeTab == 2 || m.activeTab == 3) && !m.isFiltering {
+			m.activeModal = "prune"
+			m.pruneConfirm = 0
+			usage, err := monitor.GetDockerDiskUsage()
+			m.pruneUsage = usage
+			if err != nil {
+				m.pruneUsageErr = err.Error()
+			} else {
+				m.pruneUsageErr = ""
+			}
+			return m, nil
+		}
+	}
+	return m, nil
+}
