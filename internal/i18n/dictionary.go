@@ -96,6 +96,12 @@ type Dictionary struct {
 	ColState               string
 	ColHealth              string
 	ColPorts               string
+	ColStatus              string
+	SelectedContainerDetails string
+	DetailPortsLabel       string
+	DetailMountsLabel      string
+	DetailNone             string
+	DetailComposeLabel     string
 
 	// Вкладка 3: Compose
 	ComposeTabTitle   string
@@ -308,6 +314,12 @@ var Ru = Dictionary{
 	ColState:             "STATE",
 	ColHealth:            "HEALTH",
 	ColPorts:             "PORTS",
+	ColStatus:            "СТАТУС",
+	SelectedContainerDetails: "ДЕТАЛИ ВЫБРАННОГО КОНТЕЙНЕРА",
+	DetailPortsLabel:       "Порты:",
+	DetailMountsLabel:      "Тома / Mounts:",
+	DetailNone:             "нет",
+	DetailComposeLabel:     "Compose:",
 
 	ComposeTabTitle:   "DOCKER COMPOSE ПРОЕКТЫ (%d)",
 	NoComposeProjects: "Проекты Docker Compose не обнаружены (нет меток com.docker.compose.project).",
@@ -512,6 +524,12 @@ var En = Dictionary{
 	ColState:             "STATE",
 	ColHealth:            "HEALTH",
 	ColPorts:             "PORTS",
+	ColStatus:            "STATUS",
+	SelectedContainerDetails: "SELECTED CONTAINER DETAILS",
+	DetailPortsLabel:       "Ports:",
+	DetailMountsLabel:      "Volumes / Mounts:",
+	DetailNone:             "none",
+	DetailComposeLabel:     "Compose:",
 
 	ComposeTabTitle:   "DOCKER COMPOSE PROJECTS (%d)",
 	NoComposeProjects: "No Docker Compose projects detected (missing com.docker.compose.project labels).",

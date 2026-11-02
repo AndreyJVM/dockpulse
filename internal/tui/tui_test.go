@@ -566,8 +566,8 @@ func TestDockerTabHealthBadges(t *testing.T) {
 	}
 
 	view := m.View()
-	if !strings.Contains(view, "HEALTH") {
-		t.Errorf("expected HEALTH column in header, got: %s", view)
+	if !strings.Contains(view, m.i18n.ColStatus) {
+		t.Errorf("expected %s column in header, got: %s", m.i18n.ColStatus, view)
 	}
 	if !strings.Contains(view, "[healthy]") {
 		t.Errorf("expected [healthy] badge in View(), got: %s", view)
@@ -577,6 +577,37 @@ func TestDockerTabHealthBadges(t *testing.T) {
 	}
 	if !strings.Contains(view, "[starting]") {
 		t.Errorf("expected [starting] badge in View(), got: %s", view)
+	}
+}
+
+func TestDockerTabSelectedContainerDetails(t *testing.T) {
+	m := NewModel(2*time.Second, 2, "v0.6.2", "en")
+	m.activeTab = 2
+	m.dockerInfo.Containers = []monitor.ContainerItem{
+		{
+			ID:             "abcdef123456",
+			Name:           "web-server",
+			Image:          "nginx:alpine",
+			State:          "running",
+			Ports:          "8080->80/tcp, 8443->443/tcp",
+			Mounts:         []string{"/var/www -> /usr/share/nginx/html (ro)", "nginx-logs -> /var/log/nginx (rw)"},
+			ComposeProject: "my-stack",
+			ComposeService: "web",
+		},
+	}
+
+	view := m.View()
+	if !strings.Contains(view, "SELECTED CONTAINER DETAILS") {
+		t.Errorf("expected details panel header in View(), got: %s", view)
+	}
+	if !strings.Contains(view, "8080->80/tcp, 8443->443/tcp") {
+		t.Errorf("expected full ports in details panel, got: %s", view)
+	}
+	if !strings.Contains(view, "/var/www -> /usr/share/nginx/html (ro)") {
+		t.Errorf("expected volume mount in details panel, got: %s", view)
+	}
+	if !strings.Contains(view, "my-stack") {
+		t.Errorf("expected compose project in details panel, got: %s", view)
 	}
 }
 

@@ -73,6 +73,22 @@ func max(a, b int) int {
 	return b
 }
 
+func padRight(s string, width int) string {
+	r := []rune(s)
+	if len(r) >= width {
+		return string(r[:width])
+	}
+	return s + strings.Repeat(" ", width-len(r))
+}
+
+func padLeft(s string, width int) string {
+	r := []rune(s)
+	if len(r) >= width {
+		return string(r[:width])
+	}
+	return strings.Repeat(" ", width-len(r)) + s
+}
+
 func renderSparkline(history []float64) string {
 	if len(history) == 0 {
 		return ""

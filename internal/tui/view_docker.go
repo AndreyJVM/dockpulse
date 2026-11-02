@@ -3,6 +3,8 @@ package tui
 import (
 	"fmt"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 func (m Model) renderDockerTab() string {
@@ -38,11 +40,16 @@ func (m Model) renderDockerTab() string {
 		return s.String()
 	}
 
-	s.WriteString(fmt.Sprintf("  %-14s %-20s %-20s %-10s %-16s %-10s %-12s %s\n",
-		dimStyle.Render(m.i18n.ColID), dimStyle.Render(m.i18n.ColName), dimStyle.Render(m.i18n.ColImage),
-		dimStyle.Render(m.i18n.ColCPU), dimStyle.Render(m.i18n.ColMem), dimStyle.Render(m.i18n.ColState),
-		dimStyle.Render(m.i18n.ColHealth), dimStyle.Render(m.i18n.ColPorts),
-	))
+	headerText := fmt.Sprintf("  %-8s  %-20s  %-22s  %-20s  %-7s  %-14s  %s",
+		m.i18n.ColID,
+		m.i18n.ColName,
+		m.i18n.ColImage,
+		m.i18n.ColStatus,
+		m.i18n.ColCPU,
+		m.i18n.ColMem,
+		m.i18n.ColPorts,
+	)
+	s.WriteString(dimStyle.Render(headerText) + "\n")
 	s.WriteString("  " + dimStyle.Render(strings.Repeat("─", max(m.width-4, 96))) + "\n")
 
 	for i, c := range containers {
@@ -51,51 +58,140 @@ func (m Model) renderDockerTab() string {
 			prefix = greenStyle.Render("► ")
 		}
 
-		cpuStr := "-"
-		memStr := "-"
+		cID := padRight(truncate(c.ID, 8), 8)
+		cName := padRight(truncate(c.Name, 20), 20)
+		cImg := padRight(truncate(c.Image, 22), 22)
+
+		statusText, statusStyle := formatContainerStatus(c.State, c.Health)
+		statusPadded := padRight(truncate(statusText, 20), 20)
+
+		cpuRaw := "-"
+		memRaw := "-"
 		if c.State == "running" {
-			cpuStr = formatPercent(c.CPUPerc)
+			cpuRaw = fmt.Sprintf("%.1f%%", c.CPUPerc)
 			if c.MemLimitMB > 0 {
-				memStr = fmt.Sprintf("%.1fM (%.1f%%)", c.MemUsageMB, c.MemPerc)
+				memRaw = fmt.Sprintf("%.1fM (%.1f%%)", c.MemUsageMB, c.MemPerc)
 			} else {
-				memStr = fmt.Sprintf("%.1fM", c.MemUsageMB)
+				memRaw = fmt.Sprintf("%.1fM", c.MemUsageMB)
 			}
 		}
-
-		healthBadge := dimStyle.Render("-")
-		switch c.Health {
-		case "healthy":
-			healthBadge = greenStyle.Render("[healthy]")
-		case "unhealthy":
-			healthBadge = redStyle.Render("[unhealthy]")
-		case "starting":
-			healthBadge = yellowStyle.Render("[starting]")
-		}
-
-		stateStyle := dimStyle
-		if c.State == "running" {
-			stateStyle = greenStyle
-		} else if c.State == "paused" {
-			stateStyle = yellowStyle
-		}
-
-		row := fmt.Sprintf("%-14s %-20s %-20s %-10s %-16s %-10s %-12s %s",
-			c.ID[:min(12, len(c.ID))],
-			boldStyle.Render(truncate(c.Name, 18)),
-			truncate(c.Image, 18),
-			cpuStr,
-			memStr,
-			stateStyle.Render(c.State),
-			healthBadge,
-			c.Ports,
-		)
+		cpuPadded := padLeft(cpuRaw, 7)
+		memPadded := padRight(truncate(memRaw, 14), 14)
+		portsPreview := truncate(c.Ports, max(20, m.width-105))
 
 		if i == m.cursorIdx {
-			s.WriteString(fmt.Sprintf("%s%s\n", prefix, selectedRowStyle.Render(row)))
+			plainRow := fmt.Sprintf("%-8s  %-20s  %-22s  %-20s  %-7s  %-14s  %s",
+				cID, cName, cImg, statusPadded, cpuPadded, memPadded, portsPreview,
+			)
+			s.WriteString(fmt.Sprintf("%s%s\n", prefix, selectedRowStyle.Render(plainRow)))
 		} else {
+			row := fmt.Sprintf("%-8s  %-20s  %-22s  %s  %s  %-14s  %s",
+				cID,
+				boldStyle.Render(cName),
+				dimStyle.Render(cImg),
+				statusStyle.Render(statusPadded),
+				styleCPU(c.CPUPerc, c.State, cpuPadded),
+				dimStyle.Render(memPadded),
+				portsPreview,
+			)
 			s.WriteString(fmt.Sprintf("%s%s\n", prefix, row))
 		}
 	}
 
+	// Bottom Details Panel for selected container
+	if len(containers) > 0 && m.cursorIdx < len(containers) {
+		sel := containers[m.cursorIdx]
+		s.WriteString("\n")
+		cardWidth := max(m.width-4, 96)
+		title := fmt.Sprintf(" %s: %s (%s) ", m.i18n.SelectedContainerDetails, sel.Name, sel.ID)
+		topDashLen := cardWidth - len([]rune(title)) - 4
+		if topDashLen < 2 {
+			topDashLen = 2
+		}
+		s.WriteString("  " + cyanStyle.Render("┌─") + boldStyle.Render(title) + cyanStyle.Render(strings.Repeat("─", topDashLen)+"┐") + "\n")
+
+		// Ports
+		portsDisplay := sel.Ports
+		if portsDisplay == "" {
+			portsDisplay = dimStyle.Render(m.i18n.DetailNone)
+		} else {
+			portsDisplay = cyanStyle.Render(portsDisplay)
+		}
+		s.WriteString(fmt.Sprintf("  %s %-18s %s\n",
+			cyanStyle.Render("│"),
+			boldStyle.Render(m.i18n.DetailPortsLabel),
+			portsDisplay,
+		))
+
+		// Volumes / Mounts
+		if len(sel.Mounts) == 0 {
+			s.WriteString(fmt.Sprintf("  %s %-18s %s\n",
+				cyanStyle.Render("│"),
+				boldStyle.Render(m.i18n.DetailMountsLabel),
+				dimStyle.Render(m.i18n.DetailNone),
+			))
+		} else {
+			for idx, mnt := range sel.Mounts {
+				label := ""
+				if idx == 0 {
+					label = boldStyle.Render(fmt.Sprintf("%-18s", m.i18n.DetailMountsLabel))
+				} else {
+					label = strings.Repeat(" ", 18)
+				}
+				s.WriteString(fmt.Sprintf("  %s %s %s\n",
+					cyanStyle.Render("│"),
+					label,
+					yellowStyle.Render("• ")+mnt,
+				))
+			}
+		}
+
+		// Compose Info
+		if sel.ComposeProject != "" {
+			s.WriteString(fmt.Sprintf("  %s %-18s %s\n",
+				cyanStyle.Render("│"),
+				boldStyle.Render(m.i18n.DetailComposeLabel),
+				fmt.Sprintf("%s / %s", boldStyle.Render(sel.ComposeProject), sel.ComposeService),
+			))
+		}
+
+		s.WriteString("  " + cyanStyle.Render("└"+strings.Repeat("─", cardWidth-2)+"┘") + "\n")
+	}
+
 	return s.String()
+}
+
+func formatContainerStatus(state, health string) (string, lipgloss.Style) {
+	if state == "running" {
+		switch health {
+		case "healthy":
+			return "● [healthy]", greenStyle
+		case "unhealthy":
+			return "▲ [unhealthy]", redStyle
+		case "starting":
+			return "⏳ [starting]", yellowStyle
+		default:
+			return "● running", greenStyle
+		}
+	} else if state == "paused" {
+		return "⏸ paused", yellowStyle
+	} else if state == "restarting" {
+		return "↻ restarting", yellowStyle
+	}
+	if state == "" {
+		state = "stopped"
+	}
+	return "○ " + state, dimStyle
+}
+
+func styleCPU(val float64, state, paddedStr string) string {
+	if state != "running" {
+		return dimStyle.Render(paddedStr)
+	}
+	if val >= 80 {
+		return redStyle.Render(paddedStr)
+	} else if val >= 50 {
+		return yellowStyle.Render(paddedStr)
+	}
+	return greenStyle.Render(paddedStr)
 }

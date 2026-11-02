@@ -46,6 +46,7 @@ type ContainerItem struct {
 	ComposeProject string
 	ComposeService string
 	Labels         map[string]string
+	Mounts         []string
 	CPUPerc        float64
 	MemUsageMB     float64
 	MemLimitMB     float64
@@ -321,6 +322,15 @@ func GetDockerSummary() DockerSummary {
 				Status string            `json:"Status"`
 				Ports  []rawPort         `json:"Ports"`
 				Labels map[string]string `json:"Labels"`
+				Mounts []struct {
+					Type        string `json:"Type"`
+					Name        string `json:"Name"`
+					Source      string `json:"Source"`
+					Destination string `json:"Destination"`
+					Driver      string `json:"Driver"`
+					Mode        string `json:"Mode"`
+					RW          bool   `json:"RW"`
+				} `json:"Mounts"`
 			}
 
 			if json.Unmarshal(bodyC, &rawContainers) == nil {
@@ -339,6 +349,27 @@ func GetDockerSummary() DockerSummary {
 					composeProject := c.Labels["com.docker.compose.project"]
 					composeService := c.Labels["com.docker.compose.service"]
 
+					var mountsList []string
+					for _, m := range c.Mounts {
+						src := m.Source
+						if src == "" {
+							src = m.Name
+						}
+						mode := m.Mode
+						if mode == "" {
+							if m.RW {
+								mode = "rw"
+							} else {
+								mode = "ro"
+							}
+						}
+						if src != "" && m.Destination != "" {
+							mountsList = append(mountsList, fmt.Sprintf("%s -> %s (%s)", src, m.Destination, mode))
+						} else if m.Destination != "" {
+							mountsList = append(mountsList, m.Destination)
+						}
+					}
+
 					summary.Containers = append(summary.Containers, ContainerItem{
 						ID:             cID,
 						Name:           name,
@@ -347,6 +378,7 @@ func GetDockerSummary() DockerSummary {
 						Status:         c.Status,
 						Health:         ParseHealthStatus(c.Status),
 						Ports:          formatPorts(c.Ports),
+						Mounts:         mountsList,
 						ComposeProject: composeProject,
 						ComposeService: composeService,
 						Labels:         c.Labels,
@@ -387,6 +419,60 @@ func GetDockerSummary() DockerSummary {
 			summary.Status = DockerStatusRunning
 			summary.StatusDisplay = DockerStatusDisplayRunning
 			summary.Version = parts[4]
+		}
+	}
+
+	if summary.Status == DockerStatusRunning && len(summary.Containers) == 0 {
+		psOut, psErr := exec.Command("docker", "ps", "-a", "--format", "{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Status}}\t{{.Ports}}\t{{.Mounts}}\t{{.Labels}}").Output()
+		if psErr == nil {
+			lines := strings.Split(strings.TrimSpace(string(psOut)), "\n")
+			for _, line := range lines {
+				if strings.TrimSpace(line) == "" {
+					continue
+				}
+				parts := strings.Split(line, "\t")
+				if len(parts) >= 6 {
+					cID := parts[0]
+					cName := parts[1]
+					cImg := parts[2]
+					cState := parts[3]
+					cStatus := parts[4]
+					cPorts := parts[5]
+					var cMounts []string
+					if len(parts) >= 7 && parts[6] != "" {
+						for _, m := range strings.Split(parts[6], ",") {
+							if tr := strings.TrimSpace(m); tr != "" {
+								cMounts = append(cMounts, tr)
+							}
+						}
+					}
+					var pProj, pSvc string
+					if len(parts) >= 8 {
+						for _, lbl := range strings.Split(parts[7], ",") {
+							kv := strings.SplitN(lbl, "=", 2)
+							if len(kv) == 2 {
+								if kv[0] == "com.docker.compose.project" {
+									pProj = kv[1]
+								} else if kv[0] == "com.docker.compose.service" {
+									pSvc = kv[1]
+								}
+							}
+						}
+					}
+					summary.Containers = append(summary.Containers, ContainerItem{
+						ID:             cID,
+						Name:           cName,
+						Image:          cImg,
+						State:          cState,
+						Status:         cStatus,
+						Health:         ParseHealthStatus(cStatus),
+						Ports:          cPorts,
+						Mounts:         cMounts,
+						ComposeProject: pProj,
+						ComposeService: pSvc,
+					})
+				}
+			}
 		}
 	}
 

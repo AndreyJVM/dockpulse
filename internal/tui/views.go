@@ -15,7 +15,7 @@ func (m Model) View() string {
 		verStr = "v0.4.0"
 	}
 	header := headerStyle.Render("Dockpulse") +
-		dimStyle.Render(fmt.Sprintf("  %s (Go Edition)  ", verStr)) +
+		dimStyle.Render(fmt.Sprintf("  %s  ", verStr)) +
 		greenStyle.Render("["+m.lastUpdate+"]")
 	b.WriteString(header + "\n\n")
 
