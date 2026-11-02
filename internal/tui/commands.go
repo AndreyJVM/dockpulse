@@ -49,7 +49,7 @@ func fetchDataCmd() tea.Cmd {
 func startContainerCmd(id, name string, dict i18n.Dictionary) tea.Cmd {
 	return func() tea.Msg {
 		if err := monitor.StartContainer(id); err != nil {
-			return actionFinishedMsg{err: fmt.Errorf("%s%w", dict.ToastStartingContainer, err)}
+			return actionFinishedMsg{err: fmt.Errorf("%s%w", dict.ToastErrorStarting, err)}
 		}
 		return actionFinishedMsg{message: fmt.Sprintf(dict.ToastContainerStarted, name), refresh: true}
 	}
@@ -58,7 +58,7 @@ func startContainerCmd(id, name string, dict i18n.Dictionary) tea.Cmd {
 func stopContainerCmd(id, name string, dict i18n.Dictionary) tea.Cmd {
 	return func() tea.Msg {
 		if err := monitor.StopContainer(id); err != nil {
-			return actionFinishedMsg{err: fmt.Errorf("%s%w", dict.ToastStoppingContainer, err)}
+			return actionFinishedMsg{err: fmt.Errorf("%s%w", dict.ToastErrorStopping, err)}
 		}
 		return actionFinishedMsg{message: fmt.Sprintf(dict.ToastContainerStopped, name), refresh: true}
 	}
@@ -67,7 +67,7 @@ func stopContainerCmd(id, name string, dict i18n.Dictionary) tea.Cmd {
 func restartContainerCmd(id, name string, dict i18n.Dictionary) tea.Cmd {
 	return func() tea.Msg {
 		if err := monitor.RestartContainer(id); err != nil {
-			return actionFinishedMsg{err: fmt.Errorf("%s%w", dict.ToastRestartingCont, err)}
+			return actionFinishedMsg{err: fmt.Errorf("%s%w", dict.ToastErrorRestartingCont, err)}
 		}
 		return actionFinishedMsg{message: fmt.Sprintf(dict.ToastContainerRest, name), refresh: true}
 	}
@@ -96,7 +96,7 @@ func restartComposeCmd(name string, containers []monitor.ContainerItem, dict i18
 		if err := monitor.RestartComposeProject(name, containers); err != nil {
 			return actionFinishedMsg{err: fmt.Errorf("%s%w", dict.ToastErrorRestarting, err)}
 		}
-		return actionFinishedMsg{message: fmt.Sprintf(dict.ToastRestartingCompose, name), refresh: true}
+		return actionFinishedMsg{message: fmt.Sprintf(dict.ToastComposeRestarted, name), refresh: true}
 	}
 }
 

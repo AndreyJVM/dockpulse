@@ -10,6 +10,19 @@ type Dictionary struct {
 	TabCompose string
 	TabSwarm   string
 
+	// Статусы компонентов
+	StatusRunning      string
+	StatusStopped      string
+	StatusNotRunning   string
+	StatusNotInstalled string
+	StatusPartial      string
+	StatusActive       string
+	StatusInactive     string
+
+	// Форматы аптайма
+	UptimeDaysFormat  string
+	UptimeHoursFormat string
+
 	// Подвал и навигация
 	FooterTabs          string
 	FooterRefresh       string
@@ -175,32 +188,36 @@ type Dictionary struct {
 	HelpAutoInt   string
 
 	// Уведомления (Toasts)
-	ToastDataRefreshed     string
-	ToastRefreshing        string
-	ToastStoppingContainer string
-	ToastContainerStopped  string
-	ToastStartingContainer string
-	ToastContainerStarted  string
-	ToastRestartingCont    string
-	ToastContainerRest     string
-	ToastCannotConnect     string
-	ToastDockerNotFound    string
-	ToastShellEnded        string
-	ToastShellEndedCode    string
-	ToastShellError        string
-	ToastDowningCompose    string
-	ToastComposeDowned     string
-	ToastErrorDowning      string
-	ToastStoppingCompose   string
-	ToastComposeStopped    string
-	ToastStartingCompose   string
-	ToastComposeStarted    string
-	ToastRestartingCompose string
-	ToastErrorRestarting   string
-	ToastPruning           string
-	ToastPruneError        string
-	ToastInspectError      string
-	ToastLogsError         string
+	ToastDataRefreshed       string
+	ToastRefreshing          string
+	ToastStoppingContainer   string
+	ToastContainerStopped    string
+	ToastStartingContainer   string
+	ToastContainerStarted    string
+	ToastRestartingCont      string
+	ToastContainerRest       string
+	ToastCannotConnect       string
+	ToastDockerNotFound      string
+	ToastShellEnded          string
+	ToastShellEndedCode      string
+	ToastShellError          string
+	ToastDowningCompose      string
+	ToastComposeDowned       string
+	ToastErrorDowning        string
+	ToastStoppingCompose     string
+	ToastComposeStopped      string
+	ToastStartingCompose     string
+	ToastComposeStarted      string
+	ToastRestartingCompose   string
+	ToastComposeRestarted    string
+	ToastErrorRestarting     string
+	ToastPruning             string
+	ToastPruneError          string
+	ToastInspectError        string
+	ToastLogsError           string
+	ToastErrorStarting       string
+	ToastErrorStopping       string
+	ToastErrorRestartingCont string
 }
 
 // Ru — русская локализация.
@@ -209,6 +226,17 @@ var Ru = Dictionary{
 	TabDocker:  "2: Docker Containers",
 	TabCompose: "3: Compose Stacks",
 	TabSwarm:   "4: Swarm Cluster",
+
+	StatusRunning:      "Запущен",
+	StatusStopped:      "Остановлен",
+	StatusNotRunning:   "Не запущен",
+	StatusNotInstalled: "Не установлен",
+	StatusPartial:      "Частично",
+	StatusActive:       "Активен",
+	StatusInactive:     "Не активен",
+
+	UptimeDaysFormat:  "%d дн %02d:%02d",
+	UptimeHoursFormat: "%02d:%02d",
 
 	FooterTabs:          "Вкладки",
 	FooterRefresh:       "Обновить",
@@ -364,32 +392,36 @@ var Ru = Dictionary{
 	HelpKeyQuit:   "Выход из приложения",
 	HelpAutoInt:   "Интервал автообновления: %s",
 
-	ToastDataRefreshed:     "Данные успешно обновлены",
-	ToastRefreshing:        "Обновление данных...",
-	ToastStoppingContainer: "Остановка контейнера %s...",
-	ToastContainerStopped:  "Контейнер %s остановлен",
-	ToastStartingContainer: "Запуск контейнера %s...",
-	ToastContainerStarted:  "Контейнер %s запущен",
-	ToastRestartingCont:    "Перезапуск %s...",
-	ToastContainerRest:     "Контейнер %s успешно перезапущен",
-	ToastCannotConnect:     "Нельзя подключиться: контейнер %s не запущен",
-	ToastDockerNotFound:    "Ошибка: утилита docker не найдена в $PATH",
-	ToastShellEnded:        "Сессия shell в %s завершена",
-	ToastShellEndedCode:    "Сессия shell в %s завершена (код %d)",
-	ToastShellError:        "Ошибка shell в %s: %v",
-	ToastDowningCompose:    "Сворачивание Compose проекта %s (down)...",
-	ToastComposeDowned:     "Проект %s успешно свернут (down)",
-	ToastErrorDowning:      "Ошибка сворачивания проекта: ",
-	ToastStoppingCompose:   "Остановка Compose проекта %s...",
-	ToastComposeStopped:    "Проект %s успешно остановлен",
-	ToastStartingCompose:   "Запуск Compose проекта %s...",
-	ToastComposeStarted:    "Проект %s успешно запущен",
-	ToastRestartingCompose: "Перезапуск Compose проекта %s...",
-	ToastErrorRestarting:   "Ошибка перезапуска проекта: ",
-	ToastPruning:           "Выполняется очистка ресурсов Docker...",
-	ToastPruneError:        "Ошибка очистки: ",
-	ToastInspectError:      "Ошибка inspect: ",
-	ToastLogsError:         "Ошибка чтения логов: ",
+	ToastDataRefreshed:       "Данные успешно обновлены",
+	ToastRefreshing:          "Обновление данных...",
+	ToastStoppingContainer:   "Остановка контейнера %s...",
+	ToastContainerStopped:    "Контейнер %s остановлен",
+	ToastStartingContainer:   "Запуск контейнера %s...",
+	ToastContainerStarted:    "Контейнер %s запущен",
+	ToastRestartingCont:      "Перезапуск %s...",
+	ToastContainerRest:       "Контейнер %s успешно перезапущен",
+	ToastCannotConnect:       "Нельзя подключиться: контейнер %s не запущен",
+	ToastDockerNotFound:      "Ошибка: утилита docker не найдена в $PATH",
+	ToastShellEnded:          "Сессия shell в %s завершена",
+	ToastShellEndedCode:      "Сессия shell в %s завершена (код %d)",
+	ToastShellError:          "Ошибка shell в %s: %v",
+	ToastDowningCompose:      "Сворачивание Compose проекта %s (down)...",
+	ToastComposeDowned:       "Проект %s успешно свернут (down)",
+	ToastErrorDowning:        "Ошибка сворачивания проекта: ",
+	ToastStoppingCompose:     "Остановка Compose проекта %s...",
+	ToastComposeStopped:      "Проект %s успешно остановлен",
+	ToastStartingCompose:     "Запуск Compose проекта %s...",
+	ToastComposeStarted:      "Проект %s успешно запущен",
+	ToastRestartingCompose:   "Перезапуск Compose проекта %s...",
+	ToastComposeRestarted:    "Проект %s успешно перезапущен",
+	ToastErrorRestarting:     "Ошибка перезапуска проекта: ",
+	ToastPruning:             "Выполняется очистка ресурсов Docker...",
+	ToastPruneError:          "Ошибка очистки: ",
+	ToastInspectError:        "Ошибка inspect: ",
+	ToastLogsError:           "Ошибка чтения логов: ",
+	ToastErrorStarting:       "Ошибка запуска контейнера: ",
+	ToastErrorStopping:       "Ошибка остановки контейнера: ",
+	ToastErrorRestartingCont: "Ошибка перезапуска контейнера: ",
 }
 
 // En — английская локализация.
@@ -398,6 +430,17 @@ var En = Dictionary{
 	TabDocker:  "2: Docker Containers",
 	TabCompose: "3: Compose Stacks",
 	TabSwarm:   "4: Swarm Cluster",
+
+	StatusRunning:      "Running",
+	StatusStopped:      "Stopped",
+	StatusNotRunning:   "Not running",
+	StatusNotInstalled: "Not installed",
+	StatusPartial:      "Partial",
+	StatusActive:       "Active",
+	StatusInactive:     "Inactive",
+
+	UptimeDaysFormat:  "%dd %02d:%02d",
+	UptimeHoursFormat: "%02d:%02d",
 
 	FooterTabs:          "Tabs",
 	FooterRefresh:       "Refresh",
@@ -553,32 +596,36 @@ var En = Dictionary{
 	HelpKeyQuit:   "Quit application",
 	HelpAutoInt:   "Auto-refresh interval: %s",
 
-	ToastDataRefreshed:     "Data updated successfully",
-	ToastRefreshing:        "Refreshing data...",
-	ToastStoppingContainer: "Stopping container %s...",
-	ToastContainerStopped:  "Container %s stopped",
-	ToastStartingContainer: "Starting container %s...",
-	ToastContainerStarted:  "Container %s started",
-	ToastRestartingCont:    "Restarting %s...",
-	ToastContainerRest:     "Container %s restarted successfully",
-	ToastCannotConnect:     "Cannot connect: container %s is not running",
-	ToastDockerNotFound:    "Error: docker binary not found in $PATH",
-	ToastShellEnded:        "Shell session in %s ended",
-	ToastShellEndedCode:    "Shell session in %s ended (code %d)",
-	ToastShellError:        "Shell error in %s: %v",
-	ToastDowningCompose:    "Downing Compose project %s (down)...",
-	ToastComposeDowned:     "Project %s downed successfully",
-	ToastErrorDowning:      "Error downing project: ",
-	ToastStoppingCompose:   "Stopping Compose project %s...",
-	ToastComposeStopped:    "Project %s stopped successfully",
-	ToastStartingCompose:   "Starting Compose project %s...",
-	ToastComposeStarted:    "Project %s started successfully",
-	ToastRestartingCompose: "Restarting Compose project %s...",
-	ToastErrorRestarting:   "Error restarting project: ",
-	ToastPruning:           "Pruning Docker resources...",
-	ToastPruneError:        "Prune error: ",
-	ToastInspectError:      "Inspect error: ",
-	ToastLogsError:         "Logs error: ",
+	ToastDataRefreshed:       "Data updated successfully",
+	ToastRefreshing:          "Refreshing data...",
+	ToastStoppingContainer:   "Stopping container %s...",
+	ToastContainerStopped:    "Container %s stopped",
+	ToastStartingContainer:   "Starting container %s...",
+	ToastContainerStarted:    "Container %s started",
+	ToastRestartingCont:      "Restarting %s...",
+	ToastContainerRest:       "Container %s restarted successfully",
+	ToastCannotConnect:       "Cannot connect: container %s is not running",
+	ToastDockerNotFound:      "Error: docker binary not found in $PATH",
+	ToastShellEnded:          "Shell session in %s ended",
+	ToastShellEndedCode:      "Shell session in %s ended (code %d)",
+	ToastShellError:          "Shell error in %s: %v",
+	ToastDowningCompose:      "Downing Compose project %s (down)...",
+	ToastComposeDowned:       "Project %s downed successfully",
+	ToastErrorDowning:        "Error downing project: ",
+	ToastStoppingCompose:     "Stopping Compose project %s...",
+	ToastComposeStopped:      "Project %s stopped successfully",
+	ToastStartingCompose:     "Starting Compose project %s...",
+	ToastComposeStarted:      "Project %s started successfully",
+	ToastRestartingCompose:   "Restarting Compose project %s...",
+	ToastComposeRestarted:    "Project %s restarted successfully",
+	ToastErrorRestarting:     "Error restarting project: ",
+	ToastPruning:             "Pruning Docker resources...",
+	ToastPruneError:          "Prune error: ",
+	ToastInspectError:        "Inspect error: ",
+	ToastLogsError:           "Logs error: ",
+	ToastErrorStarting:       "Error starting container: ",
+	ToastErrorStopping:       "Error stopping container: ",
+	ToastErrorRestartingCont: "Error restarting container: ",
 }
 
 // Get возвращает словарь для указанного языка ("ru" или "en").

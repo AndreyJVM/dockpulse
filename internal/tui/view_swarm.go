@@ -12,15 +12,16 @@ func (m Model) renderSwarmTab() string {
 
 	s.WriteString(titleStyle.Render(m.i18n.SwarmTabTitle) + "\n\n")
 
+	swarmStatus := m.formatSwarmStatus(m.swarm.IsActive)
 	if !m.swarm.IsActive {
-		s.WriteString(fmt.Sprintf("  %s %s\n\n", m.i18n.DaemonStatus, m.swarm.StatusDisplay))
+		s.WriteString(fmt.Sprintf("  %s %s\n\n", m.i18n.DaemonStatus, swarmStatus))
 		s.WriteString("  " + dimStyle.Render(m.i18n.SwarmInactive) + "\n")
 		s.WriteString("  " + fmt.Sprintf(m.i18n.SwarmInitHint, boldStyle.Render("docker swarm init")) + "\n")
 		return s.String()
 	}
 
 	s.WriteString(fmt.Sprintf("  %s %s    %s %d    %s %d\n\n",
-		dimStyle.Render(m.i18n.DaemonStatus), m.swarm.StatusDisplay,
+		dimStyle.Render(m.i18n.DaemonStatus), swarmStatus,
 		dimStyle.Render(m.i18n.SwarmNodesCount), m.swarm.NodesCount,
 		dimStyle.Render(m.i18n.SwarmManagers), m.swarm.ManagersCount,
 	))
@@ -50,46 +51,40 @@ func (m Model) renderSwarmTab() string {
 
 	if len(m.swarm.Services) > 0 {
 		s.WriteString(boldStyle.Render("  "+m.i18n.SwarmSvcsTitle) + "\n")
-		s.WriteString(fmt.Sprintf("   %-14s %-20s %-24s %-16s %-18s\n",
+		s.WriteString(fmt.Sprintf("  %-14s %-20s %-20s %-10s %-12s %s\n",
 			dimStyle.Render(m.i18n.ColServiceID), dimStyle.Render(m.i18n.ColName), dimStyle.Render(m.i18n.ColImage),
-			dimStyle.Render(m.i18n.ColReplicas), dimStyle.Render(m.i18n.ColPorts),
+			dimStyle.Render("MODE"), dimStyle.Render(m.i18n.ColReplicas), dimStyle.Render(m.i18n.ColPorts),
 		))
-		s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 94)) + "\n")
+		s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 88)) + "\n")
 		for i, svc := range m.swarm.Services {
-			s.WriteString(renderSwarmServiceRow(svc, i == m.swarmCursorIdx))
+			prefix := "  "
+			if i == m.swarmCursorIdx {
+				prefix = greenStyle.Render("► ")
+			}
+
+			repStr := svc.Replicas
+			if svc.Mode == "replicated" && svc.TargetReplicas > 0 {
+				if svc.RunningReplicas == 0 {
+					repStr = redStyle.Render(svc.Replicas)
+				} else if svc.RunningReplicas < svc.TargetReplicas {
+					repStr = yellowStyle.Render(svc.Replicas)
+				} else {
+					repStr = greenStyle.Render(svc.Replicas)
+				}
+			}
+
+			row := fmt.Sprintf("%-14s %-20s %-20s %-10s %-12s %s",
+				svc.ID, boldStyle.Render(truncate(svc.Name, 18)), truncate(svc.Image, 18),
+				svc.Mode, repStr, svc.Ports,
+			)
+
+			if i == m.swarmCursorIdx {
+				s.WriteString(fmt.Sprintf("%s%s\n", prefix, selectedRowStyle.Render(row)))
+			} else {
+				s.WriteString(fmt.Sprintf("%s%s\n", prefix, row))
+			}
 		}
 	}
 
 	return s.String()
-}
-
-func renderSwarmServiceRow(svc monitor.SwarmService, isSelected bool) string {
-	ports := svc.Ports
-	if ports == "" {
-		ports = "-"
-	}
-	repColored := formatSwarmReplicas(svc)
-
-	prefix := "  "
-	rowContent := fmt.Sprintf("%-14s %-20s %-24s %-16s %-18s",
-		svc.ID, boldStyle.Render(truncate(svc.Name, 18)), truncate(svc.Image, 22), repColored, truncate(ports, 18),
-	)
-	if isSelected {
-		prefix = greenStyle.Render("► ")
-		rowContent = selectedRowStyle.Render(fmt.Sprintf("%-14s %-20s %-24s %-16s %-18s",
-			svc.ID, truncate(svc.Name, 18), truncate(svc.Image, 22), svc.Replicas, truncate(ports, 18),
-		))
-	}
-
-	return fmt.Sprintf("%s%s\n", prefix, rowContent)
-}
-
-func formatSwarmReplicas(svc monitor.SwarmService) string {
-	if svc.Mode == "replicated" && svc.TargetReplicas > 0 && svc.RunningReplicas < svc.TargetReplicas {
-		if svc.RunningReplicas == 0 {
-			return redStyle.Render(svc.Replicas)
-		}
-		return yellowStyle.Render(svc.Replicas)
-	}
-	return greenStyle.Render(svc.Replicas)
 }

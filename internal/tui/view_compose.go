@@ -17,13 +17,14 @@ func (m Model) renderComposeTab() string {
 
 	for i, p := range m.compose {
 		prefix := "  "
+		statusDisp := m.formatComposeStatus(p.Status, p.StatusDisplay)
 		headerText := fmt.Sprintf("┌─ %s  [%s]  "+m.i18n.ComposeServicesUp,
-			boldStyle.Render(p.Name), p.StatusDisplay, p.RunningServices, p.TotalServices,
+			boldStyle.Render(p.Name), statusDisp, p.RunningServices, p.TotalServices,
 		)
 		if i == m.composeCursorIdx {
 			prefix = greenStyle.Render("► ")
 			headerText = selectedRowStyle.Render(fmt.Sprintf("┌─ %s  [%s]  "+m.i18n.ComposeServicesUp,
-				p.Name, p.StatusDisplay, p.RunningServices, p.TotalServices,
+				p.Name, statusDisp, p.RunningServices, p.TotalServices,
 			))
 		}
 		s.WriteString(fmt.Sprintf("%s%s\n", prefix, headerText))

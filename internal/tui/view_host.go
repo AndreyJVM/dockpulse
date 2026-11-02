@@ -11,7 +11,7 @@ func (m Model) renderHostTab() string {
 	s.WriteString(titleStyle.Render(m.i18n.HostSysInfoTitle) + "\n")
 	s.WriteString(fmt.Sprintf("  %s %s    %s %s\n",
 		dimStyle.Render(m.i18n.HostLabel), boldStyle.Render(m.sysInfo.Hostname),
-		dimStyle.Render(m.i18n.UptimeLabel), greenStyle.Render(m.sysInfo.Uptime),
+		dimStyle.Render(m.i18n.UptimeLabel), greenStyle.Render(m.formatUptime(m.sysInfo.UptimeSec)),
 	))
 	s.WriteString(fmt.Sprintf("  %s %s (%s %s)\n\n",
 		dimStyle.Render(m.i18n.OSLabel), m.sysInfo.OS, m.i18n.KernelLabel, m.sysInfo.Kernel,
@@ -63,7 +63,7 @@ func (m Model) renderHostTab() string {
 
 	s.WriteString("\n" + titleStyle.Render(m.i18n.DockerStatusTitle) + "\n")
 	s.WriteString(fmt.Sprintf("  %s %s    %s\n",
-		m.i18n.DaemonStatus, m.dockerInfo.StatusDisplay,
+		m.i18n.DaemonStatus, m.formatDockerStatus(m.dockerInfo.Status),
 		boldStyle.Render(fmt.Sprintf(m.i18n.ContainersSummary, m.dockerInfo.RunningContainers, m.dockerInfo.StoppedContainers)),
 	))
 
