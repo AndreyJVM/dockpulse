@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	version = "v0.6.2"
+	version = "v0.6.3"
 )
 
 const (
@@ -45,7 +45,7 @@ func main() {
 }
 
 func printUsage(w io.Writer) {
-	fmt.Fprintf(w, "Dockpulse %s (Go Edition)\n\n", version)
+	fmt.Fprintf(w, "Dockpulse %s\n\n", version)
 	fmt.Fprintf(w, "Использование:\n")
 	fmt.Fprintf(w, "  dockpulse [опции]\n\n")
 	fmt.Fprintf(w, "Опции:\n")
@@ -116,7 +116,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 
 	if cfg.showVersion {
-		fmt.Fprintf(stdout, "dockpulse %s (Go Edition)\n", version)
+		fmt.Fprintf(stdout, "dockpulse %s\n", version)
 		return nil
 	}
 

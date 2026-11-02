@@ -166,7 +166,7 @@ func TestRun_Version(t *testing.T) {
 			t.Fatalf("expected nil error for %s, got: %v", flag, err)
 		}
 		output := stdout.String()
-		if !strings.Contains(output, "dockpulse") || !strings.Contains(output, "(Go Edition)") {
+		if !strings.Contains(output, "dockpulse") || !strings.Contains(output, version) {
 			t.Errorf("expected version info in stdout for %s, got: %s", flag, output)
 		}
 	}
