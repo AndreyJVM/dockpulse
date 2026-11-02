@@ -1,4 +1,6 @@
-# Dockpulse (Go Edition)
+<div align="center">
+
+# Dockpulse
 
 [![CI](https://github.com/AndreyJVM/dockpulse/actions/workflows/ci.yml/badge.svg)](https://github.com/AndreyJVM/dockpulse/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/AndreyJVM/dockpulse?color=blue&logo=github)](https://github.com/AndreyJVM/dockpulse/releases)
@@ -6,162 +8,200 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS-lightgrey)](https://github.com/AndreyJVM/dockpulse/releases)
 
-Сверхбыстрый автономный терминальный TUI-монитор системных ресурсов хоста, **Docker**, **Docker Compose** и кластеров **Docker Swarm**, написанный на **Go (Golang)** на базе фреймворков **Bubble Tea** и **Lip Gloss** с возможностью **интерактивного управления контейнерами**.
+**A fast, lightweight terminal TUI monitor for Host, Docker, Compose, and Swarm.**<br>
+*Быстрый и легковесный терминальный TUI-монитор для хоста, Docker, Compose и Swarm.*
 
-```text
-┌─ Dockpulse ─────────────────────────────────────────────────────────┐
-│ [1: Host Overview]  [2: Docker Containers]  [3: Compose]  [4: Swarm]                            │
-├─────────────────────────────────────────────────────────────────────────────────────────────────┤
-│    DOCKER КОНТЕЙНЕРЫ (ИНТЕРАКТИВНОЕ УПРАВЛЕНИЕ)                                                 │
-│   Служба: [Запущен]     Образов: 14    Версия: 27.3.1                                            │
-│                                                                                                 │
-│    ID           NAME             IMAGE            CPU%     MEM USAGE       STATE    HEALTH      PORTS       │
-│   ───────────────────────────────────────────────────────────────────────────────────────────────────────── │
-│ ►  e7f829a1b021 web-gateway      nginx:alpine     1.2%     18.4M (3.6%)    running  [healthy]   80->80      │
-│    18ac38d990bc db-postgres     postgres:16      0.8%     42.1M (8.2%)    running  [healthy]   5432        │
-│    90ef1482ac10 redis-cache     redis:7-alpine   -        -               paused   -                       │
-│    45a2789bd012 worker-job      app-worker       -        -               running  [unhealthy]             │
-├─────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ [↑/↓] Выбрать | [/] Поиск | [L] Логи | [Enter/I] Инфо | [E] Shell | [S] Старт/Стоп | [P] Рестарт │
-└─────────────────────────────────────────────────────────────────────────────────────────────────┘
-```
+[English](#english) • [Русский](#русский)
 
 ---
 
-## Возможности
+</div>
 
-- **Состояние хоста в реальном времени**: Загрузка CPU с количеством ядер, память RAM, динамические спарклайны истории (CPU / RAM), смонтированные дисковые разделы, скорость сети в реальном времени (RX/TX) и точный аптайм.
-- **Топ процессов**: Автоматический вывод наиболее ресурсоемких процессов (PID, имя, CPU %, RSS RAM в МБ).
-- **Интерактивное управление Docker-контейнерами**:
-  - **Мониторинг ресурсов в реальном времени**: Живой опрос и отображение потребления CPU (%) и оперативной памяти (МБ / %) для каждого работающего контейнера с цветовой индикацией прямо в таблице и в окне инспекции.
-  - **Docker Healthcheck**: Сбор и отображение статусов проверки работоспособности (`[healthy]`, `[unhealthy]`, `[starting]`, `-`) прямо в таблице контейнеров и в окне инспекции с возможностью фильтрации по статусу здоровья через `/`.
-  - Навигация по списку контейнеров клавишами `↑` / `↓` или `j` / `k`.
-  - **Просмотр логов (`L`)**: встроенный модальный просмотрщик последних логов с прокруткой (`↑`/`↓`/`PgUp`/`PgDn`).
-  - **Инспекция (`Enter` / `I`)**: всплывающее окно со всеми деталями (IP-адрес, шлюз, MAC, команда запуска, примонтированные тома, статус здоровья Healthcheck).
-  - **Интерактивный Shell (`E`)**: запуск интерактивной сессии `/bin/bash` или `/bin/sh` внутри выбранного контейнера с автоматическим определением доступной оболочки и бесшовным возвратом в TUI.
-  - **Управление питанием**: быстрый старт / остановка (`S`) и перезапуск (`P`) с мгновенным обновлением статуса.
-  - **Очистка ресурсов Docker (`C`)**: модальное окно Docker System Prune с подробной статистикой дискового пространства и безопасной очисткой контейнеров, образов, томов или всех неиспользуемых ресурсов с подтверждением.
-  - Поддержка стандартного Docker, Rootless Docker, Docker Desktop (macOS) и Podman через unix-сокеты (<2 мс задержки).
-- **Docker Compose**: Автоматическая группировка контейнеров по проектам и сервисам Compose, агрегированный статус стеков (активен, частичный, остановлен), интерактивная навигация по стекам (`↑`/`↓`), просмотр агрегированных логов стека (`L`), остановка стека (`S`), запуск стека (`U`), перезапуск (`P`) и сворачивание проекта (`D` / down) с подтверждением.
-- **Docker Swarm**: Мониторинг кластера Swarm — роли нод (Manager/Worker, Leader), активность задач, реплицированные службы и число реплик с цветовой индикацией деградации, курсорная навигация по службам (`↑`/`↓`) и просмотр логов выбранной службы Swarm в реальном времени (`L`).
-- **Интерактивный TUI**: Полноэкранный псевдографический интерфейс на Charm Bubble Tea & Lip Gloss с цветными прогресс-барами, навигацией по вкладкам (`1-4`, `Tab`, стрелки), всплывающей справкой (`?`) и авто-тиком.
-- **Нулевые зависимости**: Скомпилированный статический бинарный файл без внешних библиотек и рантаймов (<12 МБ). Работает на любом дистрибутиве Linux и macOS (Apple Silicon и Intel).
+## English
 
----
+### Key Features
 
-## Установка и быстрый запуск
+- **Host Metrics**: Real-time CPU usage, core counts, RAM, sparkline trend graphs, disk mount points, network traffic (RX/TX), uptime, and top resource-consuming processes.
+- **Docker Containers**:
+  - Live CPU% and memory stats with dynamic color coding.
+  - Healthcheck statuses (`[healthy]`, `[unhealthy]`, `[starting]`).
+  - Search & filter by name, image, ID, or health status (`/`).
+  - Logs viewer with scroll support (`L`).
+  - Detailed container inspection modal (`Enter` / `I`).
+  - Interactive shell session (`E` — `/bin/bash` or `/bin/sh`) inside container.
+  - Power control: Start / Stop (`S`), Restart (`P`).
+  - Docker System Prune modal (`C`) with disk reclaim estimates and confirmation.
+  - Socket support: Docker daemon, Rootless Docker, Docker Desktop (macOS), and Podman (<2 ms latency).
+- **Docker Compose**: Automatic project/service grouping, aggregated stack health, live stack logs (`L`), service control (`U` / `S` / `P`), and stack teardown (`D` / down) with confirmation.
+- **Docker Swarm**: Cluster node roles (Leader, Manager, Worker), service listings, replica counts with degradation highlights, and live service logs (`L`).
+- **Bilingual Interface (i18n)**: English and Russian language support with automatic locale detection (`LANG`, `LC_*`) and `--lang` flag.
+- **Zero Dependencies**: Standalone binary (<12 MB) with zero external runtime dependencies. Runs on Linux and macOS.
 
-### Вариант 1. Установка готового `.deb` пакета (Debian / Ubuntu / Linux Mint):
+### Installation
+
+#### Pre-built `.deb` Package (Debian / Ubuntu / Linux Mint)
+
 ```bash
-# Для x86_64 / amd64:
-wget https://github.com/AndreyJVM/dockpulse/releases/download/v0.5.1/dockpulse_0.5.1_amd64.deb
-sudo dpkg -i dockpulse_0.5.1_amd64.deb
+# AMD64 (x86_64)
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.6.1_amd64.deb
+sudo dpkg -i dockpulse_0.6.1_amd64.deb
 
-# Для ARM64 (Raspberry Pi, ARM-серверы):
-wget https://github.com/AndreyJVM/dockpulse/releases/download/v0.5.1/dockpulse_0.5.1_arm64.deb
-sudo dpkg -i dockpulse_0.5.1_arm64.deb
-
-# Запуск из любого терминала
-dockpulse
+# ARM64
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.6.1_arm64.deb
+sudo dpkg -i dockpulse_0.6.1_arm64.deb
 ```
 
-### Вариант 2. Запуск готового бинарника (Linux / macOS):
-Скачайте архив со страницы [Releases](https://github.com/AndreyJVM/dockpulse/releases):
+#### Pre-built Binaries (Linux / macOS)
+
+Download the latest archive from [Releases](https://github.com/AndreyJVM/dockpulse/releases):
+
 ```bash
-# Linux amd64
-tar -xzf dockpulse_v0.5.1_linux_amd64.tar.gz
+# Linux AMD64
+tar -xzf dockpulse_v0.6.1_linux_amd64.tar.gz
 ./dockpulse
 
 # macOS (Apple Silicon)
-tar -xzf dockpulse_v0.5.1_darwin_arm64.tar.gz
+tar -xzf dockpulse_v0.6.1_darwin_arm64.tar.gz
 ./dockpulse
 ```
 
-### Вариант 3. Сборка из исходников (Go 1.21+):
+#### Build from Source (Go 1.21+)
+
 ```bash
 git clone https://github.com/AndreyJVM/dockpulse.git
 cd dockpulse
-
-# Сборка бинарника
 make build
-
-# Запуск
 ./dockpulse
 ```
 
----
+### CLI Options
 
-## Управление в TUI
+```text
+Usage:
+  dockpulse [options]
 
-### Навигация по вкладкам:
-| Клавиша | Действие |
+Options:
+  -i, --interval <duration>  Auto-refresh interval (default: 2s, e.g. 1s, 500ms)
+  -t, --tab <1-4>            Initial active tab (1: Host, 2: Docker, 3: Compose, 4: Swarm) (default: 1)
+  -l, --lang <en|ru>         Interface language (default: auto-detect from system locale)
+  -v, --version              Show version
+  -h, --help                 Show help
+```
+
+### Keybindings
+
+| Key | Action |
 |---|---|
-| `1` | Вкладка **Host Overview**: CPU, RAM, диски, сеть RX/TX, топ процессов, сводка Docker |
-| `2` | Вкладка **Docker Containers**: Интерактивный список контейнеров и управление |
-| `3` | Вкладка **Compose Stacks**: Стеки и сервисы Docker Compose |
-| `4` | Вкладка **Swarm Cluster**: Кластер Docker Swarm (ноды, менеджеры, сервисы, реплики) |
-| `Tab` / `→` | Следующая вкладка |
-| `Shift+Tab` / `←` | Предыдущая вкладка |
-| `R` | Немедленное обновление данных |
-| `?` | Показать / скрыть окно подсказок |
-| `Q` / `Esc` / `Ctrl+C` | Выход из приложения |
-
-### Интерактивное управление контейнерами (на вкладке 2):
-| Клавиша | Действие |
-|---|---|
-| `↑` / `↓` (или `k` / `j`) | Выбор контейнера курсором `►` |
-| `/` | **Поиск и фильтрация**: фильтрация списка по имени, образу, ID или статусу здоровья (`Esc` — сброс) |
-| `L` | **Просмотр логов** выбранного контейнера (прокрутка `↑`/`↓`/`PgUp`/`PgDn`) |
-| `Enter` / `I` | **Инспекция контейнера** (детальное окно: IP, порты, тома, сеть, команда, Healthcheck) |
-| `E` | **Подключение к Shell**: запуск интерактивной командной оболочки (`/bin/bash` / `/bin/sh`) внутри контейнера |
-| `S` | **Старт / Стоп**: запустить остановленный или остановить работающий контейнер |
-| `P` | **Перезапуск (Restart)** контейнера |
-| `C` | **Очистка неиспользуемых ресурсов (Prune)** (контейнеры, образы, тома, все ресурсы) |
-| `Esc` / `Q` | Закрыть модальное окно логов, инспекции или очистки |
-
-### Интерактивное управление стеками Docker Compose (на вкладке 3):
-| Клавиша | Действие |
-|---|---|
-| `↑` / `↓` (или `k` / `j`) | Выбор проекта / стека Compose курсором `►` |
-| `L` | **Просмотр логов стека Compose** (агрегированные логи всех служб проекта) |
-| `S` | **Остановка проекта Compose** (всех служб стека) |
-| `U` | **Запуск проекта Compose** (всех служб стека) |
-| `P` | **Перезапуск (Restart) стека** (всех служб проекта) |
-| `D` | **Сворачивание стека Compose (Down)** с подтверждением (`[Y]/[N]`) |
-| `C` | **Очистка неиспользуемых ресурсов (Prune)** |
-| `Esc` / `Q` | Закрыть модальное окно логов или подтверждения |
-
-### Интерактивное управление службами Docker Swarm (на вкладке 4):
-| Клавиша | Действие |
-|---|---|
-| `↑` / `↓` (или `k` / `j`) | Выбор службы Swarm курсором `►` |
-| `L` | **Просмотр логов службы Swarm** (логи всех реплик службы с прокруткой `↑`/`↓`/`PgUp`/`PgDn`) |
-| `Esc` / `Q` | Закрыть модальное окно логов |
+| `1`..`4` / `Tab` / `←`/`→` | Switch tabs (Host, Docker, Compose, Swarm) |
+| `r`, `R` | Force refresh data |
+| `↑` / `↓` (or `k` / `j`) | Navigate rows / select items |
+| `/` | Search & filter items (`Esc` to reset) |
+| `L` | View logs (scroll with `↑`/`↓`/`PgUp`/`PgDn`) |
+| `Enter` / `I` | Inspect container details |
+| `E` | Attach interactive shell (`/bin/bash` or `/bin/sh`) |
+| `S` | Start / Stop container or Compose stack |
+| `P` | Restart container or Compose stack |
+| `U` | Start Compose stack |
+| `D` | Down Compose stack (with confirmation) |
+| `C` | Docker System Prune modal |
+| `?` | Toggle help modal |
+| `q` / `Esc` / `Ctrl+C` | Exit application |
 
 ---
 
-## Флаги командной строки
+## Русский
+
+### Основные возможности
+
+- **Состояние хоста**: Загрузка CPU и ядер, память RAM, динамические спарклайны истории, дисковые разделы, скорость сети в реальном времени (RX/TX), аптайм и топ процессов по потреблению ресурсов.
+- **Docker-контейнеры**:
+  - Мониторинг CPU% и RAM для каждого контейнера с цветовой индикацией.
+  - Статусы Healthcheck (`[healthy]`, `[unhealthy]`, `[starting]`).
+  - Поиск и фильтрация по имени, образу, ID или статусу здоровья (`/`).
+  - Встроенный просмотрщик логов с поддержкой прокрутки (`L`).
+  - Детальное окно инспекции контейнера (`Enter` / `I`).
+  - Интерактивный терминал (`E` — `/bin/bash` или `/bin/sh`) внутри контейнера.
+  - Управление питанием: Старт / Стоп (`S`), Перезапуск (`P`).
+  - Очистка Docker System Prune (`C`) с оценкой освобождаемого места и подтверждением.
+  - Поддержка сокетов: стандартный Docker, Rootless Docker, Docker Desktop (macOS) и Podman (<2 мс задержки).
+- **Docker Compose**: Автоматическая группировка по проектам и сервисам, статус стеков, просмотр логов стека (`L`), запуск/остановка/рестарт (`U` / `S` / `P`) и сворачивание стека (`D` / down) с подтверждением.
+- **Docker Swarm**: Мониторинг нод (Leader, Manager, Worker), список служб, число реплик с индикацией деградации и просмотр логов служб (`L`).
+- **Двуязычный интерфейс (i18n)**: Русская и английская локализация с автоматическим определением по окружению системы (`LANG`, `LC_*`) и флагом `--lang`.
+- **Нулевые зависимости**: Единый статический бинарный файл (<12 МБ) без внешних рантаймов и библиотек. Работает на Linux и macOS.
+
+### Установка
+
+#### Установка `.deb` пакета (Debian / Ubuntu / Linux Mint)
+
+```bash
+# AMD64 (x86_64)
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.6.1_amd64.deb
+sudo dpkg -i dockpulse_0.6.1_amd64.deb
+
+# ARM64
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.6.1_arm64.deb
+sudo dpkg -i dockpulse_0.6.1_arm64.deb
+```
+
+#### Готовые бинарные файлы (Linux / macOS)
+
+Скачайте архив последней версии со страницы [Releases](https://github.com/AndreyJVM/dockpulse/releases):
+
+```bash
+# Linux AMD64
+tar -xzf dockpulse_v0.6.1_linux_amd64.tar.gz
+./dockpulse
+
+# macOS (Apple Silicon)
+tar -xzf dockpulse_v0.6.1_darwin_arm64.tar.gz
+./dockpulse
+```
+
+#### Сборка из исходников (Go 1.21+)
+
+```bash
+git clone https://github.com/AndreyJVM/dockpulse.git
+cd dockpulse
+make build
+./dockpulse
+```
+
+### Параметры командной строки
 
 ```text
 Использование:
   dockpulse [опции]
 
 Опции:
-  -i, --interval <duration>  Интервал автообновления (по умолчанию: 2s, например: -i 1s или -i 5s)
-  -t, --tab <1-4>            Начальная вкладка (по умолчанию: 1)
+  -i, --interval <duration>  Интервал автообновления (по умолчанию: 2s, например: 1s, 500ms)
+  -t, --tab <1-4>            Начальная вкладка (1: Host, 2: Docker, 3: Compose, 4: Swarm) (по умолчанию: 1)
+  -l, --lang <en|ru>         Язык интерфейса: en или ru (по умолчанию: автоопределение)
   -v, --version              Показать версию программы
   -h, --help                 Показать справку
 ```
 
+### Горячие клавиши
+
+| Клавиша | Действие |
+|---|---|
+| `1`..`4` / `Tab` / `←`/`→` | Переключение вкладок (Host, Docker, Compose, Swarm) |
+| `r`, `R` | Немедленное обновление данных |
+| `↑` / `↓` (или `k` / `j`) | Навигация по строкам / выбор элементов |
+| `/` | Поиск и фильтрация (`Esc` для сброса) |
+| `L` | Просмотр логов (прокрутка `↑`/`↓`/`PgUp`/`PgDn`) |
+| `Enter` / `I` | Инспекция контейнера (детали, тома, сеть, порты, Healthcheck) |
+| `E` | Подключение к интерактивному шеллу (`/bin/bash` или `/bin/sh`) |
+| `S` | Старт / Остановка контейнера или стека Compose |
+| `P` | Перезапуск контейнера или стека Compose |
+| `U` | Запуск стека Compose |
+| `D` | Сворачивание стека Compose (`docker compose down`) с подтверждением |
+| `C` | Очистка неиспользуемых ресурсов (Docker System Prune) |
+| `?` | Окно справки по горячим клавишам |
+| `q` / `Esc` / `Ctrl+C` | Выход из приложения |
+
 ---
 
-## Команды Makefile
+## Screenshots / Скриншоты
 
-- `make test` — запустить unit-тесты Go (`go test -v ./...`)
-- `make build` — скомпилировать бинарный файл (`dockpulse`)
-- `make run` — запустить через `go run ./cmd/dockpulse`
-- `make version` — показать текущую версию
-- `make release-patch` — поднять patch-версию, обновить changelog и создать git-тег
-- `make release-minor` — поднять minor-версию, обновить changelog и создать git-тег
-- `make release-major` — поднять major-версию, обновить changelog и создать git-тег
-- `make clean` — очистить артефакты сборки
+> Place real UI screenshots in [`docs/screenshots/`](docs/screenshots/).  
+> Скриншоты интерфейса размещаются в каталоге [`docs/screenshots/`](docs/screenshots/).
