@@ -152,7 +152,7 @@ func (m Model) renderComposeDownModal() string {
 	var s strings.Builder
 	s.WriteString(titleStyle.Render("ПОДТВЕРЖДЕНИЕ СВОРАЧИВАНИЯ COMPOSE СТЕКА") + "\n\n")
 	s.WriteString(fmt.Sprintf("  Стек: %s\n\n", boldStyle.Render(m.composeDownTarget)))
-	s.WriteString(fmt.Sprintf("  %s Остановка и удаление всех контейнеров проекта (docker compose down)\n\n", yellowStyle.Render("Внимание:"))))
+	s.WriteString(fmt.Sprintf("  %s Остановка и удаление всех контейнеров проекта (docker compose down)\n\n", yellowStyle.Render("Внимание:")))
 	s.WriteString(fmt.Sprintf("  Вы уверены, что хотите выполнить down для проекта %s?\n\n", boldStyle.Render(m.composeDownTarget)))
 	s.WriteString(fmt.Sprintf("  %s Подтвердить (Down)    %s Отмена\n", greenStyle.Render("[Y]"), dimStyle.Render("[N / Esc]")))
 	return boxStyle.Render(s.String())
