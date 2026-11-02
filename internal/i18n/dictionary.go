@@ -34,6 +34,7 @@ type Dictionary struct {
 	FooterScroll        string
 	FooterSelectStack   string
 	FooterSelectService string
+	FooterServiceLogs   string
 	FooterSelectAction  string
 	FooterConfirmPrune  string
 
@@ -232,6 +233,7 @@ var Ru = Dictionary{
 	FooterScroll:        "Прокрутка",
 	FooterSelectStack:   "Выбрать стек",
 	FooterSelectService: "Выбрать службу",
+	FooterServiceLogs:   "Логи службы",
 	FooterSelectAction:  "Выбрать действие",
 	FooterConfirmPrune:  "Подтвердить очистку",
 
@@ -420,6 +422,7 @@ var En = Dictionary{
 	FooterScroll:        "Scroll",
 	FooterSelectStack:   "Select stack",
 	FooterSelectService: "Select service",
+	FooterServiceLogs:   "Service logs",
 	FooterSelectAction:  "Select action",
 	FooterConfirmPrune:  "Confirm prune",
 
@@ -579,9 +582,10 @@ var En = Dictionary{
 }
 
 // Get возвращает словарь для указанного языка ("ru" или "en").
+// По умолчанию (для неизвестных языков и "en") возвращается английский словарь.
 func Get(lang string) Dictionary {
-	if strings.EqualFold(lang, "en") {
-		return En
+	if strings.EqualFold(lang, "ru") || strings.HasPrefix(strings.ToLower(lang), "ru") {
+		return Ru
 	}
-	return Ru
+	return En
 }
