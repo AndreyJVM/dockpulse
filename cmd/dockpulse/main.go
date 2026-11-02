@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AndreyJVM/dockpulse/internal/i18n"
 	"github.com/AndreyJVM/dockpulse/internal/tui"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -26,6 +27,7 @@ const (
 type config struct {
 	interval    time.Duration
 	initialTab  int
+	lang        string
 	showVersion bool
 }
 
@@ -49,6 +51,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintf(w, "Опции:\n")
 	fmt.Fprintf(w, "  -i, --interval <duration>  Интервал автообновления (по умолчанию: %v)\n", defaultInterval)
 	fmt.Fprintf(w, "  -t, --tab <1-4>            Начальная вкладка (по умолчанию: %d)\n", defaultTab)
+	fmt.Fprintf(w, "  -l, --lang <en|ru>         Язык интерфейса: en или ru (по умолчанию: автоопределение)\n")
 	fmt.Fprintf(w, "  -v, --version              Показать версию\n")
 	fmt.Fprintf(w, "  -h, --help                 Показать эту справку\n\n")
 	fmt.Fprintf(w, "Управление в TUI:\n")
@@ -74,6 +77,8 @@ func parseFlags(args []string, stdout, stderr io.Writer) (*config, error) {
 	flags.DurationVar(&cfg.interval, "i", defaultInterval, "Интервал обновления (короткий флаг)")
 	flags.IntVar(&cfg.initialTab, "tab", defaultTab, "Начальная вкладка (1: Host, 2: Docker, 3: Compose, 4: Swarm)")
 	flags.IntVar(&cfg.initialTab, "t", defaultTab, "Начальная вкладка (короткий флаг)")
+	flags.StringVar(&cfg.lang, "lang", "", "Язык интерфейса: en или ru (по умолчанию: автоопределение)")
+	flags.StringVar(&cfg.lang, "l", "", "Язык интерфейса (короткий флаг)")
 	flags.BoolVar(&cfg.showVersion, "version", false, "Показать версию программы")
 	flags.BoolVar(&cfg.showVersion, "v", false, "Показать версию (короткий флаг)")
 
@@ -94,6 +99,9 @@ func validateConfig(cfg *config) error {
 	}
 	if cfg.initialTab < 1 || cfg.initialTab > 4 {
 		return fmt.Errorf("начальная вкладка должна быть в диапазоне от 1 до 4 (передано: %d)", cfg.initialTab)
+	}
+	if cfg.lang != "" && cfg.lang != "en" && cfg.lang != "ru" {
+		return fmt.Errorf("неподдерживаемый язык: %s (допустимы: en, ru)", cfg.lang)
 	}
 	return nil
 }
@@ -116,6 +124,10 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 
-	model := tui.NewModel(cfg.interval, cfg.initialTab, version)
+	if cfg.lang == "" {
+		cfg.lang = i18n.DetectLanguage()
+	}
+
+	model := tui.NewModel(cfg.interval, cfg.initialTab, version, cfg.lang)
 	return runProgram(model)
 }

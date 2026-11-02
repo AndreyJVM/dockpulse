@@ -21,10 +21,10 @@ func (m Model) View() string {
 
 	// 2. Вкладки
 	tabs := []string{
-		"1: Host Overview",
-		"2: Docker Containers",
-		"3: Compose Stacks",
-		"4: Swarm Cluster",
+		m.i18n.TabHost,
+		m.i18n.TabDocker,
+		m.i18n.TabCompose,
+		m.i18n.TabSwarm,
 	}
 
 	var renderedTabs []string
@@ -73,79 +73,79 @@ func (m Model) View() string {
 	if m.activeModal != "" {
 		if m.activeModal == "compose_down" {
 			b.WriteString(footerStyle.Render(
-				boldStyle.Render("[Y]") + " Подтвердить (Down)  |  " +
-					boldStyle.Render("[N / Esc]") + " Отмена",
+				boldStyle.Render("[Y]") + " " + m.i18n.FooterConfirm + " (Down)  |  " +
+					boldStyle.Render("[N / Esc]") + " " + m.i18n.FooterCancel,
 			))
 		} else if m.activeModal == "prune" {
 			if m.pruneConfirm > 0 {
 				b.WriteString(footerStyle.Render(
-					boldStyle.Render("[Y]") + " Подтвердить очистку  |  " +
-						boldStyle.Render("[N / Esc]") + " Отмена",
+					boldStyle.Render("[Y]") + " " + m.i18n.FooterConfirmPrune + "  |  " +
+						boldStyle.Render("[N / Esc]") + " " + m.i18n.FooterCancel,
 				))
 			} else {
 				b.WriteString(footerStyle.Render(
-					boldStyle.Render("[1-4]") + " Выбрать действие  |  " +
-						boldStyle.Render("[Esc / Q]") + " Закрыть окно",
+					boldStyle.Render("[1-4]") + " " + m.i18n.FooterSelectAction + "  |  " +
+						boldStyle.Render("[Esc / Q]") + " " + m.i18n.FooterClose,
 				))
 			}
 		} else {
 			b.WriteString(footerStyle.Render(
-				boldStyle.Render("[Esc / Q]") + " Закрыть окно  |  " +
-					boldStyle.Render("[↑ / ↓ / PgUp / PgDn]") + " Прокрутка",
+				boldStyle.Render("[Esc / Q]") + " " + m.i18n.FooterClose + "  |  " +
+					boldStyle.Render("[↑ / ↓ / PgUp / PgDn]") + " " + m.i18n.FooterScroll,
 			))
 		}
 	} else if m.activeTab == 2 {
 		if m.isFiltering {
 			b.WriteString(footerStyle.Render(
-				boldStyle.Render("[Enter]") + " Применить фильтр  |  " +
-					boldStyle.Render("[Esc]") + " Отмена",
+				boldStyle.Render("[Enter]") + " " + m.i18n.FooterApplyFilter + "  |  " +
+					boldStyle.Render("[Esc]") + " " + m.i18n.FooterCancel,
 			))
 		} else if m.filterQuery != "" {
 			b.WriteString(footerStyle.Render(
-				boldStyle.Render("[↑ / ↓]") + " Выбрать  |  " +
-					boldStyle.Render("[Esc]") + " Сбросить фильтр  |  " +
-					boldStyle.Render("[L]") + " Логи  |  " +
-					boldStyle.Render("[Enter/I]") + " Инфо  |  " +
-					boldStyle.Render("[E]") + " Shell  |  " +
-					boldStyle.Render("[S]") + " Старт/Стоп  |  " +
-					boldStyle.Render("[P]") + " Рестарт",
+				boldStyle.Render("[↑ / ↓]") + " " + m.i18n.FooterSelect + "  |  " +
+					boldStyle.Render("[Esc]") + " " + m.i18n.FooterResetFilter + "  |  " +
+					boldStyle.Render("[L]") + " " + m.i18n.FooterLogs + "  |  " +
+					boldStyle.Render("[Enter/I]") + " " + m.i18n.FooterInfo + "  |  " +
+					boldStyle.Render("[E]") + " " + m.i18n.FooterShell + "  |  " +
+					boldStyle.Render("[S]") + " " + m.i18n.FooterStartStop + "  |  " +
+					boldStyle.Render("[P]") + " " + m.i18n.FooterRestart,
 			))
 		} else {
 			b.WriteString(footerStyle.Render(
-				boldStyle.Render("[↑ / ↓]") + " Выбрать  |  " +
-					boldStyle.Render("[/]") + " Поиск  |  " +
-					boldStyle.Render("[L]") + " Логи  |  " +
-					boldStyle.Render("[Enter/I]") + " Инфо  |  " +
-					boldStyle.Render("[E]") + " Shell  |  " +
-					boldStyle.Render("[S]") + " Старт/Стоп  |  " +
-					boldStyle.Render("[P]") + " Рестарт  |  " +
-					boldStyle.Render("[C]") + " Очистка  |  " +
-					boldStyle.Render("[?]") + " Справка",
+				boldStyle.Render("[↑ / ↓]") + " " + m.i18n.FooterSelect + "  |  " +
+					boldStyle.Render("[/]") + " " + m.i18n.FooterSearch + "  |  " +
+					boldStyle.Render("[L]") + " " + m.i18n.FooterLogs + "  |  " +
+					boldStyle.Render("[Enter/I]") + " " + m.i18n.FooterInfo + "  |  " +
+					boldStyle.Render("[E]") + " " + m.i18n.FooterShell + "  |  " +
+					boldStyle.Render("[S]") + " " + m.i18n.FooterStartStop + "  |  " +
+					boldStyle.Render("[P]") + " " + m.i18n.FooterRestart + "  |  " +
+					boldStyle.Render("[C]") + " " + m.i18n.FooterPrune + "  |  " +
+					boldStyle.Render("[?]") + " " + m.i18n.FooterHelp,
 			))
 		}
 	} else if m.activeTab == 3 {
 		b.WriteString(footerStyle.Render(
-			boldStyle.Render("[↑ / ↓]") + " Выбрать стек  |  " +
-				boldStyle.Render("[L]") + " Логи  |  " +
-				boldStyle.Render("[S]") + " Стоп  |  " +
-				boldStyle.Render("[U]") + " Старт  |  " +
-				boldStyle.Render("[P]") + " Рестарт  |  " +
-				boldStyle.Render("[D]") + " Down  |  " +
-				boldStyle.Render("[C]") + " Очистка  |  " +
-				boldStyle.Render("[?]") + " Справка",
+			boldStyle.Render("[↑ / ↓]") + " " + m.i18n.FooterSelectStack + "  |  " +
+				boldStyle.Render("[L]") + " " + m.i18n.FooterLogs + "  |  " +
+				boldStyle.Render("[S]") + " " + m.i18n.FooterStop + "  |  " +
+				boldStyle.Render("[U]") + " " + m.i18n.FooterStart + "  |  " +
+				boldStyle.Render("[P]") + " " + m.i18n.FooterRestart + "  |  " +
+				boldStyle.Render("[D]") + " " + m.i18n.FooterDown + "  |  " +
+				boldStyle.Render("[C]") + " " + m.i18n.FooterPrune + "  |  " +
+				boldStyle.Render("[?]") + " " + m.i18n.FooterHelp,
 		))
 	} else if m.activeTab == 4 {
 		b.WriteString(footerStyle.Render(
-			boldStyle.Render("[↑ / ↓]") + " Выбрать службу  |  " +
-				boldStyle.Render("[L]") + " Логи службы  |  " +
-				boldStyle.Render("[?]") + " Справка",
+			boldStyle.Render("[↑ / ↓]") + " " + m.i18n.FooterSelectService + "  |  " +
+				boldStyle.Render("[L]") + " " + m.i18n.FooterServiceLogs + "  |  " +
+				boldStyle.Render("[?]") + " " + m.i18n.FooterHelp,
 		))
 	} else {
 		b.WriteString(footerStyle.Render(
-			boldStyle.Render("[1-4 / Tab / ← →]") + " Вкладки  |  " +
-				boldStyle.Render("[R]") + " Обновить  |  " +
-				boldStyle.Render("[?]") + " Справка  |  " +
-				boldStyle.Render("[Q]") + " Выход",
+			boldStyle.Render("[1-4 / Tab / ← →]") + " " + m.i18n.FooterTabs + "  |  " +
+				boldStyle.Render("[R]") + " " + m.i18n.FooterRefresh + "  |  " +
+				boldStyle.Render("[?]") + " " + m.i18n.FooterHelp + "  |  " +
+				boldStyle.Render("[Q]") + " " + m.i18n.FooterQuit,
 		))
 	}
 

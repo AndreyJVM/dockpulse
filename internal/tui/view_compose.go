@@ -8,21 +8,21 @@ import (
 func (m Model) renderComposeTab() string {
 	var s strings.Builder
 
-	s.WriteString(titleStyle.Render(fmt.Sprintf("DOCKER COMPOSE ПРОЕКТЫ (%d)", len(m.compose))) + "\n\n")
+	s.WriteString(titleStyle.Render(fmt.Sprintf(m.i18n.ComposeTabTitle, len(m.compose))) + "\n\n")
 
 	if len(m.compose) == 0 {
-		s.WriteString("  " + dimStyle.Render("Проекты Docker Compose не обнаружены (нет меток com.docker.compose.project).") + "\n")
+		s.WriteString("  " + dimStyle.Render(m.i18n.NoComposeProjects) + "\n")
 		return s.String()
 	}
 
 	for i, p := range m.compose {
 		prefix := "  "
-		headerText := fmt.Sprintf("┌─ %s  [%s]  (Сервисов поднято: %d/%d)",
+		headerText := fmt.Sprintf("┌─ %s  [%s]  "+m.i18n.ComposeServicesUp,
 			boldStyle.Render(p.Name), p.StatusDisplay, p.RunningServices, p.TotalServices,
 		)
 		if i == m.composeCursorIdx {
 			prefix = greenStyle.Render("► ")
-			headerText = selectedRowStyle.Render(fmt.Sprintf("┌─ %s  [%s]  (Сервисов поднято: %d/%d)",
+			headerText = selectedRowStyle.Render(fmt.Sprintf("┌─ %s  [%s]  "+m.i18n.ComposeServicesUp,
 				p.Name, p.StatusDisplay, p.RunningServices, p.TotalServices,
 			))
 		}

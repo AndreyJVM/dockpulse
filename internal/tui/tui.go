@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AndreyJVM/dockpulse/internal/i18n"
 	"github.com/AndreyJVM/dockpulse/internal/monitor"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -32,6 +33,10 @@ type Model struct {
 	showHelp        bool
 	width           int
 	height          int
+
+	// Локализация
+	lang string
+	i18n i18n.Dictionary
 
 	// Навигация и модальные окна
 	cursorIdx           int
@@ -74,18 +79,26 @@ type Model struct {
 	lastUpdate string
 }
 
-// NewModel создает новую TUI модель с настраиваемым интервалом обновления и начальной вкладкой.
-func NewModel(refreshInterval time.Duration, initialTab int, version string) Model {
+// NewModel создает новую TUI модель с настраиваемым интервалом обновления, начальной вкладкой и языком.
+// Если язык не передан, по умолчанию используется "ru" для обратной совместимости.
+func NewModel(refreshInterval time.Duration, initialTab int, version string, lang ...string) Model {
 	if initialTab < 1 || initialTab > 4 {
 		initialTab = 1
 	}
 	if refreshInterval <= 0 {
 		refreshInterval = 2 * time.Second
 	}
+	selectedLang := "ru"
+	if len(lang) > 0 && lang[0] != "" {
+		selectedLang = lang[0]
+	}
+
 	m := Model{
 		version:         version,
 		activeTab:       initialTab,
 		refreshInterval: refreshInterval,
+		lang:            selectedLang,
+		i18n:            i18n.Get(selectedLang),
 	}
 	m.fetchAllData()
 	return m

@@ -66,15 +66,15 @@ func (m Model) handleExecFinished(msg execFinishedMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
 		if exitErr, ok := msg.err.(*exec.ExitError); ok {
 			if exitErr.ExitCode() == 130 {
-				m.showToast(fmt.Sprintf("Сессия shell в %s завершена", msg.containerName))
+				m.showToast(fmt.Sprintf(m.i18n.ToastShellEnded, msg.containerName))
 			} else {
-				m.showToast(fmt.Sprintf("Сессия shell в %s завершена (код %d)", msg.containerName, exitErr.ExitCode()))
+				m.showToast(fmt.Sprintf(m.i18n.ToastShellEndedCode, msg.containerName, exitErr.ExitCode()))
 			}
 		} else {
-			m.showToast(fmt.Sprintf("Ошибка shell в %s: %v", msg.containerName, msg.err))
+			m.showToast(fmt.Sprintf(m.i18n.ToastShellError, msg.containerName, msg.err))
 		}
 	} else {
-		m.showToast(fmt.Sprintf("Сессия shell в %s завершена", msg.containerName))
+		m.showToast(fmt.Sprintf(m.i18n.ToastShellEnded, msg.containerName))
 	}
 	m.fetchAllData()
 	return m, nil
@@ -116,8 +116,8 @@ func (m Model) handleModalInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			target := m.composeDownTarget
 			m.activeModal = ""
 			m.composeDownTarget = ""
-			m.showToast(fmt.Sprintf("Сворачивание Compose проекта %s (down)...", target))
-			return m, downComposeCmd(target, m.dockerInfo.Containers)
+			m.showToast(fmt.Sprintf(m.i18n.ToastDowningCompose, target))
+			return m, downComposeCmd(target, m.dockerInfo.Containers, m.i18n)
 		}
 		return m, nil
 	}
@@ -154,8 +154,8 @@ func (m Model) handleModalInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				opt := m.pruneConfirm
 				m.activeModal = ""
 				m.pruneConfirm = 0
-				m.showToast("Выполняется очистка ресурсов Docker...")
-				return m, pruneCmd(opt)
+				m.showToast(m.i18n.ToastPruning)
+				return m, pruneCmd(opt, m.i18n)
 			}
 			return m, nil
 		case "n", "N":
@@ -239,7 +239,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.activeTab = 4
 
 	case "r", "R":
-		m.showToast("Обновление данных...")
+		m.showToast(m.i18n.ToastRefreshing)
 		return m, fetchDataCmd()
 
 	// Поиск по списку контейнеров
@@ -308,7 +308,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.logsTargetID = c.ID
 				logs, err := monitor.GetContainerLogs(c.ID, 120)
 				if err != nil {
-					m.showToast("Ошибка чтения логов: " + err.Error())
+					m.showToast(m.i18n.ToastLogsError + err.Error())
 				} else {
 					m.logsLines = strings.Split(strings.TrimSpace(logs), "\n")
 					m.logsScroll = max(0, len(m.logsLines)-18)
@@ -321,7 +321,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.logsTargetID = proj.Name
 			logs, err := monitor.GetComposeProjectLogs(proj.Name, m.dockerInfo.Containers, 150)
 			if err != nil {
-				m.showToast("Ошибка чтения логов проекта: " + err.Error())
+				m.showToast(m.i18n.ToastLogsError + err.Error())
 			} else {
 				m.logsLines = strings.Split(strings.TrimSpace(logs), "\n")
 				m.logsScroll = max(0, len(m.logsLines)-18)
@@ -333,7 +333,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.logsTargetID = svc.ID
 			logs, err := monitor.GetSwarmServiceLogs(svc.ID, 150)
 			if err != nil {
-				m.showToast("Ошибка чтения логов службы: " + err.Error())
+				m.showToast(m.i18n.ToastLogsError + err.Error())
 			} else {
 				m.logsLines = strings.Split(strings.TrimSpace(logs), "\n")
 				m.logsScroll = max(0, len(m.logsLines)-18)
@@ -348,7 +348,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			c := containers[m.cursorIdx]
 			detail, err := monitor.GetContainerDetail(c.ID)
 			if err != nil {
-				m.showToast("Ошибка inspect: " + err.Error())
+				m.showToast(m.i18n.ToastInspectError + err.Error())
 			} else {
 				m.inspectTarget = detail
 				m.activeModal = "inspect"
@@ -362,24 +362,24 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if len(containers) > 0 && m.cursorIdx < len(containers) {
 				c := containers[m.cursorIdx]
 				if c.State == "running" {
-					m.showToast(fmt.Sprintf("Остановка контейнера %s...", c.Name))
-					return m, stopContainerCmd(c.ID, c.Name)
+					m.showToast(fmt.Sprintf(m.i18n.ToastStoppingContainer, c.Name))
+					return m, stopContainerCmd(c.ID, c.Name, m.i18n)
 				}
-				m.showToast(fmt.Sprintf("Запуск контейнера %s...", c.Name))
-				return m, startContainerCmd(c.ID, c.Name)
+				m.showToast(fmt.Sprintf(m.i18n.ToastStartingContainer, c.Name))
+				return m, startContainerCmd(c.ID, c.Name, m.i18n)
 			}
 		} else if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
 			proj := m.compose[m.composeCursorIdx]
-			m.showToast(fmt.Sprintf("Остановка Compose проекта %s...", proj.Name))
-			return m, stopComposeCmd(proj.Name, m.dockerInfo.Containers)
+			m.showToast(fmt.Sprintf(m.i18n.ToastStoppingCompose, proj.Name))
+			return m, stopComposeCmd(proj.Name, m.dockerInfo.Containers, m.i18n)
 		}
 
 	// Запуск проекта Compose
 	case "u", "U":
 		if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
 			proj := m.compose[m.composeCursorIdx]
-			m.showToast(fmt.Sprintf("Запуск Compose проекта %s...", proj.Name))
-			return m, startComposeCmd(proj.Name, m.dockerInfo.Containers)
+			m.showToast(fmt.Sprintf(m.i18n.ToastStartingCompose, proj.Name))
+			return m, startComposeCmd(proj.Name, m.dockerInfo.Containers, m.i18n)
 		}
 
 	// Сворачивание проекта Compose (Down)
@@ -398,11 +398,11 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if len(containers) > 0 && m.cursorIdx < len(containers) {
 				c := containers[m.cursorIdx]
 				if c.State != "running" {
-					m.showToast(fmt.Sprintf("Нельзя подключиться: контейнер %s не запущен", c.Name))
+					m.showToast(fmt.Sprintf(m.i18n.ToastCannotConnect, c.Name))
 					return m, nil
 				}
 				if !monitor.IsDockerCLIAvailable() {
-					m.showToast("Ошибка: утилита docker не найдена в $PATH")
+					m.showToast(m.i18n.ToastDockerNotFound)
 					return m, nil
 				}
 				cmd := monitor.GetContainerExecCommand(c.ID)
@@ -421,13 +421,13 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			containers := m.getFilteredContainers()
 			if len(containers) > 0 && m.cursorIdx < len(containers) {
 				c := containers[m.cursorIdx]
-				m.showToast(fmt.Sprintf("Перезапуск %s...", c.Name))
-				return m, restartContainerCmd(c.ID, c.Name)
+				m.showToast(fmt.Sprintf(m.i18n.ToastRestartingCont, c.Name))
+				return m, restartContainerCmd(c.ID, c.Name, m.i18n)
 			}
 		} else if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
 			proj := m.compose[m.composeCursorIdx]
-			m.showToast(fmt.Sprintf("Перезапуск Compose проекта %s...", proj.Name))
-			return m, restartComposeCmd(proj.Name, m.dockerInfo.Containers)
+			m.showToast(fmt.Sprintf(m.i18n.ToastRestartingCompose, proj.Name))
+			return m, restartComposeCmd(proj.Name, m.dockerInfo.Containers, m.i18n)
 		}
 
 	// Очистка неиспользуемых ресурсов Docker (Prune)

@@ -23,6 +23,9 @@ func TestParseFlags_Defaults(t *testing.T) {
 	if cfg.initialTab != defaultTab {
 		t.Errorf("expected initialTab %d, got %d", defaultTab, cfg.initialTab)
 	}
+	if cfg.lang != "" {
+		t.Errorf("expected lang empty by default, got %q", cfg.lang)
+	}
 	if cfg.showVersion {
 		t.Errorf("expected showVersion to be false")
 	}
@@ -34,18 +37,21 @@ func TestParseFlags_CustomValues(t *testing.T) {
 		args         []string
 		wantInterval time.Duration
 		wantTab      int
+		wantLang     string
 	}{
 		{
 			name:         "short flags",
-			args:         []string{"-i", "1s", "-t", "3"},
+			args:         []string{"-i", "1s", "-t", "3", "-l", "en"},
 			wantInterval: 1 * time.Second,
 			wantTab:      3,
+			wantLang:     "en",
 		},
 		{
 			name:         "long flags",
-			args:         []string{"--interval", "500ms", "--tab", "2"},
+			args:         []string{"--interval", "500ms", "--tab", "2", "--lang", "ru"},
 			wantInterval: 500 * time.Millisecond,
 			wantTab:      2,
+			wantLang:     "ru",
 		},
 	}
 
@@ -61,6 +67,9 @@ func TestParseFlags_CustomValues(t *testing.T) {
 			}
 			if cfg.initialTab != tt.wantTab {
 				t.Errorf("expected initialTab %d, got %d", tt.wantTab, cfg.initialTab)
+			}
+			if cfg.lang != tt.wantLang {
+				t.Errorf("expected lang %s, got %s", tt.wantLang, cfg.lang)
 			}
 		})
 	}
@@ -90,8 +99,18 @@ func TestValidateConfig(t *testing.T) {
 		},
 		{
 			name:    "valid boundary values",
-			cfg:     config{interval: 100 * time.Millisecond, initialTab: 4},
+			cfg:     config{interval: 100 * time.Millisecond, initialTab: 4, lang: "en"},
 			wantErr: false,
+		},
+		{
+			name:    "valid ru lang",
+			cfg:     config{interval: 1 * time.Second, initialTab: 2, lang: "ru"},
+			wantErr: false,
+		},
+		{
+			name:    "invalid lang",
+			cfg:     config{interval: 1 * time.Second, initialTab: 2, lang: "de"},
+			wantErr: true,
 		},
 		{
 			name:    "interval too small",
@@ -162,6 +181,14 @@ func TestRun_ValidationFailure(t *testing.T) {
 	if !strings.Contains(err.Error(), "начальная вкладка должна быть в диапазоне от 1 до 4") {
 		t.Errorf("unexpected error: %v", err)
 	}
+
+	err = run([]string{"--lang", "invalid"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for invalid lang, got nil")
+	}
+	if !strings.Contains(err.Error(), "неподдерживаемый язык") {
+		t.Errorf("unexpected error: %v", err)
+	}
 }
 
 func TestRun_ProgramExecution(t *testing.T) {
@@ -175,7 +202,7 @@ func TestRun_ProgramExecution(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	err := run([]string{"-i", "1s", "-t", "2"}, &stdout, &stderr)
+	err := run([]string{"-i", "1s", "-t", "2", "-l", "en"}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

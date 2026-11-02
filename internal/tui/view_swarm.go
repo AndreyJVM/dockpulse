@@ -10,32 +10,32 @@ import (
 func (m Model) renderSwarmTab() string {
 	var s strings.Builder
 
-	s.WriteString(titleStyle.Render("DOCKER SWARM КЛАСТЕР") + "\n\n")
+	s.WriteString(titleStyle.Render(m.i18n.SwarmTabTitle) + "\n\n")
 
 	if !m.swarm.IsActive {
-		s.WriteString(fmt.Sprintf("  Статус: %s\n\n", m.swarm.StatusDisplay))
-		s.WriteString("  " + dimStyle.Render("Хост не входит в активный кластер Swarm.") + "\n")
-		s.WriteString("  Для создания кластера выполните: " + boldStyle.Render("docker swarm init") + "\n")
+		s.WriteString(fmt.Sprintf("  %s %s\n\n", m.i18n.DaemonStatus, m.swarm.StatusDisplay))
+		s.WriteString("  " + dimStyle.Render(m.i18n.SwarmInactive) + "\n")
+		s.WriteString("  " + fmt.Sprintf(m.i18n.SwarmInitHint, boldStyle.Render("docker swarm init")) + "\n")
 		return s.String()
 	}
 
 	s.WriteString(fmt.Sprintf("  %s %s    %s %d    %s %d\n\n",
-		dimStyle.Render("Статус:"), m.swarm.StatusDisplay,
-		dimStyle.Render("Нод в кластере:"), m.swarm.NodesCount,
-		dimStyle.Render("Менеджеров:"), m.swarm.ManagersCount,
+		dimStyle.Render(m.i18n.DaemonStatus), m.swarm.StatusDisplay,
+		dimStyle.Render(m.i18n.SwarmNodesCount), m.swarm.NodesCount,
+		dimStyle.Render(m.i18n.SwarmManagers), m.swarm.ManagersCount,
 	))
 
 	if len(m.swarm.Nodes) > 0 {
-		s.WriteString(boldStyle.Render("  УЗЛЫ КЛАСТЕРА (NODES):") + "\n")
+		s.WriteString(boldStyle.Render("  "+m.i18n.SwarmNodesTitle) + "\n")
 		s.WriteString(fmt.Sprintf("  %-14s %-20s %-12s %-10s %-14s %-8s %-10s\n",
-			dimStyle.Render("NODE ID"), dimStyle.Render("HOSTNAME"), dimStyle.Render("ROLE"),
-			dimStyle.Render("STATE"), dimStyle.Render("AVAILABILITY"), dimStyle.Render("TASKS"), dimStyle.Render("LEADER"),
+			dimStyle.Render(m.i18n.ColNodeID), dimStyle.Render(m.i18n.ColHostname), dimStyle.Render(m.i18n.ColRole),
+			dimStyle.Render(m.i18n.ColState), dimStyle.Render(m.i18n.ColAvailability), dimStyle.Render(m.i18n.ColTasks), dimStyle.Render(m.i18n.ColLeader),
 		))
 		s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 88)) + "\n")
 		for _, n := range m.swarm.Nodes {
 			leaderMark := ""
 			if n.IsLeader {
-				leaderMark = yellowStyle.Render("[Leader]")
+				leaderMark = yellowStyle.Render(m.i18n.LeaderBadge)
 			}
 			avail := n.Availability
 			if avail == "" {
@@ -49,10 +49,10 @@ func (m Model) renderSwarmTab() string {
 	}
 
 	if len(m.swarm.Services) > 0 {
-		s.WriteString(boldStyle.Render("  СЛУЖБЫ SWARM (SERVICES):") + "\n")
+		s.WriteString(boldStyle.Render("  "+m.i18n.SwarmSvcsTitle) + "\n")
 		s.WriteString(fmt.Sprintf("   %-14s %-20s %-24s %-16s %-18s\n",
-			dimStyle.Render("SERVICE ID"), dimStyle.Render("NAME"), dimStyle.Render("IMAGE"),
-			dimStyle.Render("REPLICAS"), dimStyle.Render("PORTS"),
+			dimStyle.Render(m.i18n.ColServiceID), dimStyle.Render(m.i18n.ColName), dimStyle.Render(m.i18n.ColImage),
+			dimStyle.Render(m.i18n.ColReplicas), dimStyle.Render(m.i18n.ColPorts),
 		))
 		s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 94)) + "\n")
 		for i, svc := range m.swarm.Services {

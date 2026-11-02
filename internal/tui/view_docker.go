@@ -10,18 +10,18 @@ import (
 func (m Model) renderDockerTab() string {
 	var s strings.Builder
 
-	s.WriteString(titleStyle.Render("DOCKER КОНТЕЙНЕРЫ (ИНТЕРАКТИВНОЕ УПРАВЛЕНИЕ)") + "\n")
+	s.WriteString(titleStyle.Render(m.i18n.DockerTabTitle) + "\n")
 	s.WriteString(fmt.Sprintf("  %s %s    %s %d    %s %s\n\n",
-		dimStyle.Render("Служба:"), m.dockerInfo.StatusDisplay,
-		dimStyle.Render("Образов:"), m.dockerInfo.ImagesCount,
-		dimStyle.Render("Версия:"), m.dockerInfo.Version,
+		dimStyle.Render(m.i18n.ServiceLabel), m.dockerInfo.StatusDisplay,
+		dimStyle.Render(m.i18n.ImagesCountLabel), m.dockerInfo.ImagesCount,
+		dimStyle.Render(m.i18n.VersionLabel), m.dockerInfo.Version,
 	))
 
 	if len(m.dockerInfo.Containers) == 0 {
 		if m.dockerInfo.Status == "running" {
-			s.WriteString("  " + dimStyle.Render("Контейнеры не запущены.") + "\n")
+			s.WriteString("  " + dimStyle.Render(m.i18n.ContainersNotRunning) + "\n")
 		} else {
-			s.WriteString("  " + yellowStyle.Render("Демон Docker не запущен или недоступен.") + "\n")
+			s.WriteString("  " + yellowStyle.Render(m.i18n.DockerDaemonDown) + "\n")
 		}
 		return s.String()
 	}
@@ -29,21 +29,21 @@ func (m Model) renderDockerTab() string {
 	containers := m.getFilteredContainers()
 
 	if m.isFiltering {
-		s.WriteString("  " + yellowStyle.Render(fmt.Sprintf("[Поиск: %s█]", m.filterQuery)) + "  " + dimStyle.Render("(Enter: применить, Esc: отмена)") + "\n\n")
+		s.WriteString("  " + yellowStyle.Render(fmt.Sprintf(m.i18n.FilterPrompt, m.filterQuery)) + "  " + dimStyle.Render(m.i18n.FilterHint) + "\n\n")
 	} else if m.filterQuery != "" {
-		s.WriteString("  " + activeTabStyle.Render(fmt.Sprintf("Фильтр: %s", m.filterQuery)) + "  " + dimStyle.Render(fmt.Sprintf("(Найдено: %d из %d, Esc: сбросить)", len(containers), len(m.dockerInfo.Containers))) + "\n\n")
+		s.WriteString("  " + activeTabStyle.Render(fmt.Sprintf(m.i18n.FilterActiveBadge, m.filterQuery)) + "  " + dimStyle.Render(fmt.Sprintf(m.i18n.FilterResultsCount, len(containers), len(m.dockerInfo.Containers))) + "\n\n")
 	}
 
 	if len(containers) == 0 && m.filterQuery != "" {
-		s.WriteString("  " + dimStyle.Render(fmt.Sprintf("По запросу %q контейнеры не найдены.", m.filterQuery)) + "\n")
-		s.WriteString("  " + dimStyle.Render("Нажмите Esc для сброса поискового фильтра.") + "\n")
+		s.WriteString("  " + dimStyle.Render(fmt.Sprintf(m.i18n.NoContainersFound, m.filterQuery)) + "\n")
+		s.WriteString("  " + dimStyle.Render(m.i18n.PressEscToClear) + "\n")
 		return s.String()
 	}
 
 	s.WriteString(fmt.Sprintf("   %-12s %-18s %-18s %-8s %-15s %-9s %-11s %-18s\n",
-		dimStyle.Render("ID"), dimStyle.Render("NAME"), dimStyle.Render("IMAGE"),
-		dimStyle.Render("CPU%"), dimStyle.Render("MEM USAGE"),
-		dimStyle.Render("STATE"), dimStyle.Render("HEALTH"), dimStyle.Render("PORTS"),
+		dimStyle.Render(m.i18n.ColID), dimStyle.Render(m.i18n.ColName), dimStyle.Render(m.i18n.ColImage),
+		dimStyle.Render(m.i18n.ColCPU), dimStyle.Render(m.i18n.ColMem),
+		dimStyle.Render(m.i18n.ColState), dimStyle.Render(m.i18n.ColHealth), dimStyle.Render(m.i18n.ColPorts),
 	))
 	s.WriteString("  " + dimStyle.Render(strings.Repeat("─", 114)) + "\n")
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/AndreyJVM/dockpulse/internal/i18n"
 	"github.com/AndreyJVM/dockpulse/internal/monitor"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -45,70 +46,70 @@ func fetchDataCmd() tea.Cmd {
 	}
 }
 
-func startContainerCmd(id, name string) tea.Cmd {
+func startContainerCmd(id, name string, dict i18n.Dictionary) tea.Cmd {
 	return func() tea.Msg {
 		if err := monitor.StartContainer(id); err != nil {
-			return actionFinishedMsg{err: fmt.Errorf("Ошибка запуска: %w", err)}
+			return actionFinishedMsg{err: fmt.Errorf("%s%w", dict.ToastStartingContainer, err)}
 		}
-		return actionFinishedMsg{message: fmt.Sprintf("Контейнер %s запущен", name), refresh: true}
+		return actionFinishedMsg{message: fmt.Sprintf(dict.ToastContainerStarted, name), refresh: true}
 	}
 }
 
-func stopContainerCmd(id, name string) tea.Cmd {
+func stopContainerCmd(id, name string, dict i18n.Dictionary) tea.Cmd {
 	return func() tea.Msg {
 		if err := monitor.StopContainer(id); err != nil {
-			return actionFinishedMsg{err: fmt.Errorf("Ошибка остановки: %w", err)}
+			return actionFinishedMsg{err: fmt.Errorf("%s%w", dict.ToastStoppingContainer, err)}
 		}
-		return actionFinishedMsg{message: fmt.Sprintf("Контейнер %s остановлен", name), refresh: true}
+		return actionFinishedMsg{message: fmt.Sprintf(dict.ToastContainerStopped, name), refresh: true}
 	}
 }
 
-func restartContainerCmd(id, name string) tea.Cmd {
+func restartContainerCmd(id, name string, dict i18n.Dictionary) tea.Cmd {
 	return func() tea.Msg {
 		if err := monitor.RestartContainer(id); err != nil {
-			return actionFinishedMsg{err: fmt.Errorf("Ошибка перезапуска: %w", err)}
+			return actionFinishedMsg{err: fmt.Errorf("%s%w", dict.ToastRestartingCont, err)}
 		}
-		return actionFinishedMsg{message: fmt.Sprintf("Контейнер %s успешно перезапущен", name), refresh: true}
+		return actionFinishedMsg{message: fmt.Sprintf(dict.ToastContainerRest, name), refresh: true}
 	}
 }
 
-func startComposeCmd(name string, containers []monitor.ContainerItem) tea.Cmd {
+func startComposeCmd(name string, containers []monitor.ContainerItem, dict i18n.Dictionary) tea.Cmd {
 	return func() tea.Msg {
 		if err := monitor.StartComposeProject(name, containers); err != nil {
-			return actionFinishedMsg{err: fmt.Errorf("Ошибка запуска проекта: %w", err)}
+			return actionFinishedMsg{err: fmt.Errorf("%s%w", dict.ToastStartingCompose, err)}
 		}
-		return actionFinishedMsg{message: fmt.Sprintf("Проект %s успешно запущен", name), refresh: true}
+		return actionFinishedMsg{message: fmt.Sprintf(dict.ToastComposeStarted, name), refresh: true}
 	}
 }
 
-func stopComposeCmd(name string, containers []monitor.ContainerItem) tea.Cmd {
+func stopComposeCmd(name string, containers []monitor.ContainerItem, dict i18n.Dictionary) tea.Cmd {
 	return func() tea.Msg {
 		if err := monitor.StopComposeProject(name, containers); err != nil {
-			return actionFinishedMsg{err: fmt.Errorf("Ошибка остановки проекта: %w", err)}
+			return actionFinishedMsg{err: fmt.Errorf("%s%w", dict.ToastStoppingCompose, err)}
 		}
-		return actionFinishedMsg{message: fmt.Sprintf("Проект %s успешно остановлен", name), refresh: true}
+		return actionFinishedMsg{message: fmt.Sprintf(dict.ToastComposeStopped, name), refresh: true}
 	}
 }
 
-func restartComposeCmd(name string, containers []monitor.ContainerItem) tea.Cmd {
+func restartComposeCmd(name string, containers []monitor.ContainerItem, dict i18n.Dictionary) tea.Cmd {
 	return func() tea.Msg {
 		if err := monitor.RestartComposeProject(name, containers); err != nil {
-			return actionFinishedMsg{err: fmt.Errorf("Ошибка перезапуска проекта: %w", err)}
+			return actionFinishedMsg{err: fmt.Errorf("%s%w", dict.ToastErrorRestarting, err)}
 		}
-		return actionFinishedMsg{message: fmt.Sprintf("Проект %s успешно перезапущен", name), refresh: true}
+		return actionFinishedMsg{message: fmt.Sprintf(dict.ToastRestartingCompose, name), refresh: true}
 	}
 }
 
-func downComposeCmd(name string, containers []monitor.ContainerItem) tea.Cmd {
+func downComposeCmd(name string, containers []monitor.ContainerItem, dict i18n.Dictionary) tea.Cmd {
 	return func() tea.Msg {
 		if err := monitor.DownComposeProject(name, containers); err != nil {
-			return actionFinishedMsg{err: fmt.Errorf("Ошибка сворачивания проекта: %w", err)}
+			return actionFinishedMsg{err: fmt.Errorf("%s%w", dict.ToastErrorDowning, err)}
 		}
-		return actionFinishedMsg{message: fmt.Sprintf("Проект %s успешно свернут (down)", name), refresh: true}
+		return actionFinishedMsg{message: fmt.Sprintf(dict.ToastComposeDowned, name), refresh: true}
 	}
 }
 
-func pruneCmd(option int) tea.Cmd {
+func pruneCmd(option int, dict i18n.Dictionary) tea.Cmd {
 	return func() tea.Msg {
 		var res string
 		var err error
@@ -123,7 +124,7 @@ func pruneCmd(option int) tea.Cmd {
 			res, err = monitor.PruneAll()
 		}
 		if err != nil {
-			return actionFinishedMsg{err: fmt.Errorf("Ошибка очистки: %w", err)}
+			return actionFinishedMsg{err: fmt.Errorf("%s%w", dict.ToastPruneError, err)}
 		}
 		return actionFinishedMsg{message: res, refresh: true}
 	}
