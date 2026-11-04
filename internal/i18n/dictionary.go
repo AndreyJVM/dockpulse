@@ -39,6 +39,7 @@ type Dictionary struct {
 	FooterRestart       string
 	FooterPrune         string
 	FooterDown          string
+	FooterSort          string
 	FooterApplyFilter   string
 	FooterCancel        string
 	FooterResetFilter   string
@@ -102,6 +103,12 @@ type Dictionary struct {
 	DetailMountsLabel      string
 	DetailNone             string
 	DetailComposeLabel     string
+	SortBadge              string
+	SortModeDefault        string
+	SortModeCPU            string
+	SortModeMem            string
+	SortModeName           string
+	SortModeStatus         string
 
 	// Вкладка 3: Compose
 	ComposeTabTitle   string
@@ -188,6 +195,7 @@ type Dictionary struct {
 	HelpKeyRest   string
 	HelpKeyDown   string
 	HelpKeyPrune  string
+	HelpKeySort   string
 	HelpKeyRef    string
 	HelpKeyHelp   string
 	HelpKeyQuit   string
@@ -259,6 +267,7 @@ var Ru = Dictionary{
 	FooterRestart:       "Рестарт",
 	FooterPrune:         "Очистка",
 	FooterDown:          "Down",
+	FooterSort:          "Сортировка",
 	FooterApplyFilter:   "Применить фильтр",
 	FooterCancel:        "Отмена",
 	FooterResetFilter:   "Сбросить фильтр",
@@ -320,6 +329,12 @@ var Ru = Dictionary{
 	DetailMountsLabel:      "Тома / Mounts:",
 	DetailNone:             "нет",
 	DetailComposeLabel:     "Compose:",
+	SortBadge:              "Сортировка: %s",
+	SortModeDefault:        "По умолчанию",
+	SortModeCPU:            "CPU ↓",
+	SortModeMem:            "Память ↓",
+	SortModeName:           "Имя ↑",
+	SortModeStatus:         "Статус",
 
 	ComposeTabTitle:   "DOCKER COMPOSE ПРОЕКТЫ (%d)",
 	NoComposeProjects: "Проекты Docker Compose не обнаружены (нет меток com.docker.compose.project).",
@@ -399,6 +414,7 @@ var Ru = Dictionary{
 	HelpKeyRest:   "Перезапуск (restart) контейнера или проекта Compose",
 	HelpKeyDown:   "Сворачивание и удаление проекта Compose (Down)",
 	HelpKeyPrune:  "Очистка неиспользуемых ресурсов Docker (Prune)",
+	HelpKeySort:   "Сортировка контейнеров (CPU / Память / Имя / Статус)",
 	HelpKeyRef:    "Принудительное обновление всех данных",
 	HelpKeyHelp:   "Показать / скрыть эту справку",
 	HelpKeyQuit:   "Выход из приложения",
@@ -469,6 +485,7 @@ var En = Dictionary{
 	FooterRestart:       "Restart",
 	FooterPrune:         "Prune",
 	FooterDown:          "Down",
+	FooterSort:          "Sort",
 	FooterApplyFilter:   "Apply filter",
 	FooterCancel:        "Cancel",
 	FooterResetFilter:   "Reset filter",
@@ -530,6 +547,12 @@ var En = Dictionary{
 	DetailMountsLabel:      "Volumes / Mounts:",
 	DetailNone:             "none",
 	DetailComposeLabel:     "Compose:",
+	SortBadge:              "Sort: %s",
+	SortModeDefault:        "Default",
+	SortModeCPU:            "CPU ↓",
+	SortModeMem:            "Memory ↓",
+	SortModeName:           "Name ↑",
+	SortModeStatus:         "Status",
 
 	ComposeTabTitle:   "DOCKER COMPOSE PROJECTS (%d)",
 	NoComposeProjects: "No Docker Compose projects detected (missing com.docker.compose.project labels).",
@@ -609,6 +632,7 @@ var En = Dictionary{
 	HelpKeyRest:   "Restart container or Compose project",
 	HelpKeyDown:   "Down and remove Compose project (Down)",
 	HelpKeyPrune:  "Prune unused Docker resources (Prune)",
+	HelpKeySort:   "Cycle container sorting (CPU / Memory / Name / Status)",
 	HelpKeyRef:    "Force refresh all metrics",
 	HelpKeyHelp:   "Show / hide this help box",
 	HelpKeyQuit:   "Quit application",

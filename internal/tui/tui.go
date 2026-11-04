@@ -1,12 +1,22 @@
 package tui
 
 import (
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/AndreyJVM/dockpulse/internal/i18n"
 	"github.com/AndreyJVM/dockpulse/internal/monitor"
 	tea "github.com/charmbracelet/bubbletea"
+)
+
+const (
+	SortDefault = iota
+	SortCPU
+	SortMem
+	SortName
+	SortStatus
+	sortModeCount
 )
 
 type tickMsg time.Time
@@ -62,6 +72,9 @@ type Model struct {
 	// История метрик (Sparklines)
 	cpuHistory []float64
 	memHistory []float64
+
+	// Сортировка контейнеров (0 - default, 1 - CPU desc, 2 - MEM desc, 3 - Name asc, 4 - Status)
+	containerSortMode int
 
 	// Поиск и фильтрация контейнеров
 	isFiltering bool
@@ -143,21 +156,69 @@ func (m *Model) fetchAllData() {
 }
 
 func (m Model) getFilteredContainers() []monitor.ContainerItem {
+	var list []monitor.ContainerItem
 	if strings.TrimSpace(m.filterQuery) == "" {
-		return m.dockerInfo.Containers
-	}
-	q := strings.ToLower(strings.TrimSpace(m.filterQuery))
-	var res []monitor.ContainerItem
-	for _, c := range m.dockerInfo.Containers {
-		if strings.Contains(strings.ToLower(c.Name), q) ||
-			strings.Contains(strings.ToLower(c.Image), q) ||
-			strings.Contains(strings.ToLower(c.ID), q) ||
-			strings.Contains(strings.ToLower(c.ComposeProject), q) ||
-			strings.Contains(strings.ToLower(c.Health), q) {
-			res = append(res, c)
+		list = make([]monitor.ContainerItem, len(m.dockerInfo.Containers))
+		copy(list, m.dockerInfo.Containers)
+	} else {
+		q := strings.ToLower(strings.TrimSpace(m.filterQuery))
+		for _, c := range m.dockerInfo.Containers {
+			if strings.Contains(strings.ToLower(c.Name), q) ||
+				strings.Contains(strings.ToLower(c.Image), q) ||
+				strings.Contains(strings.ToLower(c.ID), q) ||
+				strings.Contains(strings.ToLower(c.ComposeProject), q) ||
+				strings.Contains(strings.ToLower(c.Health), q) {
+				list = append(list, c)
+			}
 		}
 	}
-	return res
+
+	switch m.containerSortMode {
+	case SortCPU:
+		sort.SliceStable(list, func(i, j int) bool {
+			if list[i].CPUPerc != list[j].CPUPerc {
+				return list[i].CPUPerc > list[j].CPUPerc
+			}
+			return list[i].Name < list[j].Name
+		})
+	case SortMem:
+		sort.SliceStable(list, func(i, j int) bool {
+			if list[i].MemUsageMB != list[j].MemUsageMB {
+				return list[i].MemUsageMB > list[j].MemUsageMB
+			}
+			return list[i].Name < list[j].Name
+		})
+	case SortName:
+		sort.SliceStable(list, func(i, j int) bool {
+			return strings.ToLower(list[i].Name) < strings.ToLower(list[j].Name)
+		})
+	case SortStatus:
+		sort.SliceStable(list, func(i, j int) bool {
+			score := func(c monitor.ContainerItem) int {
+				switch {
+				case c.State == "running" && c.Health == "unhealthy":
+					return 1
+				case c.State == "running" && c.Health == "starting":
+					return 2
+				case c.State == "running":
+					return 3
+				case c.State == "restarting":
+					return 4
+				case c.State == "paused":
+					return 5
+				default:
+					return 6
+				}
+			}
+			si, sj := score(list[i]), score(list[j])
+			if si != sj {
+				return si < sj
+			}
+			return strings.ToLower(list[i].Name) < strings.ToLower(list[j].Name)
+		})
+	}
+
+	return list
 }
 
 func (m *Model) clampCursor() {

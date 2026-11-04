@@ -28,10 +28,28 @@ func (m Model) renderDockerTab() string {
 
 	containers := m.getFilteredContainers()
 
+	var statusBadges []string
 	if m.isFiltering {
 		s.WriteString("  " + yellowStyle.Render(fmt.Sprintf(m.i18n.FilterPrompt, m.filterQuery)) + "  " + dimStyle.Render(m.i18n.FilterHint) + "\n\n")
-	} else if m.filterQuery != "" {
-		s.WriteString("  " + activeTabStyle.Render(fmt.Sprintf(m.i18n.FilterActiveBadge, m.filterQuery)) + "  " + dimStyle.Render(fmt.Sprintf(m.i18n.FilterResultsCount, len(containers), len(m.dockerInfo.Containers))) + "\n\n")
+	} else {
+		if m.filterQuery != "" {
+			statusBadges = append(statusBadges, activeTabStyle.Render(fmt.Sprintf(m.i18n.FilterActiveBadge, m.filterQuery))+"  "+dimStyle.Render(fmt.Sprintf(m.i18n.FilterResultsCount, len(containers), len(m.dockerInfo.Containers))))
+		}
+		if m.containerSortMode != SortDefault {
+			sortNames := []string{
+				m.i18n.SortModeDefault,
+				m.i18n.SortModeCPU,
+				m.i18n.SortModeMem,
+				m.i18n.SortModeName,
+				m.i18n.SortModeStatus,
+			}
+			if m.containerSortMode < len(sortNames) {
+				statusBadges = append(statusBadges, cyanStyle.Render(fmt.Sprintf(m.i18n.SortBadge, sortNames[m.containerSortMode])))
+			}
+		}
+		if len(statusBadges) > 0 {
+			s.WriteString("  " + strings.Join(statusBadges, "   ") + "\n\n")
+		}
 	}
 
 	if len(containers) == 0 {

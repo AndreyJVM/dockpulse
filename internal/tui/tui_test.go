@@ -992,3 +992,81 @@ func TestHostTabSparklineDisplay(t *testing.T) {
 		t.Errorf("expected sparkline characters in view output, got: %s", view)
 	}
 }
+
+func TestContainerSorting(t *testing.T) {
+	m := NewModel(2*time.Second, 2, "v0.6.3", "en")
+	m.activeTab = 2
+	m.dockerInfo.Containers = []monitor.ContainerItem{
+		{ID: "c1", Name: "zeta-app", State: "running", CPUPerc: 10.0, MemUsageMB: 200.0, Health: "healthy"},
+		{ID: "c2", Name: "alpha-app", State: "running", CPUPerc: 50.0, MemUsageMB: 50.0, Health: "unhealthy"},
+		{ID: "c3", Name: "beta-app", State: "stopped", CPUPerc: 0.0, MemUsageMB: 0.0},
+		{ID: "c4", Name: "gamma-app", State: "running", CPUPerc: 30.0, MemUsageMB: 500.0, Health: "starting"},
+	}
+
+	// 1. Default order
+	list := m.getFilteredContainers()
+	if list[0].Name != "zeta-app" || list[1].Name != "alpha-app" {
+		t.Errorf("expected default order preserved, got: %s, %s", list[0].Name, list[1].Name)
+	}
+
+	// 2. Press O -> CPU desc
+	newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	m = newModel.(Model)
+	if m.containerSortMode != SortCPU {
+		t.Fatalf("expected SortCPU, got %d", m.containerSortMode)
+	}
+	list = m.getFilteredContainers()
+	if list[0].Name != "alpha-app" || list[0].CPUPerc != 50.0 {
+		t.Errorf("expected top CPU alpha-app, got %s", list[0].Name)
+	}
+	if list[1].Name != "gamma-app" || list[1].CPUPerc != 30.0 {
+		t.Errorf("expected 2nd CPU gamma-app, got %s", list[1].Name)
+	}
+	view := m.View()
+	if !strings.Contains(view, "Sort: CPU ↓") {
+		t.Errorf("expected Sort: CPU ↓ in View(), got: %s", view)
+	}
+
+	// 3. Press O -> MEM desc
+	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	m = newModel.(Model)
+	if m.containerSortMode != SortMem {
+		t.Fatalf("expected SortMem, got %d", m.containerSortMode)
+	}
+	list = m.getFilteredContainers()
+	if list[0].Name != "gamma-app" || list[0].MemUsageMB != 500.0 {
+		t.Errorf("expected top MEM gamma-app, got %s", list[0].Name)
+	}
+
+	// 4. Press O -> Name asc
+	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	m = newModel.(Model)
+	if m.containerSortMode != SortName {
+		t.Fatalf("expected SortName, got %d", m.containerSortMode)
+	}
+	list = m.getFilteredContainers()
+	if list[0].Name != "alpha-app" || list[1].Name != "beta-app" || list[2].Name != "gamma-app" || list[3].Name != "zeta-app" {
+		t.Errorf("unexpected name sorting order: %v", list)
+	}
+
+	// 5. Press O -> Status
+	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	m = newModel.(Model)
+	if m.containerSortMode != SortStatus {
+		t.Fatalf("expected SortStatus, got %d", m.containerSortMode)
+	}
+	list = m.getFilteredContainers()
+	if list[0].Name != "alpha-app" {
+		t.Errorf("expected unhealthy alpha-app first, got %s", list[0].Name)
+	}
+	if list[1].Name != "gamma-app" {
+		t.Errorf("expected starting gamma-app second, got %s", list[1].Name)
+	}
+
+	// 6. Press O -> Wrap around to Default
+	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	m = newModel.(Model)
+	if m.containerSortMode != SortDefault {
+		t.Fatalf("expected wrap around to SortDefault, got %d", m.containerSortMode)
+	}
+}

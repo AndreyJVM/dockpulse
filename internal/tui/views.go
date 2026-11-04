@@ -104,6 +104,7 @@ func (m Model) View() string {
 			b.WriteString(footerStyle.Render(
 				boldStyle.Render("[↑ / ↓]") + " " + m.i18n.FooterSelect + "  |  " +
 					boldStyle.Render("[Esc]") + " " + m.i18n.FooterResetFilter + "  |  " +
+					boldStyle.Render("[O]") + " " + m.i18n.FooterSort + "  |  " +
 					boldStyle.Render("[L]") + " " + m.i18n.FooterLogs + "  |  " +
 					boldStyle.Render("[Enter/I]") + " " + m.i18n.FooterInfo + "  |  " +
 					boldStyle.Render("[E]") + " " + m.i18n.FooterShell + "  |  " +
@@ -114,6 +115,7 @@ func (m Model) View() string {
 			b.WriteString(footerStyle.Render(
 				boldStyle.Render("[↑ / ↓]") + " " + m.i18n.FooterSelect + "  |  " +
 					boldStyle.Render("[/]") + " " + m.i18n.FooterSearch + "  |  " +
+					boldStyle.Render("[O]") + " " + m.i18n.FooterSort + "  |  " +
 					boldStyle.Render("[L]") + " " + m.i18n.FooterLogs + "  |  " +
 					boldStyle.Render("[Enter/I]") + " " + m.i18n.FooterInfo + "  |  " +
 					boldStyle.Render("[E]") + " " + m.i18n.FooterShell + "  |  " +

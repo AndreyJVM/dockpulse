@@ -242,6 +242,24 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.showToast(m.i18n.ToastRefreshing)
 		return m, fetchDataCmd()
 
+	// Сортировка списка контейнеров (Вкладка 2)
+	case "o", "O":
+		if m.activeTab == 2 && !m.isFiltering {
+			m.containerSortMode = (m.containerSortMode + 1) % sortModeCount
+			m.clampCursor()
+			sortNames := []string{
+				m.i18n.SortModeDefault,
+				m.i18n.SortModeCPU,
+				m.i18n.SortModeMem,
+				m.i18n.SortModeName,
+				m.i18n.SortModeStatus,
+			}
+			if m.containerSortMode >= 0 && m.containerSortMode < len(sortNames) {
+				m.showToast(fmt.Sprintf(m.i18n.SortBadge, sortNames[m.containerSortMode]))
+			}
+			return m, nil
+		}
+
 	// Поиск по списку контейнеров
 	case "/":
 		if m.activeTab == 2 {

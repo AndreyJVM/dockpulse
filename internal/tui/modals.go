@@ -175,6 +175,7 @@ func (m Model) renderHelpBox() string {
   %s   %s
   %s   %s
   %s   %s
+  %s   %s
 
   `+m.i18n.HelpAutoInt,
 		boldStyle.Render(m.i18n.HelpTitle),
@@ -182,6 +183,7 @@ func (m Model) renderHelpBox() string {
 		greenStyle.Render("[Tab] / [Shift+Tab] / [←] / [→]"), m.i18n.HelpKeyPrev,
 		greenStyle.Render("[↑] / [↓] / [k] / [j]"), m.i18n.HelpKeyNav,
 		greenStyle.Render("[/]"), m.i18n.HelpKeySearch,
+		greenStyle.Render("[O]"), m.i18n.HelpKeySort,
 		greenStyle.Render("[L]"), m.i18n.HelpKeyLogs,
 		greenStyle.Render("[Enter] / [I]"), m.i18n.HelpKeyInfo,
 		greenStyle.Render("[E]"), m.i18n.HelpKeyShell,
