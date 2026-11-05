@@ -1,50 +1,36 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 	"time"
+
+	"github.com/AndreyJVM/dockpulse/internal/tui/modals"
+	"github.com/AndreyJVM/dockpulse/internal/tui/theme"
+	"github.com/AndreyJVM/dockpulse/internal/tui/views"
 )
 
+// View renders the complete TUI interface for the current model state.
 func (m Model) View() string {
 	var b strings.Builder
 
-	// 1. Панель заголовка
-	verStr := m.version
-	if verStr == "" {
-		verStr = "v0.4.0"
-	}
-	header := headerStyle.Render("Dockpulse") +
-		dimStyle.Render(fmt.Sprintf("  %s  ", verStr)) +
-		greenStyle.Render("["+m.lastUpdate+"]")
-	b.WriteString(header + "\n\n")
+	// 1. Header
+	b.WriteString(views.RenderHeader(m.version, m.lastUpdate) + "\n\n")
 
-	// 2. Вкладки
+	// 2. Tabs
 	tabs := []string{
 		m.i18n.TabHost,
 		m.i18n.TabDocker,
 		m.i18n.TabCompose,
 		m.i18n.TabSwarm,
 	}
+	b.WriteString(views.RenderTabs(tabs, m.activeTab, m.width) + "\n")
 
-	var renderedTabs []string
-	for i, tab := range tabs {
-		tabIdx := i + 1
-		if m.activeTab == tabIdx {
-			renderedTabs = append(renderedTabs, activeTabStyle.Render(fmt.Sprintf("[%s]", tab)))
-		} else {
-			renderedTabs = append(renderedTabs, inactiveTabStyle.Render(fmt.Sprintf(" %s ", tab)))
-		}
-	}
-	b.WriteString(strings.Join(renderedTabs, " ") + "\n")
-	b.WriteString(dimStyle.Render(strings.Repeat("─", max(m.width, 70))) + "\n")
-
-	// Всплывающее уведомление о действии
+	// Action message toast
 	if m.actionMessage != "" && time.Now().Before(m.actionMessageExpiry) {
-		b.WriteString(yellowStyle.Render("[!] "+m.actionMessage) + "\n\n")
+		b.WriteString(theme.YellowStyle.Render("[!] "+m.actionMessage) + "\n\n")
 	}
 
-	// 3. Модальные окна или содержимое вкладки
+	// 3. Tab contents or active modal
 	if m.activeModal == "logs" {
 		b.WriteString(m.renderLogsModal())
 	} else if m.activeModal == "inspect" {
@@ -68,88 +54,93 @@ func (m Model) View() string {
 		}
 	}
 
-	// 4. Подвал
-	b.WriteString("\n" + dimStyle.Render(strings.Repeat("─", max(m.width, 70))) + "\n")
-	if m.activeModal != "" {
-		if m.activeModal == "compose_down" {
-			b.WriteString(footerStyle.Render(
-				boldStyle.Render("[Y]") + " " + m.i18n.FooterConfirm + " (Down)  |  " +
-					boldStyle.Render("[N / Esc]") + " " + m.i18n.FooterCancel,
-			))
-		} else if m.activeModal == "prune" {
-			if m.pruneConfirm > 0 {
-				b.WriteString(footerStyle.Render(
-					boldStyle.Render("[Y]") + " " + m.i18n.FooterConfirmPrune + "  |  " +
-						boldStyle.Render("[N / Esc]") + " " + m.i18n.FooterCancel,
-				))
-			} else {
-				b.WriteString(footerStyle.Render(
-					boldStyle.Render("[1-4]") + " " + m.i18n.FooterSelectAction + "  |  " +
-						boldStyle.Render("[Esc / Q]") + " " + m.i18n.FooterClose,
-				))
-			}
-		} else {
-			b.WriteString(footerStyle.Render(
-				boldStyle.Render("[Esc / Q]") + " " + m.i18n.FooterClose + "  |  " +
-					boldStyle.Render("[↑ / ↓ / PgUp / PgDn]") + " " + m.i18n.FooterScroll,
-			))
-		}
-	} else if m.activeTab == 2 {
-		if m.isFiltering {
-			b.WriteString(footerStyle.Render(
-				boldStyle.Render("[Enter]") + " " + m.i18n.FooterApplyFilter + "  |  " +
-					boldStyle.Render("[Esc]") + " " + m.i18n.FooterCancel,
-			))
-		} else if m.filterQuery != "" {
-			b.WriteString(footerStyle.Render(
-				boldStyle.Render("[↑ / ↓]") + " " + m.i18n.FooterSelect + "  |  " +
-					boldStyle.Render("[Esc]") + " " + m.i18n.FooterResetFilter + "  |  " +
-					boldStyle.Render("[O]") + " " + m.i18n.FooterSort + "  |  " +
-					boldStyle.Render("[L]") + " " + m.i18n.FooterLogs + "  |  " +
-					boldStyle.Render("[Enter/I]") + " " + m.i18n.FooterInfo + "  |  " +
-					boldStyle.Render("[E]") + " " + m.i18n.FooterShell + "  |  " +
-					boldStyle.Render("[S]") + " " + m.i18n.FooterStartStop + "  |  " +
-					boldStyle.Render("[P]") + " " + m.i18n.FooterRestart,
-			))
-		} else {
-			b.WriteString(footerStyle.Render(
-				boldStyle.Render("[↑ / ↓]") + " " + m.i18n.FooterSelect + "  |  " +
-					boldStyle.Render("[/]") + " " + m.i18n.FooterSearch + "  |  " +
-					boldStyle.Render("[O]") + " " + m.i18n.FooterSort + "  |  " +
-					boldStyle.Render("[L]") + " " + m.i18n.FooterLogs + "  |  " +
-					boldStyle.Render("[Enter/I]") + " " + m.i18n.FooterInfo + "  |  " +
-					boldStyle.Render("[E]") + " " + m.i18n.FooterShell + "  |  " +
-					boldStyle.Render("[S]") + " " + m.i18n.FooterStartStop + "  |  " +
-					boldStyle.Render("[P]") + " " + m.i18n.FooterRestart + "  |  " +
-					boldStyle.Render("[C]") + " " + m.i18n.FooterPrune + "  |  " +
-					boldStyle.Render("[?]") + " " + m.i18n.FooterHelp,
-			))
-		}
-	} else if m.activeTab == 3 {
-		b.WriteString(footerStyle.Render(
-			boldStyle.Render("[↑ / ↓]") + " " + m.i18n.FooterSelectStack + "  |  " +
-				boldStyle.Render("[L]") + " " + m.i18n.FooterLogs + "  |  " +
-				boldStyle.Render("[S]") + " " + m.i18n.FooterStop + "  |  " +
-				boldStyle.Render("[U]") + " " + m.i18n.FooterStart + "  |  " +
-				boldStyle.Render("[P]") + " " + m.i18n.FooterRestart + "  |  " +
-				boldStyle.Render("[D]") + " " + m.i18n.FooterDown + "  |  " +
-				boldStyle.Render("[C]") + " " + m.i18n.FooterPrune + "  |  " +
-				boldStyle.Render("[?]") + " " + m.i18n.FooterHelp,
-		))
-	} else if m.activeTab == 4 {
-		b.WriteString(footerStyle.Render(
-			boldStyle.Render("[↑ / ↓]") + " " + m.i18n.FooterSelectService + "  |  " +
-				boldStyle.Render("[L]") + " " + m.i18n.FooterServiceLogs + "  |  " +
-				boldStyle.Render("[?]") + " " + m.i18n.FooterHelp,
-		))
-	} else {
-		b.WriteString(footerStyle.Render(
-			boldStyle.Render("[1-4 / Tab / ← →]") + " " + m.i18n.FooterTabs + "  |  " +
-				boldStyle.Render("[R]") + " " + m.i18n.FooterRefresh + "  |  " +
-				boldStyle.Render("[?]") + " " + m.i18n.FooterHelp + "  |  " +
-				boldStyle.Render("[Q]") + " " + m.i18n.FooterQuit,
-		))
-	}
+	// 4. Footer
+	b.WriteString(views.RenderFooter(views.FooterContext{
+		ActiveTab:    m.activeTab,
+		ActiveModal:  m.activeModal,
+		PruneConfirm: m.pruneConfirm,
+		IsFiltering:  m.isFiltering,
+		FilterQuery:  m.filterQuery,
+		Width:        m.width,
+		I18n:         &m.i18n,
+	}))
 
 	return b.String()
+}
+
+func (m Model) renderHostTab() string {
+	return views.RenderHost(views.HostContext{
+		SysInfo:               m.sysInfo,
+		CPUInfo:               m.cpuInfo,
+		MemInfo:               m.memInfo,
+		DockerInfo:            m.dockerInfo,
+		CPUHistory:            m.cpuHistory,
+		MemHistory:            m.memHistory,
+		FormattedUptime:       m.formatUptime(m.sysInfo.UptimeSec),
+		FormattedDockerStatus: m.formatDockerStatus(m.dockerInfo.Status),
+		I18n:                  &m.i18n,
+	})
+}
+
+func (m Model) renderDockerTab() string {
+	containers := m.getFilteredContainers()
+	sortNames := []string{
+		m.i18n.SortModeDefault,
+		m.i18n.SortModeCPU,
+		m.i18n.SortModeMem,
+		m.i18n.SortModeName,
+		m.i18n.SortModeStatus,
+	}
+
+	return views.RenderDocker(views.DockerContext{
+		DockerInfo:            m.dockerInfo,
+		Containers:            containers,
+		TotalContainersCount:  len(m.dockerInfo.Containers),
+		CursorIdx:             m.cursorIdx,
+		IsFiltering:           m.isFiltering,
+		FilterQuery:           m.filterQuery,
+		SortMode:              m.containerSortMode,
+		SortNames:             sortNames,
+		Width:                 m.width,
+		FormattedDockerStatus: m.formatDockerStatus(m.dockerInfo.Status),
+		I18n:                  &m.i18n,
+	})
+}
+
+func (m Model) renderComposeTab() string {
+	return views.RenderCompose(views.ComposeContext{
+		Projects:     m.compose,
+		CursorIdx:    m.composeCursorIdx,
+		FormatStatus: m.formatComposeStatus,
+		I18n:         &m.i18n,
+	})
+}
+
+func (m Model) renderSwarmTab() string {
+	return views.RenderSwarm(views.SwarmContext{
+		Swarm:        m.swarm,
+		CursorIdx:    m.swarmCursorIdx,
+		FormatStatus: m.formatSwarmStatus,
+		I18n:         &m.i18n,
+	})
+}
+
+func (m Model) renderLogsModal() string {
+	return modals.RenderLogs(m.logsLines, m.logsScroll, m.logsTargetName, m.logsTargetID, m.width, &m.i18n)
+}
+
+func (m Model) renderInspectModal() string {
+	return modals.RenderInspect(m.inspectTarget, &m.i18n)
+}
+
+func (m Model) renderPruneModal() string {
+	return modals.RenderPrune(m.pruneUsage, m.pruneUsageErr, m.pruneConfirm, &m.i18n)
+}
+
+func (m Model) renderComposeDownModal() string {
+	return modals.RenderComposeDown(m.composeDownTarget, &m.i18n)
+}
+
+func (m Model) renderHelpBox() string {
+	return modals.RenderHelp(m.refreshInterval, &m.i18n)
 }

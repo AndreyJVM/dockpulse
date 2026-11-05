@@ -1,66 +1,66 @@
-package tui
+package theme
 
 import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Стили оформления Lip Gloss
+// Lip Gloss styles for Dockpulse TUI.
 var (
-	headerStyle = lipgloss.NewStyle().
+	HeaderStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#FFFFFF")).
 			Background(lipgloss.Color("#2563EB")).
 			Padding(0, 1)
 
-	activeTabStyle = lipgloss.NewStyle().
+	ActiveTabStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#000000")).
 			Background(lipgloss.Color("#06B6D4")).
 			Padding(0, 1)
 
-	inactiveTabStyle = lipgloss.NewStyle().
+	InactiveTabStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#9CA3AF")).
 				Background(lipgloss.Color("#1F2937")).
 				Padding(0, 1)
 
-	selectedRowStyle = lipgloss.NewStyle().
+	SelectedRowStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(lipgloss.Color("#FFFFFF")).
 				Background(lipgloss.Color("#0284C7"))
 
-	titleStyle = lipgloss.NewStyle().
+	TitleStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#38BDF8")).
 			MarginTop(1).
 			MarginBottom(0)
 
-	dimStyle = lipgloss.NewStyle().
+	DimStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#6B7280"))
 
-	boldStyle = lipgloss.NewStyle().
+	BoldStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#F3F4F6"))
 
-	greenStyle = lipgloss.NewStyle().
+	GreenStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#22C55E"))
 
-	yellowStyle = lipgloss.NewStyle().
+	YellowStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#EAB308"))
 
-	redStyle = lipgloss.NewStyle().
+	RedStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#EF4444"))
 
-	cyanStyle = lipgloss.NewStyle().
+	CyanStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#38BDF8"))
 
-	footerStyle = lipgloss.NewStyle().
+	FooterStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#9CA3AF")).
 			MarginTop(1)
 
-	boxStyle = lipgloss.NewStyle().
+	BoxStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#38BDF8")).
 			Padding(1, 2)

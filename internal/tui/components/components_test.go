@@ -1,4 +1,4 @@
-package tui
+package components
 
 import (
 	"strings"
@@ -22,25 +22,25 @@ func TestTruncate(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		got := truncate(c.input, c.maxLen)
+		got := Truncate(c.input, c.maxLen)
 		if got != c.expected {
-			t.Errorf("truncate(%q, %d) = %q; want %q", c.input, c.maxLen, got, c.expected)
+			t.Errorf("Truncate(%q, %d) = %q; want %q", c.input, c.maxLen, got, c.expected)
 		}
 	}
 }
 
 func TestFormatPercent(t *testing.T) {
-	p1 := formatPercent(25.0)
+	p1 := FormatPercent(25.0)
 	if !strings.Contains(p1, "25.0%") {
 		t.Errorf("expected '25.0%%' in %q", p1)
 	}
 
-	p2 := formatPercent(65.0)
+	p2 := FormatPercent(65.0)
 	if !strings.Contains(p2, "65.0%") {
 		t.Errorf("expected '65.0%%' in %q", p2)
 	}
 
-	p3 := formatPercent(92.0)
+	p3 := FormatPercent(92.0)
 	if !strings.Contains(p3, "92.0%") {
 		t.Errorf("expected '92.0%%' in %q", p3)
 	}
@@ -60,44 +60,44 @@ func TestFormatBar(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		bar := formatBar(c.pct, c.width)
+		bar := FormatBar(c.pct, c.width)
 		if !strings.HasPrefix(bar, "[") || !strings.Contains(bar, "]") || !strings.Contains(bar, "%") {
-			t.Errorf("formatBar(%f, %d) returned invalid format: %q", c.pct, c.width, bar)
+			t.Errorf("FormatBar(%f, %d) returned invalid format: %q", c.pct, c.width, bar)
 		}
 	}
 }
 
 func TestRenderSparkline(t *testing.T) {
 	t.Run("empty history", func(t *testing.T) {
-		if res := renderSparkline(nil); res != "" {
+		if res := RenderSparkline(nil); res != "" {
 			t.Errorf("expected empty string for nil history, got %q", res)
 		}
-		if res := renderSparkline([]float64{}); res != "" {
+		if res := RenderSparkline([]float64{}); res != "" {
 			t.Errorf("expected empty string for empty history, got %q", res)
 		}
 	})
 
 	t.Run("boundary and clamped values", func(t *testing.T) {
 		history := []float64{-10.0, 0.0, 50.0, 100.0, 150.0}
-		res := renderSparkline(history)
+		res := RenderSparkline(history)
 		if res == "" {
 			t.Fatal("expected non-empty rendered sparkline")
 		}
 	})
 
 	t.Run("color grading checks", func(t *testing.T) {
-		low := renderSparkline([]float64{10.0})
-		if !strings.Contains(low, string(sparkChars[0])) {
+		low := RenderSparkline([]float64{10.0})
+		if !strings.Contains(low, string(SparkChars[0])) {
 			t.Errorf("expected low sparkline character, got %q", low)
 		}
 
-		med := renderSparkline([]float64{70.0})
-		if !strings.Contains(med, string(sparkChars[5])) {
+		med := RenderSparkline([]float64{70.0})
+		if !strings.Contains(med, string(SparkChars[5])) {
 			t.Errorf("expected medium sparkline character, got %q", med)
 		}
 
-		high := renderSparkline([]float64{95.0})
-		if !strings.Contains(high, string(sparkChars[7])) {
+		high := RenderSparkline([]float64{95.0})
+		if !strings.Contains(high, string(SparkChars[7])) {
 			t.Errorf("expected high sparkline character, got %q", high)
 		}
 	})
