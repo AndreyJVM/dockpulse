@@ -61,17 +61,6 @@ type Dictionary struct {
 	HostPerfTitle     string
 	CPUCoresLabel     string
 	RAMLabel          string
-	NetTrafficTitle   string
-	IPLabel           string
-	DNSLabel          string
-	SpeedLabel        string
-	DisksTitle        string
-	DisksUnavailable  string
-	TopProcsTitle     string
-	ProcPID           string
-	ProcName          string
-	ProcCPU           string
-	ProcRAM           string
 	DockerStatusTitle string
 	DaemonStatus      string
 	ContainersSummary string
@@ -288,17 +277,6 @@ var Ru = Dictionary{
 	HostPerfTitle:     "ПРОИЗВОДИТЕЛЬНОСТЬ ХОСТА",
 	CPUCoresLabel:     "CPU (%d cores):",
 	RAMLabel:          "RAM (%.1f/%.1f GB):",
-	NetTrafficTitle:   "СЕТЬ И ТРАФИК",
-	IPLabel:           "IP:",
-	DNSLabel:          "DNS:",
-	SpeedLabel:        "Скорость:",
-	DisksTitle:        "ДИСКОВЫЕ РАЗДЕЛЫ",
-	DisksUnavailable:  "Дисковые разделы недоступны",
-	TopProcsTitle:     "ТОП ПРОЦЕССОВ (ПО CPU)",
-	ProcPID:           "PID",
-	ProcName:          "ИМЯ",
-	ProcCPU:           "CPU %",
-	ProcRAM:           "RAM (MB)",
 	DockerStatusTitle: "DOCKER СТАТУС",
 	DaemonStatus:      "Статус:",
 	ContainersSummary: "Контейнеры: %d активно, %d остановлено",
@@ -506,17 +484,6 @@ var En = Dictionary{
 	HostPerfTitle:     "HOST PERFORMANCE",
 	CPUCoresLabel:     "CPU (%d cores):",
 	RAMLabel:          "RAM (%.1f/%.1f GB):",
-	NetTrafficTitle:   "NETWORK & TRAFFIC",
-	IPLabel:           "IP:",
-	DNSLabel:          "DNS:",
-	SpeedLabel:        "Speed:",
-	DisksTitle:        "DISK PARTITIONS",
-	DisksUnavailable:  "Disk partitions unavailable",
-	TopProcsTitle:     "TOP PROCESSES (BY CPU)",
-	ProcPID:           "PID",
-	ProcName:          "NAME",
-	ProcCPU:           "CPU %",
-	ProcRAM:           "RAM (MB)",
 	DockerStatusTitle: "DOCKER STATUS",
 	DaemonStatus:      "Status:",
 	ContainersSummary: "Containers: %d active, %d stopped",

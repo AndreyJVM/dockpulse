@@ -19,9 +19,6 @@ type dataFetchedMsg struct {
 	sysInfo    monitor.SystemInfo
 	cpuInfo    monitor.CPUInfo
 	memInfo    monitor.MemoryInfo
-	disksInfo  []monitor.PartitionInfo
-	netInfo    monitor.NetworkInfo
-	topProcs   []monitor.ProcessInfo
 	dockerInfo monitor.DockerSummary
 	compose    []monitor.ComposeProject
 	swarm      monitor.SwarmSummary
@@ -35,9 +32,6 @@ func fetchDataCmd() tea.Cmd {
 			sysInfo:    monitor.GetSystemInfo(),
 			cpuInfo:    monitor.GetCPUInfo(),
 			memInfo:    monitor.GetMemoryInfo(),
-			disksInfo:  monitor.GetDisksInfo(),
-			netInfo:    monitor.GetNetworkInfo(),
-			topProcs:   monitor.GetTopProcesses(5),
 			dockerInfo: dockerInfo,
 			compose:    monitor.GetComposeProjects(dockerInfo.Containers),
 			swarm:      monitor.GetSwarmSummary(),

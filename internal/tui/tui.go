@@ -83,9 +83,6 @@ type Model struct {
 	sysInfo    monitor.SystemInfo
 	cpuInfo    monitor.CPUInfo
 	memInfo    monitor.MemoryInfo
-	disksInfo  []monitor.PartitionInfo
-	netInfo    monitor.NetworkInfo
-	topProcs   []monitor.ProcessInfo
 	dockerInfo monitor.DockerSummary
 	compose    []monitor.ComposeProject
 	swarm      monitor.SwarmSummary
@@ -121,9 +118,6 @@ func (m *Model) applyFetchedData(d dataFetchedMsg) {
 	m.sysInfo = d.sysInfo
 	m.cpuInfo = d.cpuInfo
 	m.memInfo = d.memInfo
-	m.disksInfo = d.disksInfo
-	m.netInfo = d.netInfo
-	m.topProcs = d.topProcs
 	m.dockerInfo = d.dockerInfo
 	m.compose = d.compose
 	m.swarm = d.swarm
@@ -145,9 +139,6 @@ func (m *Model) fetchAllData() {
 		sysInfo:    monitor.GetSystemInfo(),
 		cpuInfo:    monitor.GetCPUInfo(),
 		memInfo:    monitor.GetMemoryInfo(),
-		disksInfo:  monitor.GetDisksInfo(),
-		netInfo:    monitor.GetNetworkInfo(),
-		topProcs:   monitor.GetTopProcesses(5),
 		dockerInfo: dockerInfo,
 		compose:    monitor.GetComposeProjects(dockerInfo.Containers),
 		swarm:      monitor.GetSwarmSummary(),
