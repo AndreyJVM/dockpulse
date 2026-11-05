@@ -59,20 +59,6 @@ func truncate(str string, maxLen int) string {
 	return string(runes[:maxLen-3]) + "..."
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 func padRight(s string, width int) string {
 	r := []rune(s)
 	if len(r) >= width {

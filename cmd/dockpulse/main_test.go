@@ -196,7 +196,7 @@ func TestRun_ProgramExecution(t *testing.T) {
 	defer func() { runProgram = origRunProgram }()
 
 	var executed bool
-	runProgram = func(m tea.Model) error {
+	runProgram = func(_ tea.Model) error {
 		executed = true
 		return nil
 	}
@@ -212,7 +212,7 @@ func TestRun_ProgramExecution(t *testing.T) {
 
 	// Test program error propagation
 	expectedErr := errors.New("tui failed")
-	runProgram = func(m tea.Model) error {
+	runProgram = func(_ tea.Model) error {
 		return expectedErr
 	}
 

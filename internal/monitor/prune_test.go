@@ -121,7 +121,7 @@ func TestParseSystemDFRaw(t *testing.T) {
 	}
 }
 
-func TestGetDockerDiskUsageSafeExecution(t *testing.T) {
+func TestGetDockerDiskUsageSafeExecution(_ *testing.T) {
 	// Function must safely execute without panics
 	_, _ = GetDockerDiskUsage()
 }

@@ -285,7 +285,7 @@ func TestGetContainerExecCommand(t *testing.T) {
 	}
 }
 
-func TestIsDockerCLIAvailable(t *testing.T) {
+func TestIsDockerCLIAvailable(_ *testing.T) {
 	// Function must execute safely without panics
 	_ = IsDockerCLIAvailable()
 }

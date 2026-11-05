@@ -222,7 +222,7 @@ func TestRestartComposeProject(t *testing.T) {
 
 	t.Run("cli restart succeeds", func(t *testing.T) {
 		oldRunner := composeCommandRunner
-		composeCommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
+		composeCommandRunner = func(_ context.Context, _ ...string) ([]byte, error) {
 			return []byte("Restarted"), nil
 		}
 		defer func() { composeCommandRunner = oldRunner }()
@@ -238,7 +238,7 @@ func TestRestartComposeProject(t *testing.T) {
 
 	t.Run("fallback restarts invalid containers with error aggregation", func(t *testing.T) {
 		oldRunner := composeCommandRunner
-		composeCommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
+		composeCommandRunner = func(_ context.Context, _ ...string) ([]byte, error) {
 			return nil, errors.New("compose cli unavailable")
 		}
 		defer func() { composeCommandRunner = oldRunner }()
@@ -271,7 +271,7 @@ func TestStopComposeProject(t *testing.T) {
 
 	t.Run("cli stop succeeds", func(t *testing.T) {
 		oldRunner := composeCommandRunner
-		composeCommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
+		composeCommandRunner = func(_ context.Context, _ ...string) ([]byte, error) {
 			return []byte("Stopped"), nil
 		}
 		defer func() { composeCommandRunner = oldRunner }()
@@ -287,7 +287,7 @@ func TestStopComposeProject(t *testing.T) {
 
 	t.Run("fallback stops invalid containers with error aggregation", func(t *testing.T) {
 		oldRunner := composeCommandRunner
-		composeCommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
+		composeCommandRunner = func(_ context.Context, _ ...string) ([]byte, error) {
 			return nil, errors.New("compose cli unavailable")
 		}
 		defer func() { composeCommandRunner = oldRunner }()
@@ -320,7 +320,7 @@ func TestStartComposeProject(t *testing.T) {
 
 	t.Run("cli start succeeds", func(t *testing.T) {
 		oldRunner := composeCommandRunner
-		composeCommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
+		composeCommandRunner = func(_ context.Context, _ ...string) ([]byte, error) {
 			return []byte("Started"), nil
 		}
 		defer func() { composeCommandRunner = oldRunner }()
@@ -336,7 +336,7 @@ func TestStartComposeProject(t *testing.T) {
 
 	t.Run("fallback starts invalid containers with error aggregation", func(t *testing.T) {
 		oldRunner := composeCommandRunner
-		composeCommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
+		composeCommandRunner = func(_ context.Context, _ ...string) ([]byte, error) {
 			return nil, errors.New("compose cli unavailable")
 		}
 		defer func() { composeCommandRunner = oldRunner }()
@@ -369,7 +369,7 @@ func TestDownComposeProject(t *testing.T) {
 
 	t.Run("cli down succeeds", func(t *testing.T) {
 		oldRunner := composeCommandRunner
-		composeCommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
+		composeCommandRunner = func(_ context.Context, _ ...string) ([]byte, error) {
 			return []byte("Removed"), nil
 		}
 		defer func() { composeCommandRunner = oldRunner }()
@@ -385,7 +385,7 @@ func TestDownComposeProject(t *testing.T) {
 
 	t.Run("fallback down invalid containers with error aggregation", func(t *testing.T) {
 		oldRunner := composeCommandRunner
-		composeCommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
+		composeCommandRunner = func(_ context.Context, _ ...string) ([]byte, error) {
 			return nil, errors.New("compose cli unavailable")
 		}
 		defer func() { composeCommandRunner = oldRunner }()

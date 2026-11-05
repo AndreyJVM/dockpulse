@@ -2,7 +2,7 @@ PACKAGE_NAME = dockpulse
 VERSION = $(shell cat VERSION)
 BINARY = dockpulse
 
-.PHONY: all clean clean-all build install reinstall remove purge check test info files run help version version-patch version-minor version-major update-changelog release release-check release-help release-tag release-patch release-minor release-major
+.PHONY: all clean clean-all build install reinstall remove purge check test lint info files run help version version-patch version-minor version-major update-changelog release release-check release-help release-tag release-patch release-minor release-major
 
 all: build
 
@@ -30,6 +30,18 @@ version-major:
 test:
 	@echo "Running Go tests..."
 	go test -v ./...
+
+# Проверка стиля и качества кода (Go Checkstyle / Linting)
+lint:
+	@echo "Running code style and quality checks..."
+	go vet ./...
+	@if command -v revive >/dev/null 2>&1; then \
+		revive -config revive.toml ./...; \
+	elif [ -f "$$(go env GOPATH)/bin/revive" ]; then \
+		$$(go env GOPATH)/bin/revive -config revive.toml ./...; \
+	else \
+		echo "revive not found, run: go install github.com/mgechev/revive@latest"; \
+	fi
 
 # Сборка автономного бинарника Go
 build:
@@ -107,6 +119,7 @@ help:
 	@echo "Available commands:"
 	@echo "  make version         - Show current version"
 	@echo "  make test            - Run Go unit tests"
+	@echo "  make lint            - Run Go style and quality checks (go vet + revive)"
 	@echo "  make build           - Build standalone Go binary"
 	@echo "  make run             - Run the application locally via go run"
 	@echo "  make release         - Create release tag for current version v$(VERSION)"
