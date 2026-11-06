@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -90,9 +91,12 @@ func GetComposeProjects(containers []ContainerItem) []ComposeProject {
 		}
 		proj.RunningServices = running
 
-		// Стабильная сортировка сервисов внутри каждого проекта
+		// Стабильная детерминированная сортировка сервисов внутри каждого проекта
 		slices.SortFunc(proj.Services, func(a, b ComposeService) int {
-			return strings.Compare(a.Name, b.Name)
+			if n := strings.Compare(a.Name, b.Name); n != 0 {
+				return n
+			}
+			return strings.Compare(a.ContainerName, b.ContainerName)
 		})
 
 		switch {
@@ -119,6 +123,7 @@ func GetComposeProjects(containers []ContainerItem) []ComposeProject {
 
 // filterContainersByProject возвращает контейнеры, принадлежащие указанному проекту Compose.
 func filterContainersByProject(containers []ContainerItem, projectName string) []ContainerItem {
+	projectName = strings.TrimSpace(projectName)
 	if projectName == "" {
 		return nil
 	}
@@ -132,11 +137,26 @@ func filterContainersByProject(containers []ContainerItem, projectName string) [
 }
 
 var composeCommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
-	if _, err := exec.LookPath("docker"); err != nil {
-		return nil, err
+	if _, err := exec.LookPath("docker"); err == nil {
+		cmd := exec.CommandContext(ctx, "docker", append([]string{"compose"}, args...)...)
+		out, cErr := cmd.CombinedOutput()
+		if cErr == nil {
+			return out, nil
+		}
+		// Если docker compose вернул ошибку, пробуем standalone утилиту docker-compose
+		if _, dcErr := exec.LookPath("docker-compose"); dcErr == nil {
+			cmdDC := exec.CommandContext(ctx, "docker-compose", args...)
+			return cmdDC.CombinedOutput()
+		}
+		return out, cErr
 	}
-	cmd := exec.CommandContext(ctx, "docker", append([]string{"compose"}, args...)...)
-	return cmd.CombinedOutput()
+
+	if _, dcErr := exec.LookPath("docker-compose"); dcErr == nil {
+		cmdDC := exec.CommandContext(ctx, "docker-compose", args...)
+		return cmdDC.CombinedOutput()
+	}
+
+	return nil, exec.ErrNotFound
 }
 
 // GetComposeProjectLogs читает логи всех сервисов проекта Compose.
@@ -146,7 +166,7 @@ func GetComposeProjectLogs(projectName string, containers []ContainerItem, tailL
 	}
 
 	// 1. Попытка через docker compose CLI
-	if projectName != "" {
+	if strings.TrimSpace(projectName) != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), composeLogsTimeout)
 		defer cancel()
 		out, err := composeCommandRunner(ctx, "-p", projectName, "logs", "--tail", fmt.Sprintf("%d", tailLines))
@@ -155,7 +175,7 @@ func GetComposeProjectLogs(projectName string, containers []ContainerItem, tailL
 		}
 	}
 
-	// 2. Fallback: сбор логов по найденным контейнерам проекта
+	// 2. Fallback: параллельный сбор логов по найденным контейнерам проекта
 	projectContainers := filterContainersByProject(containers, projectName)
 	if len(projectContainers) == 0 {
 		return "", fmt.Errorf("контейнеры проекта %q не найдены", projectName)
@@ -166,12 +186,33 @@ func GetComposeProjectLogs(projectName string, containers []ContainerItem, tailL
 		perContainerTail = minPerContainerTail
 	}
 
+	type containerLogEntry struct {
+		name string
+		logs string
+		err  error
+	}
+
+	entries := make([]containerLogEntry, len(projectContainers))
+	var wg sync.WaitGroup
+	for i, c := range projectContainers {
+		wg.Add(1)
+		go func(idx int, cnt ContainerItem) {
+			defer wg.Done()
+			logs, err := GetContainerLogs(cnt.ID, perContainerTail)
+			entries[idx] = containerLogEntry{
+				name: cnt.Name,
+				logs: logs,
+				err:  err,
+			}
+		}(i, c)
+	}
+	wg.Wait()
+
 	var sb strings.Builder
-	for _, c := range projectContainers {
-		logs, err := GetContainerLogs(c.ID, perContainerTail)
-		if err == nil && strings.TrimSpace(logs) != "" {
-			for _, line := range strings.Split(strings.TrimSpace(logs), "\n") {
-				sb.WriteString(c.Name)
+	for _, entry := range entries {
+		if entry.err == nil && strings.TrimSpace(entry.logs) != "" {
+			for _, line := range strings.Split(strings.TrimSpace(entry.logs), "\n") {
+				sb.WriteString(entry.name)
 				sb.WriteString(" | ")
 				sb.WriteString(line)
 				sb.WriteByte('\n')
@@ -193,7 +234,7 @@ func executeComposeProjectAction(projectName, actionName string, containers []Co
 	}
 
 	// 1. Попытка через docker compose CLI
-	if projectName != "" {
+	if strings.TrimSpace(projectName) != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), composeRestartTimeout)
 		defer cancel()
 		if _, err := composeCommandRunner(ctx, "-p", projectName, actionName); err == nil {
@@ -201,15 +242,27 @@ func executeComposeProjectAction(projectName, actionName string, containers []Co
 		}
 	}
 
-	// 2. Fallback: выполнение действия для каждого контейнера проекта
-	var errs []string
+	// 2. Fallback: параллельное выполнение действия для каждого контейнера проекта
+	var (
+		wg   sync.WaitGroup
+		mu   sync.Mutex
+		errs []string
+	)
 	for _, c := range projectContainers {
-		if err := fallbackFn(c.ID); err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", c.Name, err))
-		}
+		wg.Add(1)
+		go func(cnt ContainerItem) {
+			defer wg.Done()
+			if err := fallbackFn(cnt.ID); err != nil {
+				mu.Lock()
+				errs = append(errs, fmt.Sprintf("%s: %v", cnt.Name, err))
+				mu.Unlock()
+			}
+		}(c)
 	}
+	wg.Wait()
 
 	if len(errs) > 0 {
+		slices.Sort(errs)
 		var actionTitle string
 		switch actionName {
 		case "restart":
@@ -249,7 +302,7 @@ func DownComposeProject(projectName string, containers []ContainerItem) error {
 	}
 
 	// 1. Попытка через docker compose CLI
-	if projectName != "" {
+	if strings.TrimSpace(projectName) != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), composeRestartTimeout)
 		defer cancel()
 		if _, err := composeCommandRunner(ctx, "-p", projectName, "down"); err == nil {
@@ -257,16 +310,28 @@ func DownComposeProject(projectName string, containers []ContainerItem) error {
 		}
 	}
 
-	// 2. Fallback: остановка и удаление каждого контейнера проекта
-	var errs []string
+	// 2. Fallback: параллельная остановка и удаление каждого контейнера проекта
+	var (
+		wg   sync.WaitGroup
+		mu   sync.Mutex
+		errs []string
+	)
 	for _, c := range projectContainers {
-		_ = StopContainer(c.ID)
-		if err := RemoveContainer(c.ID); err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", c.Name, err))
-		}
+		wg.Add(1)
+		go func(cnt ContainerItem) {
+			defer wg.Done()
+			_ = StopContainer(cnt.ID)
+			if err := RemoveContainer(cnt.ID); err != nil {
+				mu.Lock()
+				errs = append(errs, fmt.Sprintf("%s: %v", cnt.Name, err))
+				mu.Unlock()
+			}
+		}(c)
 	}
+	wg.Wait()
 
 	if len(errs) > 0 {
+		slices.Sort(errs)
 		return fmt.Errorf("ошибки сворачивания (down): %s", strings.Join(errs, "; "))
 	}
 	return nil

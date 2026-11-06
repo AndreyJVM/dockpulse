@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestGetComposeProjects(t *testing.T) {
@@ -161,6 +162,22 @@ func TestGetComposeProjects(t *testing.T) {
 }
 
 func TestGetComposeProjectLogs(t *testing.T) {
+	t.Run("cli logs success", func(t *testing.T) {
+		oldRunner := composeCommandRunner
+		composeCommandRunner = func(_ context.Context, _ ...string) ([]byte, error) {
+			return []byte("web-1 | Listening on 8080\napi-1 | Server ready\n"), nil
+		}
+		defer func() { composeCommandRunner = oldRunner }()
+
+		logs, err := GetComposeProjectLogs("my-stack", nil, 50)
+		if err != nil {
+			t.Fatalf("expected nil error on CLI success, got: %v", err)
+		}
+		if !strings.Contains(logs, "Listening on 8080") {
+			t.Errorf("expected cli logs output, got: %q", logs)
+		}
+	})
+
 	t.Run("non-existent project returns error", func(t *testing.T) {
 		_, err := GetComposeProjectLogs("non-existent-proj", nil, 50)
 		if err == nil {
@@ -407,3 +424,108 @@ func TestDownComposeProject(t *testing.T) {
 		}
 	})
 }
+
+func TestExecuteComposeProjectAction_FallbackSuccess(t *testing.T) {
+	oldRunner := composeCommandRunner
+	composeCommandRunner = func(_ context.Context, _ ...string) ([]byte, error) {
+		return nil, errors.New("compose cli unavailable")
+	}
+	defer func() { composeCommandRunner = oldRunner }()
+
+	containers := []ContainerItem{
+		{ID: "c1", Name: "web-1", ComposeProject: "success-stack"},
+		{ID: "c2", Name: "web-2", ComposeProject: "success-stack"},
+	}
+
+	callCount := 0
+	mockFallback := func(_ string) error {
+		callCount++
+		return nil
+	}
+
+	err := executeComposeProjectAction("success-stack", "restart", containers, mockFallback)
+	if err != nil {
+		t.Fatalf("expected nil error when fallback succeeds, got: %v", err)
+	}
+	if callCount != 2 {
+		t.Errorf("expected 2 calls, got %d", callCount)
+	}
+}
+
+func TestExecuteComposeProjectAction_CustomActionTitle(t *testing.T) {
+	oldRunner := composeCommandRunner
+	composeCommandRunner = func(_ context.Context, _ ...string) ([]byte, error) {
+		return nil, errors.New("compose cli unavailable")
+	}
+	defer func() { composeCommandRunner = oldRunner }()
+
+	containers := []ContainerItem{
+		{ID: "c1", Name: "web-1", ComposeProject: "custom-stack"},
+	}
+
+	failingFallback := func(_ string) error {
+		return errors.New("custom failure")
+	}
+
+	err := executeComposeProjectAction("custom-stack", "pause", containers, failingFallback)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "ошибки pause") {
+		t.Errorf("expected 'ошибки pause' in error message, got: %v", err)
+	}
+}
+
+func TestDownComposeProject_EmptyProjectName(t *testing.T) {
+	err := DownComposeProject("   ", nil)
+	if err == nil {
+		t.Fatal("expected error for empty project name, got nil")
+	}
+}
+
+func TestFilterContainersByProject(t *testing.T) {
+	containers := []ContainerItem{
+		{ID: "c1", Name: "w1", ComposeProject: "my-project"},
+		{ID: "c2", Name: "w2", ComposeProject: "other-project"},
+	}
+
+	if res := filterContainersByProject(containers, ""); len(res) != 0 {
+		t.Errorf("expected 0 containers for empty project name, got %d", len(res))
+	}
+	if res := filterContainersByProject(containers, "   "); len(res) != 0 {
+		t.Errorf("expected 0 containers for whitespace project name, got %d", len(res))
+	}
+	if res := filterContainersByProject(containers, "my-project"); len(res) != 1 || res[0].ID != "c1" {
+		t.Errorf("expected 1 matching container c1, got %v", res)
+	}
+}
+
+func TestGetComposeProjects_DeterministicTieBreaker(t *testing.T) {
+	containers := []ContainerItem{
+		{ID: "c2", Name: "worker-2", ComposeProject: "scale-stack", ComposeService: "worker"},
+		{ID: "c1", Name: "worker-1", ComposeProject: "scale-stack", ComposeService: "worker"},
+		{ID: "c3", Name: "worker-3", ComposeProject: "scale-stack", ComposeService: "worker"},
+	}
+
+	projects := GetComposeProjects(containers)
+	if len(projects) != 1 {
+		t.Fatalf("expected 1 project, got %d", len(projects))
+	}
+	svcs := projects[0].Services
+	if len(svcs) != 3 {
+		t.Fatalf("expected 3 services, got %d", len(svcs))
+	}
+	if svcs[0].ContainerName != "worker-1" || svcs[1].ContainerName != "worker-2" || svcs[2].ContainerName != "worker-3" {
+		t.Errorf("expected deterministic tie-breaker sorting [worker-1, worker-2, worker-3], got [%s, %s, %s]",
+			svcs[0].ContainerName, svcs[1].ContainerName, svcs[2].ContainerName)
+	}
+}
+
+func TestComposeCommandRunner_Execution(_ *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	// Should not crash when executed
+	_, _ = composeCommandRunner(ctx, "version")
+}
+
