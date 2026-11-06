@@ -273,6 +273,10 @@ func TestDockerTabSelectedContainerDetails(t *testing.T) {
 			Mounts:         []string{"/var/www -> /usr/share/nginx/html (ro)", "nginx-logs -> /var/log/nginx (rw)"},
 			ComposeProject: "my-stack",
 			ComposeService: "web",
+			NetRxBytes:     12 * 1024 * 1024,
+			NetTxBytes:     45 * 1024 * 1024,
+			BlockReadBytes:  10 * 1024 * 1024,
+			BlockWriteBytes: 20 * 1024 * 1024,
 		},
 	}
 
@@ -288,6 +292,12 @@ func TestDockerTabSelectedContainerDetails(t *testing.T) {
 	}
 	if !strings.Contains(view, "my-stack") {
 		t.Errorf("expected compose project in details panel, got: %s", view)
+	}
+	if !strings.Contains(view, "Net I/O:") || !strings.Contains(view, "12.0 MB / 45.0 MB") {
+		t.Errorf("expected Net I/O in details panel, got: %s", view)
+	}
+	if !strings.Contains(view, "Block I/O:") || !strings.Contains(view, "10.0 MB / 20.0 MB") {
+		t.Errorf("expected Block I/O in details panel, got: %s", view)
 	}
 }
 

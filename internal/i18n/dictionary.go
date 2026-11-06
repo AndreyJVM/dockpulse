@@ -94,6 +94,8 @@ type Dictionary struct {
 	DetailMountsLabel      string
 	DetailNone             string
 	DetailComposeLabel     string
+	DetailNetIOLabel       string
+	DetailBlockIOLabel     string
 	SortBadge              string
 	SortModeDefault        string
 	SortModeCPU            string
@@ -325,6 +327,8 @@ var Ru = Dictionary{
 	DetailMountsLabel:      "Тома / Mounts:",
 	DetailNone:             "нет",
 	DetailComposeLabel:     "Compose:",
+	DetailNetIOLabel:       "Сеть (Net I/O):",
+	DetailBlockIOLabel:     "Диск (Block I/O):",
 	SortBadge:              "Сортировка: %s",
 	SortModeDefault:        "По умолчанию",
 	SortModeCPU:            "CPU ↓",
@@ -547,6 +551,8 @@ var En = Dictionary{
 	DetailMountsLabel:      "Volumes / Mounts:",
 	DetailNone:             "none",
 	DetailComposeLabel:     "Compose:",
+	DetailNetIOLabel:       "Net I/O:",
+	DetailBlockIOLabel:     "Block I/O:",
 	SortBadge:              "Sort: %s",
 	SortModeDefault:        "Default",
 	SortModeCPU:            "CPU ↓",

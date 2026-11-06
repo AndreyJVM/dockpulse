@@ -173,6 +173,10 @@ func TestRenderDockerView(t *testing.T) {
 			Mounts:         []string{"/vol -> /app (rw)"},
 			ComposeProject: "my-app",
 			ComposeService: "api",
+			NetRxBytes:     1024 * 1024,
+			NetTxBytes:     2048 * 1024,
+			BlockReadBytes:  512 * 1024,
+			BlockWriteBytes: 1536 * 1024,
 		},
 	}
 
@@ -191,5 +195,11 @@ func TestRenderDockerView(t *testing.T) {
 	}
 	if !strings.Contains(view, "/vol -> /app (rw)") || !strings.Contains(view, "my-app") {
 		t.Errorf("expected mounts and compose info in details panel, got: %s", view)
+	}
+	if !strings.Contains(view, "Net I/O:") || !strings.Contains(view, "1.0 MB / 2.0 MB") {
+		t.Errorf("expected Net I/O in details panel, got: %s", view)
+	}
+	if !strings.Contains(view, "Block I/O:") || !strings.Contains(view, "512.0 KB / 1.5 MB") {
+		t.Errorf("expected Block I/O in details panel, got: %s", view)
 	}
 }

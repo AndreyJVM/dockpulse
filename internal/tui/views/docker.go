@@ -173,6 +173,38 @@ func RenderDocker(ctx DockerContext) string {
 			}
 		}
 
+		// Network I/O
+		netIODisplay := ""
+		if sel.State == "running" {
+			netIODisplay = fmt.Sprintf("%s / %s",
+				theme.GreenStyle.Render(monitor.FormatBytes(int64(sel.NetRxBytes))),
+				theme.CyanStyle.Render(monitor.FormatBytes(int64(sel.NetTxBytes))),
+			)
+		} else {
+			netIODisplay = theme.DimStyle.Render("0 B / 0 B")
+		}
+		s.WriteString(fmt.Sprintf("  %s %-18s %s\n",
+			theme.CyanStyle.Render("│"),
+			theme.BoldStyle.Render(ctx.I18n.DetailNetIOLabel),
+			netIODisplay,
+		))
+
+		// Block I/O
+		blockIODisplay := ""
+		if sel.State == "running" {
+			blockIODisplay = fmt.Sprintf("%s / %s",
+				theme.GreenStyle.Render(monitor.FormatBytes(int64(sel.BlockReadBytes))),
+				theme.YellowStyle.Render(monitor.FormatBytes(int64(sel.BlockWriteBytes))),
+			)
+		} else {
+			blockIODisplay = theme.DimStyle.Render("0 B / 0 B")
+		}
+		s.WriteString(fmt.Sprintf("  %s %-18s %s\n",
+			theme.CyanStyle.Render("│"),
+			theme.BoldStyle.Render(ctx.I18n.DetailBlockIOLabel),
+			blockIODisplay,
+		))
+
 		// Compose Info
 		if sel.ComposeProject != "" {
 			s.WriteString(fmt.Sprintf("  %s %-18s %s\n",

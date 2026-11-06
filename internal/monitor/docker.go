@@ -51,6 +51,10 @@ type ContainerItem struct {
 	MemUsageMB     float64
 	MemLimitMB     float64
 	MemPerc        float64
+	NetRxBytes      uint64
+	NetTxBytes      uint64
+	BlockReadBytes  uint64
+	BlockWriteBytes uint64
 }
 
 // ContainerDetail содержит детальную информацию об одном контейнере.
@@ -71,6 +75,10 @@ type ContainerDetail struct {
 	CPUPerc    float64
 	MemUsageMB float64
 	MemPerc    float64
+	NetRxBytes      uint64
+	NetTxBytes      uint64
+	BlockReadBytes  uint64
+	BlockWriteBytes uint64
 }
 
 // DockerSummary содержит сводку службы Docker.
@@ -137,9 +145,39 @@ type ContainerStatsRaw struct {
 			TotalInactiveFile uint64 `json:"total_inactive_file"`
 		} `json:"stats"`
 	} `json:"memory_stats"`
+	Networks map[string]struct {
+		RxBytes uint64 `json:"rx_bytes"`
+		TxBytes uint64 `json:"tx_bytes"`
+	} `json:"networks"`
+	Network struct {
+		RxBytes uint64 `json:"rx_bytes"`
+		TxBytes uint64 `json:"tx_bytes"`
+	} `json:"network"`
+	BlkioStats struct {
+		IOServiceBytesRecursive []struct {
+			Major uint64 `json:"major"`
+			Minor uint64 `json:"minor"`
+			Op    string `json:"op"`
+			Value uint64 `json:"value"`
+		} `json:"io_service_bytes_recursive"`
+	} `json:"blkio_stats"`
 }
 
-func calculateContainerStats(s ContainerStatsRaw) (cpuPerc float64, memUsageMB float64, memLimitMB float64, memPerc float64) {
+// ContainerStats содержит вычисленные метрики контейнера (CPU, RAM, Net I/O, Block I/O).
+type ContainerStats struct {
+	CPUPerc         float64
+	MemUsageMB      float64
+	MemLimitMB      float64
+	MemPerc         float64
+	NetRxBytes      uint64
+	NetTxBytes      uint64
+	BlockReadBytes  uint64
+	BlockWriteBytes uint64
+}
+
+func calculateContainerStats(s ContainerStatsRaw) ContainerStats {
+	var stats ContainerStats
+
 	// Расчет загрузки CPU в процентах
 	cpuDelta := float64(s.CPUStats.CPUUsage.TotalUsage) - float64(s.PreCPUStats.CPUUsage.TotalUsage)
 	systemDelta := float64(s.CPUStats.SystemCPUUsage) - float64(s.PreCPUStats.SystemCPUUsage)
@@ -149,7 +187,7 @@ func calculateContainerStats(s ContainerStatsRaw) (cpuPerc float64, memUsageMB f
 	}
 
 	if systemDelta > 0 && cpuDelta > 0 {
-		cpuPerc = (cpuDelta / systemDelta) * float64(onlineCPUs) * 100.0
+		stats.CPUPerc = (cpuDelta / systemDelta) * float64(onlineCPUs) * 100.0
 	}
 
 	// Расчет потребления оперативной памяти
@@ -160,33 +198,54 @@ func calculateContainerStats(s ContainerStatsRaw) (cpuPerc float64, memUsageMB f
 		memUsage -= s.MemoryStats.Stats.InactiveFile
 	}
 
-	memUsageMB = float64(memUsage) / (1024 * 1024)
-	memLimitMB = float64(s.MemoryStats.Limit) / (1024 * 1024)
+	stats.MemUsageMB = float64(memUsage) / (1024 * 1024)
+	stats.MemLimitMB = float64(s.MemoryStats.Limit) / (1024 * 1024)
 	if s.MemoryStats.Limit > 0 {
-		memPerc = (float64(memUsage) / float64(s.MemoryStats.Limit)) * 100.0
+		stats.MemPerc = (float64(memUsage) / float64(s.MemoryStats.Limit)) * 100.0
 	}
 
-	return cpuPerc, memUsageMB, memLimitMB, memPerc
+	// Расчет Network I/O
+	if len(s.Networks) > 0 {
+		for _, net := range s.Networks {
+			stats.NetRxBytes += net.RxBytes
+			stats.NetTxBytes += net.TxBytes
+		}
+	} else {
+		stats.NetRxBytes = s.Network.RxBytes
+		stats.NetTxBytes = s.Network.TxBytes
+	}
+
+	// Расчет Block I/O
+	for _, bio := range s.BlkioStats.IOServiceBytesRecursive {
+		switch strings.ToLower(bio.Op) {
+		case "read":
+			stats.BlockReadBytes += bio.Value
+		case "write":
+			stats.BlockWriteBytes += bio.Value
+		}
+	}
+
+	return stats
 }
 
-func fetchContainerStats(client *http.Client, containerID string) (cpuPerc float64, memUsageMB float64, memLimitMB float64, memPerc float64) {
+func fetchContainerStats(client *http.Client, containerID string) ContainerStats {
 	ctx, cancel := context.WithTimeout(context.Background(), containerStatsTimeout)
 	defer cancel()
 
 	url := fmt.Sprintf("http://localhost/containers/%s/stats?stream=false&one-shot=true", containerID)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return 0, 0, 0, 0
+		return ContainerStats{}
 	}
 	resp, err := client.Do(req)
 	if err != nil || resp.StatusCode != http.StatusOK {
-		return 0, 0, 0, 0
+		return ContainerStats{}
 	}
 	defer resp.Body.Close()
 
 	var s ContainerStatsRaw
 	if err := json.NewDecoder(resp.Body).Decode(&s); err != nil {
-		return 0, 0, 0, 0
+		return ContainerStats{}
 	}
 
 	return calculateContainerStats(s)
@@ -396,11 +455,15 @@ func GetDockerSummary() DockerSummary {
 							go func(idx int, cID string) {
 								defer wg.Done()
 								defer func() { <-sem }()
-								cpu, memUsage, memLimit, memPerc := fetchContainerStats(client, cID)
-								summary.Containers[idx].CPUPerc = cpu
-								summary.Containers[idx].MemUsageMB = memUsage
-								summary.Containers[idx].MemLimitMB = memLimit
-								summary.Containers[idx].MemPerc = memPerc
+								stats := fetchContainerStats(client, cID)
+								summary.Containers[idx].CPUPerc = stats.CPUPerc
+								summary.Containers[idx].MemUsageMB = stats.MemUsageMB
+								summary.Containers[idx].MemLimitMB = stats.MemLimitMB
+								summary.Containers[idx].MemPerc = stats.MemPerc
+								summary.Containers[idx].NetRxBytes = stats.NetRxBytes
+								summary.Containers[idx].NetTxBytes = stats.NetTxBytes
+								summary.Containers[idx].BlockReadBytes = stats.BlockReadBytes
+								summary.Containers[idx].BlockWriteBytes = stats.BlockWriteBytes
 							}(i, summary.Containers[i].ID)
 						}
 					}
@@ -685,10 +748,14 @@ func GetContainerDetail(containerID string) (ContainerDetail, error) {
 
 				// Опрос метрик если контейнер запущен
 				if detail.State == "running" {
-					cpu, memUsage, _, memPerc := fetchContainerStats(client, containerID)
-					detail.CPUPerc = cpu
-					detail.MemUsageMB = memUsage
-					detail.MemPerc = memPerc
+					stats := fetchContainerStats(client, containerID)
+					detail.CPUPerc = stats.CPUPerc
+					detail.MemUsageMB = stats.MemUsageMB
+					detail.MemPerc = stats.MemPerc
+					detail.NetRxBytes = stats.NetRxBytes
+					detail.NetTxBytes = stats.NetTxBytes
+					detail.BlockReadBytes = stats.BlockReadBytes
+					detail.BlockWriteBytes = stats.BlockWriteBytes
 				}
 
 				return detail, nil

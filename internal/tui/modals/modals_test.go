@@ -46,7 +46,11 @@ func TestRenderInspect(t *testing.T) {
 		IP:        "172.17.0.2",
 		Gateway:   "172.17.0.1",
 		Command:   "nginx -g daemon off;",
-		Mounts:    []string{"/host/data -> /data (ro)"},
+		Mounts:          []string{"/host/data -> /data (ro)"},
+		NetRxBytes:      5 * 1024 * 1024,
+		NetTxBytes:      10 * 1024 * 1024,
+		BlockReadBytes:  2 * 1024 * 1024,
+		BlockWriteBytes: 4 * 1024 * 1024,
 	}
 
 	view := RenderInspect(detail, &dict)
@@ -55,6 +59,12 @@ func TestRenderInspect(t *testing.T) {
 	}
 	if !strings.Contains(view, "172.17.0.2") || !strings.Contains(view, "/host/data") {
 		t.Errorf("expected IP address and mounts in inspect view, got: %s", view)
+	}
+	if !strings.Contains(view, "Net I/O:") || !strings.Contains(view, "5.0 MB / 10.0 MB") {
+		t.Errorf("expected Net I/O in inspect view, got: %s", view)
+	}
+	if !strings.Contains(view, "Block I/O:") || !strings.Contains(view, "2.0 MB / 4.0 MB") {
+		t.Errorf("expected Block I/O in inspect view, got: %s", view)
 	}
 }
 
