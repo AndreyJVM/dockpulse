@@ -67,6 +67,24 @@ func restartContainerCmd(id, name string, dict i18n.Dictionary) tea.Cmd {
 	}
 }
 
+func killContainerCmd(id, name string, dict i18n.Dictionary) tea.Cmd {
+	return func() tea.Msg {
+		if err := monitor.KillContainer(id); err != nil {
+			return actionFinishedMsg{err: fmt.Errorf("%s%w", dict.ToastErrorKillingCont, err)}
+		}
+		return actionFinishedMsg{message: fmt.Sprintf(dict.ToastContainerKilled, name), refresh: true}
+	}
+}
+
+func removeContainerCmd(id, name string, dict i18n.Dictionary) tea.Cmd {
+	return func() tea.Msg {
+		if err := monitor.RemoveContainer(id); err != nil {
+			return actionFinishedMsg{err: fmt.Errorf("%s%w", dict.ToastErrorRemovingCont, err)}
+		}
+		return actionFinishedMsg{message: fmt.Sprintf(dict.ToastContainerRemoved, name), refresh: true}
+	}
+}
+
 func startComposeCmd(name string, containers []monitor.ContainerItem, dict i18n.Dictionary) tea.Cmd {
 	return func() tea.Msg {
 		if err := monitor.StartComposeProject(name, containers); err != nil {

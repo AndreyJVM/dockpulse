@@ -453,3 +453,77 @@ func TestContainerSorting(t *testing.T) {
 		t.Fatalf("expected wrap around to SortDefault, got %d", m.containerSortMode)
 	}
 }
+
+func TestContainerKillAndRemoveWorkflow(t *testing.T) {
+	m := NewModel(2*time.Second, 2, "v0.6.3", "en")
+	m.activeTab = 2
+	m.dockerInfo.Containers = []monitor.ContainerItem{
+		{ID: "c1", Name: "app-run", State: "running"},
+		{ID: "c2", Name: "app-stop", State: "stopped"},
+	}
+	m.cursorIdx = 0
+
+	// 1. Press K on running container triggers kill toast & cmd
+	res, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'K'}})
+	m = res.(Model)
+	if cmd == nil {
+		t.Errorf("expected non-nil cmd for killContainerCmd")
+	}
+	if !strings.Contains(m.actionMessage, "Force killing app-run") {
+		t.Errorf("expected toast 'Force killing app-run', got: %s", m.actionMessage)
+	}
+
+	// 2. Press K on stopped container shows cannot connect toast
+	m.cursorIdx = 1
+	res, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'K'}})
+	m = res.(Model)
+	if cmd != nil {
+		t.Errorf("expected nil cmd when killing stopped container")
+	}
+	if !strings.Contains(m.actionMessage, "Cannot connect") {
+		t.Errorf("expected 'Cannot connect' toast, got: %s", m.actionMessage)
+	}
+
+	// 3. Press x on container opens remove confirmation modal
+	m.cursorIdx = 1
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	m = res.(Model)
+	if m.activeModal != "remove_container" {
+		t.Fatalf("expected activeModal 'remove_container', got: %s", m.activeModal)
+	}
+	if m.removeContainerTargetID != "c2" || m.removeContainerTargetName != "app-stop" {
+		t.Errorf("unexpected remove targets: id=%s name=%s", m.removeContainerTargetID, m.removeContainerTargetName)
+	}
+
+	// 4. Modal view verification
+	view := m.View()
+	if !strings.Contains(view, "CONFIRM CONTAINER REMOVAL") || !strings.Contains(view, "app-stop") {
+		t.Errorf("expected remove modal content, got: %s", view)
+	}
+
+	// 5. Cancel removal with n
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	m = res.(Model)
+	if m.activeModal != "" {
+		t.Errorf("expected activeModal closed after 'n', got: %s", m.activeModal)
+	}
+
+	// 6. Press d on container opens remove modal and confirm with y
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
+	m = res.(Model)
+	if m.activeModal != "remove_container" {
+		t.Fatalf("expected activeModal 'remove_container' after 'd', got: %s", m.activeModal)
+	}
+
+	res, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	m = res.(Model)
+	if m.activeModal != "" {
+		t.Errorf("expected activeModal closed after 'y', got: %s", m.activeModal)
+	}
+	if cmd == nil {
+		t.Errorf("expected non-nil cmd for removeContainerCmd")
+	}
+	if !strings.Contains(m.actionMessage, "Removing container app-stop") {
+		t.Errorf("expected remove toast, got: %s", m.actionMessage)
+	}
+}

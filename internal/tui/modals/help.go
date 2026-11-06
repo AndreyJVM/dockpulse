@@ -28,6 +28,8 @@ func RenderHelp(refreshInterval time.Duration, dict *i18n.Dictionary) string {
   %s   %s
   %s   %s
   %s   %s
+  %s   %s
+  %s   %s
 
   `+dict.HelpAutoInt,
 		theme.BoldStyle.Render(dict.HelpTitle),
@@ -42,6 +44,8 @@ func RenderHelp(refreshInterval time.Duration, dict *i18n.Dictionary) string {
 		theme.GreenStyle.Render("[S]"), dict.HelpKeySS,
 		theme.GreenStyle.Render("[U]"), dict.HelpKeyStart,
 		theme.GreenStyle.Render("[P]"), dict.HelpKeyRest,
+		theme.GreenStyle.Render("[K]"), dict.HelpKeyKill,
+		theme.GreenStyle.Render("[x]"), dict.HelpKeyRemove,
 		theme.GreenStyle.Render("[D]"), dict.HelpKeyDown,
 		theme.GreenStyle.Render("[C]"), dict.HelpKeyPrune,
 		theme.GreenStyle.Render("[R]"), dict.HelpKeyRef,

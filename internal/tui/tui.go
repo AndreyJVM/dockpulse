@@ -52,7 +52,7 @@ type Model struct {
 	cursorIdx           int
 	composeCursorIdx    int
 	swarmCursorIdx      int
-	activeModal         string // "", "logs", "inspect", "compose_down", "prune"
+	activeModal         string // "", "logs", "inspect", "compose_down", "prune", "remove_container"
 	logsTargetName      string
 	logsTargetID        string
 	logsLines           []string
@@ -63,6 +63,10 @@ type Model struct {
 
 	// Compose down модальное окно
 	composeDownTarget string
+
+	// Remove Container модальное окно
+	removeContainerTargetID   string
+	removeContainerTargetName string
 
 	// Prune модальное окно
 	pruneUsage    monitor.DockerDiskUsage

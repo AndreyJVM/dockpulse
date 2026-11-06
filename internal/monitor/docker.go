@@ -524,6 +524,11 @@ func RestartContainer(containerID string) error {
 	return containerAction(containerID, "restart", http.StatusNoContent)
 }
 
+// KillContainer принудительно завершает контейнер по ID (SIGKILL).
+func KillContainer(containerID string) error {
+	return containerAction(containerID, "kill", http.StatusNoContent)
+}
+
 // RemoveContainer удаляет контейнер по ID (с флагом force=true).
 func RemoveContainer(containerID string) error {
 	if strings.TrimSpace(containerID) == "" {

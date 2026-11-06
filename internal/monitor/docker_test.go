@@ -53,6 +53,10 @@ func TestContainerOperationsEmptyID(t *testing.T) {
 		t.Errorf("expected error when restarting empty container ID")
 	}
 
+	if err := KillContainer(emptyID); err == nil {
+		t.Errorf("expected error when killing empty container ID")
+	}
+
 	if err := RemoveContainer(emptyID); err == nil {
 		t.Errorf("expected error when removing empty container ID")
 	}
@@ -84,6 +88,10 @@ func TestContainerOperationsInvalidID(t *testing.T) {
 
 	if err := RestartContainer(invalidID); err == nil {
 		t.Errorf("expected error when restarting invalid container ID")
+	}
+
+	if err := KillContainer(invalidID); err == nil {
+		t.Errorf("expected error when killing invalid container ID")
 	}
 
 	if err := RemoveContainer(invalidID); err == nil {

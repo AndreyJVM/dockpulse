@@ -37,6 +37,8 @@ type Dictionary struct {
 	FooterStart         string
 	FooterStop          string
 	FooterRestart       string
+	FooterKill          string
+	FooterRemove        string
 	FooterPrune         string
 	FooterDown          string
 	FooterSort          string
@@ -170,6 +172,12 @@ type Dictionary struct {
 	ComposeDownNotice  string
 	ComposeDownConfirm string
 
+	// Модальное окно: Remove Container
+	RemoveContainerTitle   string
+	ContainerLabel         string
+	RemoveContainerNotice  string
+	RemoveContainerConfirm string
+
 	// Модальное окно: Справка
 	HelpTitle     string
 	HelpKeyTabs   string
@@ -182,6 +190,8 @@ type Dictionary struct {
 	HelpKeySS     string
 	HelpKeyStart  string
 	HelpKeyRest   string
+	HelpKeyKill   string
+	HelpKeyRemove string
 	HelpKeyDown   string
 	HelpKeyPrune  string
 	HelpKeySort   string
@@ -221,6 +231,12 @@ type Dictionary struct {
 	ToastErrorStarting       string
 	ToastErrorStopping       string
 	ToastErrorRestartingCont string
+	ToastKillingCont         string
+	ToastContainerKilled     string
+	ToastErrorKillingCont    string
+	ToastRemovingCont        string
+	ToastContainerRemoved    string
+	ToastErrorRemovingCont   string
 }
 
 // Ru — русская локализация.
@@ -254,6 +270,8 @@ var Ru = Dictionary{
 	FooterStart:         "Старт",
 	FooterStop:          "Стоп",
 	FooterRestart:       "Рестарт",
+	FooterKill:          "Kill",
+	FooterRemove:        "Удалить",
 	FooterPrune:         "Очистка",
 	FooterDown:          "Down",
 	FooterSort:          "Сортировка",
@@ -379,6 +397,11 @@ var Ru = Dictionary{
 	ComposeDownNotice:  "Остановка и удаление всех контейнеров проекта (docker compose down)",
 	ComposeDownConfirm: "Вы уверены, что хотите выполнить down для проекта %s?",
 
+	RemoveContainerTitle:   "ПОДТВЕРЖДЕНИЕ УДАЛЕНИЯ КОНТЕЙНЕРА",
+	ContainerLabel:         "Контейнер: %s",
+	RemoveContainerNotice:  "Контейнер и его временные данные будут безвозвратно удалены (docker rm -f).",
+	RemoveContainerConfirm: "Вы уверены, что хотите принудительно удалить контейнер %s?",
+
 	HelpTitle:     "ГОРЯЧИЕ КЛАВИШИ:",
 	HelpKeyTabs:   "Переключение вкладок (1: Host, 2: Docker, 3: Compose, 4: Swarm)",
 	HelpKeyPrev:   "След. / пред. вкладка",
@@ -390,6 +413,8 @@ var Ru = Dictionary{
 	HelpKeySS:     "Запуск / остановка контейнера, остановка Compose проекта",
 	HelpKeyStart:  "Запуск остановленного проекта Compose (Start)",
 	HelpKeyRest:   "Перезапуск (restart) контейнера или проекта Compose",
+	HelpKeyKill:   "Принудительная остановка контейнера (SIGKILL)",
+	HelpKeyRemove: "Принудительное удаление контейнера (Remove)",
 	HelpKeyDown:   "Сворачивание и удаление проекта Compose (Down)",
 	HelpKeyPrune:  "Очистка неиспользуемых ресурсов Docker (Prune)",
 	HelpKeySort:   "Сортировка контейнеров (CPU / Память / Имя / Статус)",
@@ -428,6 +453,12 @@ var Ru = Dictionary{
 	ToastErrorStarting:       "Ошибка запуска контейнера: ",
 	ToastErrorStopping:       "Ошибка остановки контейнера: ",
 	ToastErrorRestartingCont: "Ошибка перезапуска контейнера: ",
+	ToastKillingCont:         "Принудительная остановка %s (kill)...",
+	ToastContainerKilled:     "Контейнер %s принудительно остановлен (kill)",
+	ToastErrorKillingCont:    "Ошибка принудительной остановки: ",
+	ToastRemovingCont:        "Удаление контейнера %s...",
+	ToastContainerRemoved:    "Контейнер %s успешно удален",
+	ToastErrorRemovingCont:   "Ошибка удаления контейнера: ",
 }
 
 // En — английская локализация.
@@ -461,6 +492,8 @@ var En = Dictionary{
 	FooterStart:         "Start",
 	FooterStop:          "Stop",
 	FooterRestart:       "Restart",
+	FooterKill:          "Kill",
+	FooterRemove:        "Remove",
 	FooterPrune:         "Prune",
 	FooterDown:          "Down",
 	FooterSort:          "Sort",
@@ -586,6 +619,11 @@ var En = Dictionary{
 	ComposeDownNotice:  "Stopping and removing all project containers (docker compose down)",
 	ComposeDownConfirm: "Are you sure you want to down project %s?",
 
+	RemoveContainerTitle:   "CONFIRM CONTAINER REMOVAL",
+	ContainerLabel:         "Container: %s",
+	RemoveContainerNotice:  "The container and its ephemeral data will be permanently removed (docker rm -f).",
+	RemoveContainerConfirm: "Are you sure you want to force remove container %s?",
+
 	HelpTitle:     "HOTKEYS:",
 	HelpKeyTabs:   "Switch tabs (1: Host, 2: Docker, 3: Compose, 4: Swarm)",
 	HelpKeyPrev:   "Next / previous tab",
@@ -597,6 +635,8 @@ var En = Dictionary{
 	HelpKeySS:     "Start / stop container, stop Compose project",
 	HelpKeyStart:  "Start stopped Compose project (Start)",
 	HelpKeyRest:   "Restart container or Compose project",
+	HelpKeyKill:   "Force kill container (SIGKILL)",
+	HelpKeyRemove: "Force remove container (Remove)",
 	HelpKeyDown:   "Down and remove Compose project (Down)",
 	HelpKeyPrune:  "Prune unused Docker resources (Prune)",
 	HelpKeySort:   "Cycle container sorting (CPU / Memory / Name / Status)",
@@ -635,6 +675,12 @@ var En = Dictionary{
 	ToastErrorStarting:       "Error starting container: ",
 	ToastErrorStopping:       "Error stopping container: ",
 	ToastErrorRestartingCont: "Error restarting container: ",
+	ToastKillingCont:         "Force killing %s...",
+	ToastContainerKilled:     "Container %s force-killed successfully",
+	ToastErrorKillingCont:    "Error killing container: ",
+	ToastRemovingCont:        "Removing container %s...",
+	ToastContainerRemoved:    "Container %s removed successfully",
+	ToastErrorRemovingCont:   "Error removing container: ",
 }
 
 // Get возвращает словарь для указанного языка ("ru" или "en").

@@ -122,6 +122,25 @@ func (m Model) handleModalInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.activeModal == "remove_container" {
+		switch msg.String() {
+		case "esc", "q", "n", "N":
+			m.activeModal = ""
+			m.removeContainerTargetID = ""
+			m.removeContainerTargetName = ""
+			return m, nil
+		case "y", "Y":
+			targetID := m.removeContainerTargetID
+			targetName := m.removeContainerTargetName
+			m.activeModal = ""
+			m.removeContainerTargetID = ""
+			m.removeContainerTargetName = ""
+			m.showToast(fmt.Sprintf(m.i18n.ToastRemovingCont, targetName))
+			return m, removeContainerCmd(targetID, targetName, m.i18n)
+		}
+		return m, nil
+	}
+
 	if m.activeModal == "prune" {
 		switch msg.String() {
 		case "q":
@@ -400,9 +419,18 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, startComposeCmd(proj.Name, m.dockerInfo.Containers, m.i18n)
 		}
 
-	// Сворачивание проекта Compose (Down)
+	// Сворачивание проекта Compose (Down) или Удаление контейнера (Delete)
 	case "d", "D":
-		if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
+		if m.activeTab == 2 && !m.isFiltering {
+			containers := m.getFilteredContainers()
+			if len(containers) > 0 && m.cursorIdx < len(containers) {
+				c := containers[m.cursorIdx]
+				m.removeContainerTargetID = c.ID
+				m.removeContainerTargetName = c.Name
+				m.activeModal = "remove_container"
+				return m, nil
+			}
+		} else if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
 			proj := m.compose[m.composeCursorIdx]
 			m.composeDownTarget = proj.Name
 			m.activeModal = "compose_down"
@@ -430,6 +458,34 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 						err:           err,
 					}
 				})
+			}
+		}
+
+	// Принудительное завершение контейнера (Kill / SIGKILL)
+	case "K":
+		if m.activeTab == 2 && !m.isFiltering {
+			containers := m.getFilteredContainers()
+			if len(containers) > 0 && m.cursorIdx < len(containers) {
+				c := containers[m.cursorIdx]
+				if c.State == "running" {
+					m.showToast(fmt.Sprintf(m.i18n.ToastKillingCont, c.Name))
+					return m, killContainerCmd(c.ID, c.Name, m.i18n)
+				}
+				m.showToast(fmt.Sprintf(m.i18n.ToastCannotConnect, c.Name))
+				return m, nil
+			}
+		}
+
+	// Удаление контейнера (Remove)
+	case "x", "X":
+		if m.activeTab == 2 && !m.isFiltering {
+			containers := m.getFilteredContainers()
+			if len(containers) > 0 && m.cursorIdx < len(containers) {
+				c := containers[m.cursorIdx]
+				m.removeContainerTargetID = c.ID
+				m.removeContainerTargetName = c.Name
+				m.activeModal = "remove_container"
+				return m, nil
 			}
 		}
 
