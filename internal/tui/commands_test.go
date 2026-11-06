@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AndreyJVM/dockpulse/internal/i18n"
 	"github.com/AndreyJVM/dockpulse/internal/monitor"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -118,5 +119,38 @@ func TestDataFetchedMsg(t *testing.T) {
 	}
 	if m.cpuInfo.Cores != 8 {
 		t.Errorf("expected 8 cores, got: %d", m.cpuInfo.Cores)
+	}
+}
+
+func TestKillAndRemoveCommandsExecution(t *testing.T) {
+	dict := i18n.Get("en")
+
+	// 1. Test killContainerCmd returns non-nil actionFinishedMsg
+	killCmd := killContainerCmd("c-test", "test-app", dict)
+	if killCmd == nil {
+		t.Fatal("expected non-nil tea.Cmd for killContainerCmd")
+	}
+	killMsg := killCmd()
+	afm, ok := killMsg.(actionFinishedMsg)
+	if !ok {
+		t.Fatalf("expected actionFinishedMsg, got %T", killMsg)
+	}
+	// On invalid container in non-docker env, should return error or message
+	if afm.err == nil && !strings.Contains(afm.message, "test-app") {
+		t.Errorf("expected container name in message if no error, got: %+v", afm)
+	}
+
+	// 2. Test removeContainerCmd returns non-nil actionFinishedMsg
+	removeCmd := removeContainerCmd("c-test", "test-app", dict)
+	if removeCmd == nil {
+		t.Fatal("expected non-nil tea.Cmd for removeContainerCmd")
+	}
+	removeMsg := removeCmd()
+	afmRem, ok := removeMsg.(actionFinishedMsg)
+	if !ok {
+		t.Fatalf("expected actionFinishedMsg, got %T", removeMsg)
+	}
+	if afmRem.err == nil && !strings.Contains(afmRem.message, "test-app") {
+		t.Errorf("expected container name in message if no error, got: %+v", afmRem)
 	}
 }

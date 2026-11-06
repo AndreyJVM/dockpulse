@@ -225,6 +225,22 @@ func (m *Model) clampCursor() {
 	} else if m.cursorIdx < 0 {
 		m.cursorIdx = 0
 	}
+
+	if len(m.compose) == 0 {
+		m.composeCursorIdx = 0
+	} else if m.composeCursorIdx >= len(m.compose) {
+		m.composeCursorIdx = len(m.compose) - 1
+	} else if m.composeCursorIdx < 0 {
+		m.composeCursorIdx = 0
+	}
+
+	if len(m.swarm.Services) == 0 {
+		m.swarmCursorIdx = 0
+	} else if m.swarmCursorIdx >= len(m.swarm.Services) {
+		m.swarmCursorIdx = len(m.swarm.Services) - 1
+	} else if m.swarmCursorIdx < 0 {
+		m.swarmCursorIdx = 0
+	}
 }
 
 func (m Model) Init() tea.Cmd {
