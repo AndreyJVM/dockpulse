@@ -25,6 +25,7 @@
 - **Docker Containers**:
   - Live CPU% and memory stats with dynamic color coding.
   - Interactive sorting by CPU%, RAM, Name, or Status (`s`, `o`).
+  - Live Network I/O (RX/TX) and Block I/O (Read/Write) metrics in details panel and inspect modal.
   - Healthcheck statuses (`[healthy]`, `[unhealthy]`, `[starting]`).
   - Search & filter by name, image, ID, or health status (`/`).
   - Logs viewer with scroll support (`L`).
@@ -45,12 +46,12 @@
 
 ```bash
 # AMD64 (x86_64)
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.0_amd64.deb
-sudo dpkg -i dockpulse_0.7.0_amd64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.1_amd64.deb
+sudo dpkg -i dockpulse_0.7.1_amd64.deb
 
 # ARM64
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.0_arm64.deb
-sudo dpkg -i dockpulse_0.7.0_arm64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.1_arm64.deb
+sudo dpkg -i dockpulse_0.7.1_arm64.deb
 ```
 
 #### Pre-built Binaries (Linux / macOS)
@@ -59,11 +60,11 @@ Download the latest archive from [Releases](https://github.com/AndreyJVM/dockpul
 
 ```bash
 # Linux AMD64
-tar -xzf dockpulse_v0.7.0_linux_amd64.tar.gz
+tar -xzf dockpulse_v0.7.1_linux_amd64.tar.gz
 ./dockpulse
 
 # macOS (Apple Silicon)
-tar -xzf dockpulse_v0.7.0_darwin_arm64.tar.gz
+tar -xzf dockpulse_v0.7.1_darwin_arm64.tar.gz
 ./dockpulse
 ```
 
@@ -122,6 +123,7 @@ Options:
 - **Docker-контейнеры**:
   - Мониторинг CPU% и RAM для каждого контейнера с цветовой индикацией.
   - Интерактивная сортировка по CPU%, RAM, имени или статусу (`s`, `o`).
+  - Метрики Network I/O (RX/TX) и Block I/O (чтение/запись) в панели деталей и окне инспекции.
   - Статусы Healthcheck (`[healthy]`, `[unhealthy]`, `[starting]`).
   - Поиск и фильтрация по имени, образу, ID или статусу здоровья (`/`).
   - Встроенный просмотрщик логов с поддержкой прокрутки (`L`).
@@ -142,12 +144,12 @@ Options:
 
 ```bash
 # AMD64 (x86_64)
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.0_amd64.deb
-sudo dpkg -i dockpulse_0.7.0_amd64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.1_amd64.deb
+sudo dpkg -i dockpulse_0.7.1_amd64.deb
 
 # ARM64
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.0_arm64.deb
-sudo dpkg -i dockpulse_0.7.0_arm64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.1_arm64.deb
+sudo dpkg -i dockpulse_0.7.1_arm64.deb
 ```
 
 #### Готовые бинарные файлы (Linux / macOS)
@@ -156,11 +158,11 @@ sudo dpkg -i dockpulse_0.7.0_arm64.deb
 
 ```bash
 # Linux AMD64
-tar -xzf dockpulse_v0.7.0_linux_amd64.tar.gz
+tar -xzf dockpulse_v0.7.1_linux_amd64.tar.gz
 ./dockpulse
 
 # macOS (Apple Silicon)
-tar -xzf dockpulse_v0.7.0_darwin_arm64.tar.gz
+tar -xzf dockpulse_v0.7.1_darwin_arm64.tar.gz
 ./dockpulse
 ```
 
