@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -40,18 +41,42 @@ func TestParseFlags_CustomValues(t *testing.T) {
 		wantLang     string
 	}{
 		{
-			name:         "short flags",
+			name:         "short flags numeric",
 			args:         []string{"-i", "1s", "-t", "3", "-l", "en"},
 			wantInterval: 1 * time.Second,
 			wantTab:      3,
 			wantLang:     "en",
 		},
 		{
-			name:         "long flags",
+			name:         "long flags numeric",
 			args:         []string{"--interval", "500ms", "--tab", "2", "--lang", "ru"},
 			wantInterval: 500 * time.Millisecond,
 			wantTab:      2,
 			wantLang:     "ru",
+		},
+		{
+			name:         "named tab host",
+			args:         []string{"--tab", "host"},
+			wantInterval: defaultInterval,
+			wantTab:      1,
+		},
+		{
+			name:         "named tab docker",
+			args:         []string{"-t", "docker"},
+			wantInterval: defaultInterval,
+			wantTab:      2,
+		},
+		{
+			name:         "named tab compose",
+			args:         []string{"--tab", "compose"},
+			wantInterval: defaultInterval,
+			wantTab:      3,
+		},
+		{
+			name:         "named tab swarm",
+			args:         []string{"-t", "swarm"},
+			wantInterval: defaultInterval,
+			wantTab:      4,
 		},
 	}
 
@@ -63,13 +88,92 @@ func TestParseFlags_CustomValues(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if cfg.interval != tt.wantInterval {
-				t.Errorf("expected interval %v, got %v", tt.wantInterval, cfg.interval)
+				t.Errorf("expected interval %v, got %v", defaultInterval, cfg.interval)
 			}
 			if cfg.initialTab != tt.wantTab {
 				t.Errorf("expected initialTab %d, got %d", tt.wantTab, cfg.initialTab)
 			}
-			if cfg.lang != tt.wantLang {
+			if tt.wantLang != "" && cfg.lang != tt.wantLang {
 				t.Errorf("expected lang %s, got %s", tt.wantLang, cfg.lang)
+			}
+		})
+	}
+}
+
+func TestParseFlags_EnvVariables(t *testing.T) {
+	origInterval := os.Getenv("DOCKPULSE_INTERVAL")
+	origTab := os.Getenv("DOCKPULSE_TAB")
+	origLang := os.Getenv("DOCKPULSE_LANG")
+	defer func() {
+		os.Setenv("DOCKPULSE_INTERVAL", origInterval)
+		os.Setenv("DOCKPULSE_TAB", origTab)
+		os.Setenv("DOCKPULSE_LANG", origLang)
+	}()
+
+	os.Setenv("DOCKPULSE_INTERVAL", "3s")
+	os.Setenv("DOCKPULSE_TAB", "compose")
+	os.Setenv("DOCKPULSE_LANG", "ru")
+
+	var stdout, stderr bytes.Buffer
+	cfg, err := parseFlags([]string{}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.interval != 3*time.Second {
+		t.Errorf("expected interval from env 3s, got %v", cfg.interval)
+	}
+	if cfg.initialTab != 3 {
+		t.Errorf("expected tab from env 3 (compose), got %d", cfg.initialTab)
+	}
+	if cfg.lang != "ru" {
+		t.Errorf("expected lang from env ru, got %s", cfg.lang)
+	}
+
+	// CLI flags must override env variables
+	cfgOverridden, err := parseFlags([]string{"-i", "500ms", "-t", "swarm", "-l", "en"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfgOverridden.interval != 500*time.Millisecond {
+		t.Errorf("expected overridden interval 500ms, got %v", cfgOverridden.interval)
+	}
+	if cfgOverridden.initialTab != 4 {
+		t.Errorf("expected overridden tab 4 (swarm), got %d", cfgOverridden.initialTab)
+	}
+	if cfgOverridden.lang != "en" {
+		t.Errorf("expected overridden lang en, got %s", cfgOverridden.lang)
+	}
+}
+
+func TestParseTab(t *testing.T) {
+	tests := []struct {
+		input   string
+		want    int
+		wantErr bool
+	}{
+		{"1", 1, false},
+		{"host", 1, false},
+		{"Host", 1, false},
+		{"2", 2, false},
+		{"docker", 2, false},
+		{"3", 3, false},
+		{"compose", 3, false},
+		{"4", 4, false},
+		{"swarm", 4, false},
+		{"5", 0, true},
+		{"unknown", 0, true},
+		{"", 0, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got, err := parseTab(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseTab(%q) error = %v, wantErr = %v", tt.input, err, tt.wantErr)
+			}
+			if got != tt.want {
+				t.Errorf("parseTab(%q) = %d, want = %d", tt.input, got, tt.want)
 			}
 		})
 	}
@@ -178,7 +282,7 @@ func TestRun_ValidationFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for invalid tab, got nil")
 	}
-	if !strings.Contains(err.Error(), "начальная вкладка должна быть в диапазоне от 1 до 4") {
+	if !strings.Contains(err.Error(), "недопустимая начальная вкладка") {
 		t.Errorf("unexpected error: %v", err)
 	}
 
@@ -191,9 +295,36 @@ func TestRun_ValidationFailure(t *testing.T) {
 	}
 }
 
+func TestRun_TerminalCheck(t *testing.T) {
+	origIsTerminal := isTerminal
+	defer func() { isTerminal = origIsTerminal }()
+
+	// Non-terminal check
+	isTerminal = func(_ uintptr) bool {
+		return false
+	}
+
+	var stdout, stderr bytes.Buffer
+	err := run([]string{}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error when running outside of interactive terminal, got nil")
+	}
+	if !strings.Contains(err.Error(), "требует интерактивного терминала (TTY)") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
 func TestRun_ProgramExecution(t *testing.T) {
 	origRunProgram := runProgram
-	defer func() { runProgram = origRunProgram }()
+	origIsTerminal := isTerminal
+	defer func() {
+		runProgram = origRunProgram
+		isTerminal = origIsTerminal
+	}()
+
+	isTerminal = func(_ uintptr) bool {
+		return true
+	}
 
 	var executed bool
 	runProgram = func(_ tea.Model) error {

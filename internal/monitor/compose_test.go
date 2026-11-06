@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"sync"
 )
 
 func TestGetComposeProjects(t *testing.T) {
@@ -437,9 +438,12 @@ func TestExecuteComposeProjectAction_FallbackSuccess(t *testing.T) {
 		{ID: "c2", Name: "web-2", ComposeProject: "success-stack"},
 	}
 
+	var mu sync.Mutex
 	callCount := 0
 	mockFallback := func(_ string) error {
+		mu.Lock()
 		callCount++
+		mu.Unlock()
 		return nil
 	}
 
@@ -447,8 +451,11 @@ func TestExecuteComposeProjectAction_FallbackSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected nil error when fallback succeeds, got: %v", err)
 	}
-	if callCount != 2 {
-		t.Errorf("expected 2 calls, got %d", callCount)
+	mu.Lock()
+	count := callCount
+	mu.Unlock()
+	if count != 2 {
+		t.Errorf("expected 2 calls, got %d", count)
 	}
 }
 
