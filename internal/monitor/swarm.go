@@ -1,14 +1,18 @@
 package monitor
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
+
+const swarmTimeout = 5 * time.Second
 
 // SwarmNode представляет узел кластера Swarm.
 type SwarmNode struct {
@@ -267,7 +271,7 @@ func parseSwarmCLIInfo(output string) (isActive bool, isManager bool, nodes int,
 
 // GetSwarmSummary собирает информацию о кластере Swarm.
 func GetSwarmSummary() SwarmSummary {
-	sockPath := FindDockerSocket()
+	sockPath := dockerSocketFinder()
 	summary := SwarmSummary{
 		IsActive:      false,
 		StatusDisplay: "Не активен",
@@ -275,37 +279,60 @@ func GetSwarmSummary() SwarmSummary {
 	}
 
 	if sockPath != "" {
-		client := getSocketHTTPClient(sockPath)
-		resp, err := client.Get("http://localhost/info")
-		if err == nil && resp.StatusCode == 200 {
-			defer resp.Body.Close()
-			body, _ := io.ReadAll(resp.Body)
+		client := socketClientFactory(sockPath)
+		ctx, cancel := context.WithTimeout(context.Background(), swarmTimeout)
+		defer cancel()
 
-			if parsed, ok := parseSwarmInfo(body); ok {
-				summary = parsed
-				svcTasks, nodeTasks := fetchSwarmTasks(client)
-				summary.Nodes = fetchSwarmNodes(client, nodeTasks)
-				summary.Services = fetchSwarmServices(client, svcTasks)
-				summary.Text = fmt.Sprintf("Кластер Swarm: %d нод (%d менеджеров), %d служб", summary.NodesCount, summary.ManagersCount, len(summary.Services))
-				return summary
+		req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/info", nil)
+		if err == nil {
+			resp, err := client.Do(req)
+			if err == nil && resp.StatusCode == http.StatusOK {
+				defer resp.Body.Close()
+				body, _ := io.ReadAll(resp.Body)
+
+				if parsed, ok := parseSwarmInfo(body); ok {
+					summary = parsed
+					svcTasks, nodeTasks := fetchSwarmTasks(client)
+
+					var (
+						nodes    []SwarmNode
+						services []SwarmService
+						wg       sync.WaitGroup
+					)
+					wg.Add(2)
+					go func() {
+						defer wg.Done()
+						nodes = fetchSwarmNodes(client, nodeTasks)
+					}()
+					go func() {
+						defer wg.Done()
+						services = fetchSwarmServices(client, svcTasks)
+					}()
+					wg.Wait()
+
+					summary.Nodes = nodes
+					summary.Services = services
+					summary.Text = fmt.Sprintf("Кластер Swarm: %d нод (%d менеджеров), %d служб", summary.NodesCount, summary.ManagersCount, len(summary.Services))
+					return summary
+				}
 			}
 		}
 	}
 
 	// Fallback CLI
-	if _, err := exec.LookPath("docker"); err == nil {
-		out, err := exec.Command("docker", "info", "--format", "{{.Swarm.LocalNodeState}} {{.Swarm.ControlAvailable}} {{.Swarm.Nodes}} {{.Swarm.Managers}}").Output()
-		if err == nil {
-			active, isManager, nodes, managers := parseSwarmCLIInfo(string(out))
-			if active {
-				summary.IsActive = true
-				summary.StatusDisplay = "Активен"
-				summary.IsManager = isManager
-				summary.NodesCount = nodes
-				summary.ManagersCount = managers
-				summary.Text = fmt.Sprintf("Кластер Swarm: %d нод (%d менеджеров)", nodes, managers)
-				return summary
-			}
+	ctx, cancel := context.WithTimeout(context.Background(), swarmTimeout)
+	defer cancel()
+	out, err := dockerCLICommandRunner(ctx, "info", "--format", "{{.Swarm.LocalNodeState}} {{.Swarm.ControlAvailable}} {{.Swarm.Nodes}} {{.Swarm.Managers}}")
+	if err == nil {
+		active, isManager, nodes, managers := parseSwarmCLIInfo(string(out))
+		if active {
+			summary.IsActive = true
+			summary.StatusDisplay = "Активен"
+			summary.IsManager = isManager
+			summary.NodesCount = nodes
+			summary.ManagersCount = managers
+			summary.Text = fmt.Sprintf("Кластер Swarm: %d нод (%d менеджеров)", nodes, managers)
+			return summary
 		}
 	}
 
@@ -313,8 +340,16 @@ func GetSwarmSummary() SwarmSummary {
 }
 
 func fetchSwarmTasks(client *http.Client) (map[string]int, map[string]int) {
-	resp, err := client.Get("http://localhost/tasks")
-	if err != nil || resp.StatusCode != 200 {
+	ctx, cancel := context.WithTimeout(context.Background(), swarmTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/tasks", nil)
+	if err != nil {
+		return make(map[string]int), make(map[string]int)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
 		return make(map[string]int), make(map[string]int)
 	}
 	defer resp.Body.Close()
@@ -324,8 +359,16 @@ func fetchSwarmTasks(client *http.Client) (map[string]int, map[string]int) {
 }
 
 func fetchSwarmNodes(client *http.Client, nodeTasks map[string]int) []SwarmNode {
-	resp, err := client.Get("http://localhost/nodes")
-	if err != nil || resp.StatusCode != 200 {
+	ctx, cancel := context.WithTimeout(context.Background(), swarmTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/nodes", nil)
+	if err != nil {
+		return nil
+	}
+
+	resp, err := client.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
 		return nil
 	}
 	defer resp.Body.Close()
@@ -335,8 +378,16 @@ func fetchSwarmNodes(client *http.Client, nodeTasks map[string]int) []SwarmNode 
 }
 
 func fetchSwarmServices(client *http.Client, runningTasks map[string]int) []SwarmService {
-	resp, err := client.Get("http://localhost/services")
-	if err != nil || resp.StatusCode != 200 {
+	ctx, cancel := context.WithTimeout(context.Background(), swarmTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/services", nil)
+	if err != nil {
+		return nil
+	}
+
+	resp, err := client.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
 		return nil
 	}
 	defer resp.Body.Close()
@@ -351,20 +402,28 @@ func GetSwarmServiceLogs(serviceID string, tailLines int) (string, error) {
 		tailLines = 100
 	}
 
-	sockPath := FindDockerSocket()
+	sockPath := dockerSocketFinder()
 	if sockPath != "" {
-		client := getSocketHTTPClient(sockPath)
+		client := socketClientFactory(sockPath)
 		url := fmt.Sprintf("http://localhost/services/%s/logs?stdout=1&stderr=1&tail=%d", serviceID, tailLines)
-		resp, err := client.Get(url)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 		if err == nil {
-			defer resp.Body.Close()
-			if resp.StatusCode == 200 {
-				return demuxDockerLogs(resp.Body), nil
+			resp, err := client.Do(req)
+			if err == nil {
+				defer resp.Body.Close()
+				if resp.StatusCode == http.StatusOK {
+					return demuxDockerLogs(resp.Body), nil
+				}
 			}
 		}
 	}
 
-	out, err := exec.Command("docker", "service", "logs", "--tail", fmt.Sprintf("%d", tailLines), serviceID).CombinedOutput()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := dockerCLICommandRunner(ctx, "service", "logs", "--tail", fmt.Sprintf("%d", tailLines), serviceID)
 	if err != nil {
 		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}

@@ -36,21 +36,21 @@ const (
 
 // ContainerItem содержит описание отдельного контейнера.
 type ContainerItem struct {
-	ID             string
-	Name           string
-	Image          string
-	State          string
-	Status         string
-	Health         string
-	Ports          string
-	ComposeProject string
-	ComposeService string
-	Labels         map[string]string
-	Mounts         []string
-	CPUPerc        float64
-	MemUsageMB     float64
-	MemLimitMB     float64
-	MemPerc        float64
+	ID              string
+	Name            string
+	Image           string
+	State           string
+	Status          string
+	Health          string
+	Ports           string
+	ComposeProject  string
+	ComposeService  string
+	Labels          map[string]string
+	Mounts          []string
+	CPUPerc         float64
+	MemUsageMB      float64
+	MemLimitMB      float64
+	MemPerc         float64
 	NetRxBytes      uint64
 	NetTxBytes      uint64
 	BlockReadBytes  uint64
@@ -59,22 +59,22 @@ type ContainerItem struct {
 
 // ContainerDetail содержит детальную информацию об одном контейнере.
 type ContainerDetail struct {
-	ID         string
-	Name       string
-	Image      string
-	Created    string
-	State      string
-	Status     string
-	Health     string
-	IP         string
-	Gateway    string
-	MACAddress string
-	Command    string
-	Mounts     []string
-	Env        []string
-	CPUPerc    float64
-	MemUsageMB float64
-	MemPerc    float64
+	ID              string
+	Name            string
+	Image           string
+	Created         string
+	State           string
+	Status          string
+	Health          string
+	IP              string
+	Gateway         string
+	MACAddress      string
+	Command         string
+	Mounts          []string
+	Env             []string
+	CPUPerc         float64
+	MemUsageMB      float64
+	MemPerc         float64
 	NetRxBytes      uint64
 	NetTxBytes      uint64
 	BlockReadBytes  uint64
@@ -177,6 +177,7 @@ type ContainerStats struct {
 
 func calculateContainerStats(s ContainerStatsRaw) ContainerStats {
 	var stats ContainerStats
+	const mebiByte = 1024 * 1024
 
 	// Расчет загрузки CPU в процентах
 	cpuDelta := float64(s.CPUStats.CPUUsage.TotalUsage) - float64(s.PreCPUStats.CPUUsage.TotalUsage)
@@ -198,8 +199,8 @@ func calculateContainerStats(s ContainerStatsRaw) ContainerStats {
 		memUsage -= s.MemoryStats.Stats.InactiveFile
 	}
 
-	stats.MemUsageMB = float64(memUsage) / (1024 * 1024)
-	stats.MemLimitMB = float64(s.MemoryStats.Limit) / (1024 * 1024)
+	stats.MemUsageMB = float64(memUsage) / mebiByte
+	stats.MemLimitMB = float64(s.MemoryStats.Limit) / mebiByte
 	if s.MemoryStats.Limit > 0 {
 		stats.MemPerc = (float64(memUsage) / float64(s.MemoryStats.Limit)) * 100.0
 	}
@@ -301,6 +302,17 @@ func getSocketHTTPClient(sockPath string) *http.Client {
 	}
 }
 
+var (
+	dockerSocketFinder   = FindDockerSocket
+	socketClientFactory  = getSocketHTTPClient
+	dockerCLICommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
+		if ctx == nil {
+			return exec.Command("docker", args...).CombinedOutput()
+		}
+		return exec.CommandContext(ctx, "docker", args...).CombinedOutput()
+	}
+)
+
 type rawPort struct {
 	IP          string `json:"IP"`
 	PrivatePort int    `json:"PrivatePort"`
@@ -326,7 +338,7 @@ func formatPorts(ports []rawPort) string {
 // GetDockerSummary собирает статус службы Docker и список контейнеров с живыми метриками.
 func GetDockerSummary() DockerSummary {
 	_, cliErr := exec.LookPath("docker")
-	sockPath := FindDockerSocket()
+	sockPath := dockerSocketFinder()
 
 	if cliErr != nil && sockPath == "" {
 		return DockerSummary{
@@ -341,7 +353,7 @@ func GetDockerSummary() DockerSummary {
 	}
 
 	if sockPath != "" {
-		client := getSocketHTTPClient(sockPath)
+		client := socketClientFactory(sockPath)
 
 		// 1. Опрос /info
 		resp, err := client.Get("http://localhost/info")
@@ -475,7 +487,9 @@ func GetDockerSummary() DockerSummary {
 	}
 
 	// Fallback CLI
-	out, err := exec.Command("docker", "info", "--format", "{{.Containers}} {{.ContainersRunning}} {{.ContainersStopped}} {{.Images}} {{.ServerVersion}}").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := dockerCLICommandRunner(ctx, "info", "--format", "{{.Containers}} {{.ContainersRunning}} {{.ContainersStopped}} {{.Images}} {{.ServerVersion}}")
 	if err == nil {
 		parts := strings.Fields(string(out))
 		if len(parts) >= 5 {
@@ -486,7 +500,9 @@ func GetDockerSummary() DockerSummary {
 	}
 
 	if summary.Status == DockerStatusRunning && len(summary.Containers) == 0 {
-		psOut, psErr := exec.Command("docker", "ps", "-a", "--format", "{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Status}}\t{{.Ports}}\t{{.Mounts}}\t{{.Labels}}").Output()
+		psCtx, psCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer psCancel()
+		psOut, psErr := dockerCLICommandRunner(psCtx, "ps", "-a", "--format", "{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Status}}\t{{.Ports}}\t{{.Mounts}}\t{{.Labels}}")
 		if psErr == nil {
 			lines := strings.Split(strings.TrimSpace(string(psOut)), "\n")
 			for _, line := range lines {
@@ -548,9 +564,9 @@ func containerAction(containerID, action string, validCodes ...int) error {
 		return fmt.Errorf("container ID cannot be empty")
 	}
 
-	sockPath := FindDockerSocket()
+	sockPath := dockerSocketFinder()
 	if sockPath != "" {
-		client := getSocketHTTPClient(sockPath)
+		client := socketClientFactory(sockPath)
 		url := fmt.Sprintf("http://localhost/containers/%s/%s", containerID, action)
 		resp, err := client.Post(url, "application/json", nil)
 		if err == nil {
@@ -565,7 +581,9 @@ func containerAction(containerID, action string, validCodes ...int) error {
 		}
 	}
 
-	out, err := exec.Command("docker", action, containerID).CombinedOutput()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := dockerCLICommandRunner(ctx, action, containerID)
 	if err != nil {
 		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}
@@ -598,9 +616,9 @@ func RemoveContainer(containerID string) error {
 		return fmt.Errorf("container ID cannot be empty")
 	}
 
-	sockPath := FindDockerSocket()
+	sockPath := dockerSocketFinder()
 	if sockPath != "" {
-		client := getSocketHTTPClient(sockPath)
+		client := socketClientFactory(sockPath)
 		url := fmt.Sprintf("http://localhost/containers/%s?v=1&force=true", containerID)
 		req, err := http.NewRequest(http.MethodDelete, url, nil)
 		if err == nil {
@@ -616,7 +634,9 @@ func RemoveContainer(containerID string) error {
 		}
 	}
 
-	out, err := exec.Command("docker", "rm", "-f", containerID).CombinedOutput()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := dockerCLICommandRunner(ctx, "rm", "-f", containerID)
 	if err != nil {
 		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}
@@ -632,9 +652,9 @@ func GetContainerLogs(containerID string, tailLines int) (string, error) {
 		tailLines = defaultTailLines
 	}
 
-	sockPath := FindDockerSocket()
+	sockPath := dockerSocketFinder()
 	if sockPath != "" {
-		client := getSocketHTTPClient(sockPath)
+		client := socketClientFactory(sockPath)
 		url := fmt.Sprintf("http://localhost/containers/%s/logs?stdout=1&stderr=1&tail=%d", containerID, tailLines)
 		resp, err := client.Get(url)
 		if err == nil {
@@ -645,7 +665,9 @@ func GetContainerLogs(containerID string, tailLines int) (string, error) {
 		}
 	}
 
-	out, err := exec.Command("docker", "logs", "--tail", fmt.Sprintf("%d", tailLines), containerID).CombinedOutput()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := dockerCLICommandRunner(ctx, "logs", "--tail", fmt.Sprintf("%d", tailLines), containerID)
 	if err != nil {
 		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}
@@ -688,9 +710,9 @@ func GetContainerDetail(containerID string) (ContainerDetail, error) {
 	}
 	detail.ID = containerID
 
-	sockPath := FindDockerSocket()
+	sockPath := dockerSocketFinder()
 	if sockPath != "" {
-		client := getSocketHTTPClient(sockPath)
+		client := socketClientFactory(sockPath)
 		url := fmt.Sprintf("http://localhost/containers/%s/json", containerID)
 		resp, err := client.Get(url)
 		if err == nil && resp.StatusCode == http.StatusOK {
@@ -764,7 +786,9 @@ func GetContainerDetail(containerID string) (ContainerDetail, error) {
 	}
 
 	// CLI inspect fallback
-	out, err := exec.Command("docker", "inspect", containerID).Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := dockerCLICommandRunner(ctx, "inspect", containerID)
 	if err == nil {
 		var raw []map[string]interface{}
 		if json.Unmarshal(out, &raw) == nil && len(raw) > 0 {

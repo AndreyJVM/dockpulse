@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os/exec"
 	"strings"
 	"time"
 )
+
+const pruneTimeout = 30 * time.Second
 
 // DockerDiskItem содержит информацию об одной категории дисковых ресурсов Docker.
 type DockerDiskItem struct {
@@ -130,9 +131,9 @@ func ParseSystemDFRaw(raw systemDFRaw) DockerDiskUsage {
 
 // GetDockerDiskUsage собирает статистику использования диска Docker (system df).
 func GetDockerDiskUsage() (DockerDiskUsage, error) {
-	sockPath := FindDockerSocket()
+	sockPath := dockerSocketFinder()
 	if sockPath != "" {
-		client := getSocketHTTPClient(sockPath)
+		client := socketClientFactory(sockPath)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
@@ -154,8 +155,7 @@ func GetDockerDiskUsage() (DockerDiskUsage, error) {
 	if IsDockerCLIAvailable() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, "docker", "system", "df", "--format", "{{json .}}")
-		out, err := cmd.CombinedOutput()
+		out, err := dockerCLICommandRunner(ctx, "system", "df", "--format", "{{json .}}")
 		if err == nil && len(out) > 0 {
 			var usage DockerDiskUsage
 			lines := strings.Split(strings.TrimSpace(string(out)), "\n")
@@ -199,25 +199,33 @@ func parseCLIInt(s string) int {
 
 // PruneContainers удаляет остановленные контейнеры.
 func PruneContainers() (string, error) {
-	sockPath := FindDockerSocket()
+	sockPath := dockerSocketFinder()
 	if sockPath != "" {
-		client := getSocketHTTPClient(sockPath)
-		resp, err := client.Post("http://localhost/containers/prune", "application/json", nil)
-		if err == nil && resp.StatusCode == http.StatusOK {
-			defer resp.Body.Close()
-			var res struct {
-				ContainersDeleted []string `json:"ContainersDeleted"`
-				SpaceReclaimed    int64    `json:"SpaceReclaimed"`
-			}
-			if json.NewDecoder(resp.Body).Decode(&res) == nil {
-				count := len(res.ContainersDeleted)
-				return fmt.Sprintf("Удалено контейнеров: %d, освобождено: %s", count, FormatBytes(res.SpaceReclaimed)), nil
+		client := socketClientFactory(sockPath)
+		ctx, cancel := context.WithTimeout(context.Background(), pruneTimeout)
+		defer cancel()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://localhost/containers/prune", nil)
+		if err == nil {
+			resp, err := client.Do(req)
+			if err == nil && resp.StatusCode == http.StatusOK {
+				defer resp.Body.Close()
+				var res struct {
+					ContainersDeleted []string `json:"ContainersDeleted"`
+					SpaceReclaimed    int64    `json:"SpaceReclaimed"`
+				}
+				if json.NewDecoder(resp.Body).Decode(&res) == nil {
+					count := len(res.ContainersDeleted)
+					return fmt.Sprintf("Удалено контейнеров: %d, освобождено: %s", count, FormatBytes(res.SpaceReclaimed)), nil
+				}
 			}
 		}
 	}
 
 	// CLI fallback
-	out, err := exec.Command("docker", "container", "prune", "-f").CombinedOutput()
+	ctx, cancel := context.WithTimeout(context.Background(), pruneTimeout)
+	defer cancel()
+	out, err := dockerCLICommandRunner(ctx, "container", "prune", "-f")
 	if err != nil {
 		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}
@@ -226,25 +234,33 @@ func PruneContainers() (string, error) {
 
 // PruneImages удаляет висячие (dangling) образы Docker.
 func PruneImages() (string, error) {
-	sockPath := FindDockerSocket()
+	sockPath := dockerSocketFinder()
 	if sockPath != "" {
-		client := getSocketHTTPClient(sockPath)
-		resp, err := client.Post("http://localhost/images/prune", "application/json", nil)
-		if err == nil && resp.StatusCode == http.StatusOK {
-			defer resp.Body.Close()
-			var res struct {
-				ImagesDeleted  []map[string]interface{} `json:"ImagesDeleted"`
-				SpaceReclaimed int64                    `json:"SpaceReclaimed"`
-			}
-			if json.NewDecoder(resp.Body).Decode(&res) == nil {
-				count := len(res.ImagesDeleted)
-				return fmt.Sprintf("Удалено образов: %d, освобождено: %s", count, FormatBytes(res.SpaceReclaimed)), nil
+		client := socketClientFactory(sockPath)
+		ctx, cancel := context.WithTimeout(context.Background(), pruneTimeout)
+		defer cancel()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://localhost/images/prune", nil)
+		if err == nil {
+			resp, err := client.Do(req)
+			if err == nil && resp.StatusCode == http.StatusOK {
+				defer resp.Body.Close()
+				var res struct {
+					ImagesDeleted  []map[string]interface{} `json:"ImagesDeleted"`
+					SpaceReclaimed int64                    `json:"SpaceReclaimed"`
+				}
+				if json.NewDecoder(resp.Body).Decode(&res) == nil {
+					count := len(res.ImagesDeleted)
+					return fmt.Sprintf("Удалено образов: %d, освобождено: %s", count, FormatBytes(res.SpaceReclaimed)), nil
+				}
 			}
 		}
 	}
 
 	// CLI fallback
-	out, err := exec.Command("docker", "image", "prune", "-f").CombinedOutput()
+	ctx, cancel := context.WithTimeout(context.Background(), pruneTimeout)
+	defer cancel()
+	out, err := dockerCLICommandRunner(ctx, "image", "prune", "-f")
 	if err != nil {
 		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}
@@ -253,25 +269,33 @@ func PruneImages() (string, error) {
 
 // PruneVolumes удаляет неиспользуемые тома Docker.
 func PruneVolumes() (string, error) {
-	sockPath := FindDockerSocket()
+	sockPath := dockerSocketFinder()
 	if sockPath != "" {
-		client := getSocketHTTPClient(sockPath)
-		resp, err := client.Post("http://localhost/volumes/prune", "application/json", nil)
-		if err == nil && resp.StatusCode == http.StatusOK {
-			defer resp.Body.Close()
-			var res struct {
-				VolumesDeleted []string `json:"VolumesDeleted"`
-				SpaceReclaimed int64    `json:"SpaceReclaimed"`
-			}
-			if json.NewDecoder(resp.Body).Decode(&res) == nil {
-				count := len(res.VolumesDeleted)
-				return fmt.Sprintf("Удалено томов: %d, освобождено: %s", count, FormatBytes(res.SpaceReclaimed)), nil
+		client := socketClientFactory(sockPath)
+		ctx, cancel := context.WithTimeout(context.Background(), pruneTimeout)
+		defer cancel()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://localhost/volumes/prune", nil)
+		if err == nil {
+			resp, err := client.Do(req)
+			if err == nil && resp.StatusCode == http.StatusOK {
+				defer resp.Body.Close()
+				var res struct {
+					VolumesDeleted []string `json:"VolumesDeleted"`
+					SpaceReclaimed int64    `json:"SpaceReclaimed"`
+				}
+				if json.NewDecoder(resp.Body).Decode(&res) == nil {
+					count := len(res.VolumesDeleted)
+					return fmt.Sprintf("Удалено томов: %d, освобождено: %s", count, FormatBytes(res.SpaceReclaimed)), nil
+				}
 			}
 		}
 	}
 
 	// CLI fallback
-	out, err := exec.Command("docker", "volume", "prune", "-f").CombinedOutput()
+	ctx, cancel := context.WithTimeout(context.Background(), pruneTimeout)
+	defer cancel()
+	out, err := dockerCLICommandRunner(ctx, "volume", "prune", "-f")
 	if err != nil {
 		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}
@@ -280,9 +304,8 @@ func PruneVolumes() (string, error) {
 
 // PruneAll выполняет полную очистку неиспользуемых контейнеров, образов, томов и кэша сборки.
 func PruneAll() (string, error) {
-	sockPath := FindDockerSocket()
+	sockPath := dockerSocketFinder()
 	if sockPath != "" {
-		var totalReclaimed int64
 		var details []string
 
 		// 1. Containers
@@ -298,16 +321,21 @@ func PruneAll() (string, error) {
 			details = append(details, res)
 		}
 		// 4. Build Cache
-		client := getSocketHTTPClient(sockPath)
-		if resp, err := client.Post("http://localhost/build/prune", "application/json", nil); err == nil && resp.StatusCode == http.StatusOK {
-			defer resp.Body.Close()
-			var res struct {
-				CachesDeleted  []string `json:"CachesDeleted"`
-				SpaceReclaimed int64    `json:"SpaceReclaimed"`
-			}
-			if json.NewDecoder(resp.Body).Decode(&res) == nil && len(res.CachesDeleted) > 0 {
-				totalReclaimed += res.SpaceReclaimed
-				details = append(details, fmt.Sprintf("Кэш сборки: %d записей (%s)", len(res.CachesDeleted), FormatBytes(res.SpaceReclaimed)))
+		client := socketClientFactory(sockPath)
+		ctx, cancel := context.WithTimeout(context.Background(), pruneTimeout)
+		defer cancel()
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://localhost/build/prune", nil)
+		if err == nil {
+			resp, err := client.Do(req)
+			if err == nil && resp.StatusCode == http.StatusOK {
+				defer resp.Body.Close()
+				var res struct {
+					CachesDeleted  []string `json:"CachesDeleted"`
+					SpaceReclaimed int64    `json:"SpaceReclaimed"`
+				}
+				if json.NewDecoder(resp.Body).Decode(&res) == nil && len(res.CachesDeleted) > 0 {
+					details = append(details, fmt.Sprintf("Кэш сборки: %d записей (%s)", len(res.CachesDeleted), FormatBytes(res.SpaceReclaimed)))
+				}
 			}
 		}
 
@@ -317,7 +345,9 @@ func PruneAll() (string, error) {
 	}
 
 	// CLI fallback
-	out, err := exec.Command("docker", "system", "prune", "-f", "--volumes").CombinedOutput()
+	ctx, cancel := context.WithTimeout(context.Background(), pruneTimeout)
+	defer cancel()
+	out, err := dockerCLICommandRunner(ctx, "system", "prune", "-f", "--volumes")
 	if err != nil {
 		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}

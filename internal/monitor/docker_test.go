@@ -2,7 +2,9 @@ package monitor
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
@@ -104,6 +106,187 @@ func TestContainerOperationsInvalidID(t *testing.T) {
 
 	if _, err := GetContainerDetail(invalidID); err == nil {
 		t.Errorf("expected error when fetching details for invalid container ID")
+	}
+}
+
+func TestContainerActions_Socket(t *testing.T) {
+	origFinder := dockerSocketFinder
+	origFactory := socketClientFactory
+	defer func() {
+		dockerSocketFinder = origFinder
+		socketClientFactory = origFactory
+	}()
+
+	dockerSocketFinder = func() string { return "/tmp/mock.sock" }
+	socketClientFactory = func(_ string) *http.Client {
+		return newMockHTTPClient(func(req *http.Request) (*http.Response, error) {
+			if strings.Contains(req.URL.Path, "/containers/test-c/") {
+				return mockStringResponse(http.StatusNoContent, ""), nil
+			}
+			return mockStringResponse(http.StatusNotFound, "not found"), nil
+		})
+	}
+
+	if err := StartContainer("test-c"); err != nil {
+		t.Errorf("StartContainer failed: %v", err)
+	}
+	if err := StopContainer("test-c"); err != nil {
+		t.Errorf("StopContainer failed: %v", err)
+	}
+	if err := RestartContainer("test-c"); err != nil {
+		t.Errorf("RestartContainer failed: %v", err)
+	}
+	if err := KillContainer("test-c"); err != nil {
+		t.Errorf("KillContainer failed: %v", err)
+	}
+}
+
+func TestContainerActions_CLIFallback(t *testing.T) {
+	origFinder := dockerSocketFinder
+	origRunner := dockerCLICommandRunner
+	defer func() {
+		dockerSocketFinder = origFinder
+		dockerCLICommandRunner = origRunner
+	}()
+
+	dockerSocketFinder = func() string { return "" }
+	var lastAction string
+	dockerCLICommandRunner = func(_ context.Context, args ...string) ([]byte, error) {
+		if len(args) > 0 {
+			lastAction = args[0]
+		}
+		return []byte("ok"), nil
+	}
+
+	if err := StartContainer("test-cli"); err != nil || lastAction != "start" {
+		t.Errorf("StartContainer fallback failed: %v, lastAction: %s", err, lastAction)
+	}
+	if err := StopContainer("test-cli"); err != nil || lastAction != "stop" {
+		t.Errorf("StopContainer fallback failed: %v, lastAction: %s", err, lastAction)
+	}
+	if err := RestartContainer("test-cli"); err != nil || lastAction != "restart" {
+		t.Errorf("RestartContainer fallback failed: %v, lastAction: %s", err, lastAction)
+	}
+	if err := KillContainer("test-cli"); err != nil || lastAction != "kill" {
+		t.Errorf("KillContainer fallback failed: %v, lastAction: %s", err, lastAction)
+	}
+}
+
+func TestRemoveContainer_Socket(t *testing.T) {
+	origFinder := dockerSocketFinder
+	origFactory := socketClientFactory
+	defer func() {
+		dockerSocketFinder = origFinder
+		socketClientFactory = origFactory
+	}()
+
+	dockerSocketFinder = func() string { return "/tmp/mock.sock" }
+	socketClientFactory = func(_ string) *http.Client {
+		return newMockHTTPClient(func(req *http.Request) (*http.Response, error) {
+			if req.Method == http.MethodDelete && strings.Contains(req.URL.Path, "/containers/test-rm") {
+				return mockStringResponse(http.StatusNoContent, ""), nil
+			}
+			return mockStringResponse(http.StatusNotFound, "not found"), nil
+		})
+	}
+
+	if err := RemoveContainer("test-rm"); err != nil {
+		t.Errorf("RemoveContainer socket failed: %v", err)
+	}
+}
+
+func TestRemoveContainer_CLIFallback(t *testing.T) {
+	origFinder := dockerSocketFinder
+	origRunner := dockerCLICommandRunner
+	defer func() {
+		dockerSocketFinder = origFinder
+		dockerCLICommandRunner = origRunner
+	}()
+
+	dockerSocketFinder = func() string { return "" }
+	dockerCLICommandRunner = func(_ context.Context, _ ...string) ([]byte, error) {
+		return []byte("test-rm-cli"), nil
+	}
+
+	if err := RemoveContainer("test-rm-cli"); err != nil {
+		t.Errorf("RemoveContainer CLI failed: %v", err)
+	}
+}
+
+func TestGetContainerDetail_Socket(t *testing.T) {
+	origFinder := dockerSocketFinder
+	origFactory := socketClientFactory
+	defer func() {
+		dockerSocketFinder = origFinder
+		socketClientFactory = origFactory
+	}()
+
+	dockerSocketFinder = func() string { return "/tmp/mock.sock" }
+	socketClientFactory = func(_ string) *http.Client {
+		return newMockHTTPClient(func(req *http.Request) (*http.Response, error) {
+			path := req.URL.Path
+			if strings.Contains(path, "/containers/detail-c/json") {
+				return mockStringResponse(http.StatusOK, `{
+					"Name": "/my-app",
+					"Created": "2026-01-01T00:00:00Z",
+					"State": {
+						"Status": "running",
+						"ExitCode": 0,
+						"Health": {"Status": "healthy"}
+					},
+					"Config": {
+						"Image": "my-app:v1",
+						"Cmd": ["app", "start"],
+						"Env": ["PORT=8080"]
+					},
+					"NetworkSettings": {
+						"IPAddress": "172.17.0.2",
+						"Gateway": "172.17.0.1",
+						"MacAddress": "02:42:ac:11:00:02"
+					},
+					"Mounts": [
+						{"Source": "/host/data", "Destination": "/app/data", "Mode": "rw"}
+					]
+				}`), nil
+			}
+			if strings.Contains(path, "/stats") {
+				return mockStringResponse(http.StatusOK, `{}`), nil
+			}
+			return mockStringResponse(http.StatusNotFound, "not found"), nil
+		})
+	}
+
+	detail, err := GetContainerDetail("detail-c")
+	if err != nil {
+		t.Fatalf("GetContainerDetail failed: %v", err)
+	}
+	if detail.Name != "my-app" || detail.Image != "my-app:v1" || detail.Health != "healthy" {
+		t.Errorf("unexpected detail: %+v", detail)
+	}
+	if detail.IP != "172.17.0.2" || detail.Command != "app start" {
+		t.Errorf("unexpected network/cmd: IP=%s Cmd=%s", detail.IP, detail.Command)
+	}
+}
+
+func TestGetContainerDetail_CLIFallback(t *testing.T) {
+	origFinder := dockerSocketFinder
+	origRunner := dockerCLICommandRunner
+	defer func() {
+		dockerSocketFinder = origFinder
+		dockerCLICommandRunner = origRunner
+	}()
+
+	dockerSocketFinder = func() string { return "" }
+	dockerCLICommandRunner = func(_ context.Context, _ ...string) ([]byte, error) {
+		return []byte(`[{"Name":"/cli-app","State":{"Status":"running","Health":{"Status":"healthy"}}}]`), nil
+	}
+
+	detail, err := GetContainerDetail("cli-c")
+	if err != nil {
+		t.Fatalf("GetContainerDetail CLI failed: %v", err)
+	}
+	if detail.Name != "cli-app" || detail.State != "running" || detail.Health != "healthy" {
+		t.Errorf("unexpected CLI detail: %+v", detail)
 	}
 }
 
