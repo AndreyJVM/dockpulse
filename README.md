@@ -24,12 +24,14 @@
 - **Host Metrics**: Real-time CPU usage, core counts, RAM, sparkline trend graphs, disk mount points, network traffic (RX/TX), uptime, and top resource-consuming processes.
 - **Docker Containers**:
   - Live CPU% and memory stats with dynamic color coding.
+  - Interactive sorting by CPU%, RAM, Name, or Status (`s`, `o`).
   - Healthcheck statuses (`[healthy]`, `[unhealthy]`, `[starting]`).
   - Search & filter by name, image, ID, or health status (`/`).
   - Logs viewer with scroll support (`L`).
   - Detailed container inspection modal (`Enter` / `I`).
   - Interactive shell session (`E` — `/bin/bash` or `/bin/sh`) inside container.
-  - Power control: Start / Stop (`S`), Restart (`P`).
+  - Power control: Start / Stop (`S`), Restart (`P`), Force Kill (`K` — `SIGKILL`).
+  - Safe container removal with confirmation (`x`, `d`).
   - Docker System Prune modal (`C`) with disk reclaim estimates and confirmation.
   - Socket support: Docker daemon, Rootless Docker, Docker Desktop (macOS), and Podman (<2 ms latency).
 - **Docker Compose**: Automatic project/service grouping, aggregated stack health, live stack logs (`L`), service control (`U` / `S` / `P`), and stack teardown (`D` / down) with confirmation.
@@ -43,12 +45,12 @@
 
 ```bash
 # AMD64 (x86_64)
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.6.3_amd64.deb
-sudo dpkg -i dockpulse_0.6.3_amd64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.0_amd64.deb
+sudo dpkg -i dockpulse_0.7.0_amd64.deb
 
 # ARM64
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.6.3_arm64.deb
-sudo dpkg -i dockpulse_0.6.3_arm64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.0_arm64.deb
+sudo dpkg -i dockpulse_0.7.0_arm64.deb
 ```
 
 #### Pre-built Binaries (Linux / macOS)
@@ -57,11 +59,11 @@ Download the latest archive from [Releases](https://github.com/AndreyJVM/dockpul
 
 ```bash
 # Linux AMD64
-tar -xzf dockpulse_v0.6.3_linux_amd64.tar.gz
+tar -xzf dockpulse_v0.7.0_linux_amd64.tar.gz
 ./dockpulse
 
 # macOS (Apple Silicon)
-tar -xzf dockpulse_v0.6.3_darwin_arm64.tar.gz
+tar -xzf dockpulse_v0.7.0_darwin_arm64.tar.gz
 ./dockpulse
 ```
 
@@ -96,11 +98,14 @@ Options:
 | `r`, `R` | Force refresh data |
 | `↑` / `↓` (or `k` / `j`) | Navigate rows / select items |
 | `/` | Search & filter items (`Esc` to reset) |
+| `s`, `S`, `o`, `O` | Sort containers (CPU, Memory, Name, Status) |
 | `L` | View logs (scroll with `↑`/`↓`/`PgUp`/`PgDn`) |
 | `Enter` / `I` | Inspect container details |
 | `E` | Attach interactive shell (`/bin/bash` or `/bin/sh`) |
 | `S` | Start / Stop container or Compose stack |
 | `P` | Restart container or Compose stack |
+| `K` | Force Kill container (`SIGKILL`) |
+| `x`, `d` | Remove container (with confirmation) |
 | `U` | Start Compose stack |
 | `D` | Down Compose stack (with confirmation) |
 | `C` | Docker System Prune modal |
@@ -116,12 +121,14 @@ Options:
 - **Состояние хоста**: Загрузка CPU и ядер, память RAM, динамические спарклайны истории, дисковые разделы, скорость сети в реальном времени (RX/TX), аптайм и топ процессов по потреблению ресурсов.
 - **Docker-контейнеры**:
   - Мониторинг CPU% и RAM для каждого контейнера с цветовой индикацией.
+  - Интерактивная сортировка по CPU%, RAM, имени или статусу (`s`, `o`).
   - Статусы Healthcheck (`[healthy]`, `[unhealthy]`, `[starting]`).
   - Поиск и фильтрация по имени, образу, ID или статусу здоровья (`/`).
   - Встроенный просмотрщик логов с поддержкой прокрутки (`L`).
   - Детальное окно инспекции контейнера (`Enter` / `I`).
   - Интерактивный терминал (`E` — `/bin/bash` или `/bin/sh`) внутри контейнера.
-  - Управление питанием: Старт / Стоп (`S`), Перезапуск (`P`).
+  - Управление питанием: Старт / Стоп (`S`), Перезапуск (`P`), Принудительное завершение (`K` — `SIGKILL`).
+  - Безопасное удаление контейнера с подтверждением (`x`, `d`).
   - Очистка Docker System Prune (`C`) с оценкой освобождаемого места и подтверждением.
   - Поддержка сокетов: стандартный Docker, Rootless Docker, Docker Desktop (macOS) и Podman (<2 мс задержки).
 - **Docker Compose**: Автоматическая группировка по проектам и сервисам, статус стеков, просмотр логов стека (`L`), запуск/остановка/рестарт (`U` / `S` / `P`) и сворачивание стека (`D` / down) с подтверждением.
@@ -135,12 +142,12 @@ Options:
 
 ```bash
 # AMD64 (x86_64)
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.6.3_amd64.deb
-sudo dpkg -i dockpulse_0.6.3_amd64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.0_amd64.deb
+sudo dpkg -i dockpulse_0.7.0_amd64.deb
 
 # ARM64
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.6.3_arm64.deb
-sudo dpkg -i dockpulse_0.6.3_arm64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.0_arm64.deb
+sudo dpkg -i dockpulse_0.7.0_arm64.deb
 ```
 
 #### Готовые бинарные файлы (Linux / macOS)
@@ -149,11 +156,11 @@ sudo dpkg -i dockpulse_0.6.3_arm64.deb
 
 ```bash
 # Linux AMD64
-tar -xzf dockpulse_v0.6.3_linux_amd64.tar.gz
+tar -xzf dockpulse_v0.7.0_linux_amd64.tar.gz
 ./dockpulse
 
 # macOS (Apple Silicon)
-tar -xzf dockpulse_v0.6.3_darwin_arm64.tar.gz
+tar -xzf dockpulse_v0.7.0_darwin_arm64.tar.gz
 ./dockpulse
 ```
 
@@ -188,11 +195,14 @@ make build
 | `r`, `R` | Немедленное обновление данных |
 | `↑` / `↓` (или `k` / `j`) | Навигация по строкам / выбор элементов |
 | `/` | Поиск и фильтрация (`Esc` для сброса) |
+| `s`, `S`, `o`, `O` | Сортировка контейнеров (CPU, Память, Имя, Статус) |
 | `L` | Просмотр логов (прокрутка `↑`/`↓`/`PgUp`/`PgDn`) |
 | `Enter` / `I` | Инспекция контейнера (детали, тома, сеть, порты, Healthcheck) |
 | `E` | Подключение к интерактивному шеллу (`/bin/bash` или `/bin/sh`) |
 | `S` | Старт / Остановка контейнера или стека Compose |
 | `P` | Перезапуск контейнера или стека Compose |
+| `K` | Принудительное завершение (`SIGKILL`) контейнера |
+| `x`, `d` | Удаление контейнера (с подтверждением) |
 | `U` | Запуск стека Compose |
 | `D` | Сворачивание стека Compose (`docker compose down`) с подтверждением |
 | `C` | Очистка неиспользуемых ресурсов (Docker System Prune) |
