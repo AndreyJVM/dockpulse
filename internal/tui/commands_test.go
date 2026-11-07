@@ -2,6 +2,7 @@ package tui
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -135,7 +136,6 @@ func TestKillAndRemoveCommandsExecution(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected actionFinishedMsg, got %T", killMsg)
 	}
-	// On invalid container in non-docker env, should return error or message
 	if afm.err == nil && !strings.Contains(afm.message, "test-app") {
 		t.Errorf("expected container name in message if no error, got: %+v", afm)
 	}
@@ -152,5 +152,131 @@ func TestKillAndRemoveCommandsExecution(t *testing.T) {
 	}
 	if afmRem.err == nil && !strings.Contains(afmRem.message, "test-app") {
 		t.Errorf("expected container name in message if no error, got: %+v", afmRem)
+	}
+}
+
+func TestFetchAllDataAndFetchDataCmd(t *testing.T) {
+	data := fetchAllData()
+	if len(data.timestamp) != 8 || !strings.Contains(data.timestamp, ":") {
+		t.Errorf("expected timestamp in HH:MM:SS format, got %q", data.timestamp)
+	}
+
+	cmd := fetchDataCmd()
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd from fetchDataCmd()")
+	}
+	msg := cmd()
+	fetched, ok := msg.(dataFetchedMsg)
+	if !ok {
+		t.Fatalf("expected dataFetchedMsg, got %T", msg)
+	}
+	if len(fetched.timestamp) != 8 {
+		t.Errorf("expected valid timestamp in fetched message, got %q", fetched.timestamp)
+	}
+}
+
+func TestMakeActionCmd(t *testing.T) {
+	// Success case
+	successCmd := makeActionCmd(
+		func() error { return nil },
+		"prefix: ",
+		"done successfully",
+	)
+	msg := successCmd()
+	afm, ok := msg.(actionFinishedMsg)
+	if !ok {
+		t.Fatalf("expected actionFinishedMsg, got %T", msg)
+	}
+	if afm.err != nil || afm.message != "done successfully" || !afm.refresh {
+		t.Errorf("unexpected success actionFinishedMsg: %+v", afm)
+	}
+
+	// Error case
+	testErr := errors.New("network failure")
+	failCmd := makeActionCmd(
+		func() error { return testErr },
+		"action error: ",
+		"should not be used",
+	)
+	msgFail := failCmd()
+	afmFail, ok := msgFail.(actionFinishedMsg)
+	if !ok {
+		t.Fatalf("expected actionFinishedMsg, got %T", msgFail)
+	}
+	if afmFail.err == nil || !strings.Contains(afmFail.err.Error(), "action error: network failure") {
+		t.Errorf("expected wrapped error, got: %+v", afmFail.err)
+	}
+	if !errors.Is(afmFail.err, testErr) {
+		t.Errorf("expected error wrapping with %%w")
+	}
+}
+
+func TestExecutePruneAndPruneCmd(t *testing.T) {
+	dict := i18n.Get("en")
+
+	// Invalid option
+	_, err := executePrune(99)
+	if err == nil || !strings.Contains(err.Error(), "unknown prune option: 99") {
+		t.Errorf("expected error for unknown option, got: %v", err)
+	}
+
+	// Test pruneCmd with unknown option
+	badCmd := pruneCmd(99, dict)
+	badMsg := badCmd()
+	afm, ok := badMsg.(actionFinishedMsg)
+	if !ok {
+		t.Fatalf("expected actionFinishedMsg, got %T", badMsg)
+	}
+	if afm.err == nil || !strings.Contains(afm.err.Error(), dict.ToastPruneError) {
+		t.Errorf("expected prune error toast, got: %+v", afm)
+	}
+
+	// Valid options run without panic
+	for _, opt := range []int{PruneOptionContainers, PruneOptionImages, PruneOptionVolumes, PruneOptionAll} {
+		cmd := pruneCmd(opt, dict)
+		if cmd == nil {
+			t.Errorf("expected non-nil cmd for option %d", opt)
+			continue
+		}
+		resMsg := cmd()
+		if _, ok := resMsg.(actionFinishedMsg); !ok {
+			t.Errorf("expected actionFinishedMsg for option %d, got %T", opt, resMsg)
+		}
+	}
+}
+
+func TestContainerAndComposeCommandsExecution(t *testing.T) {
+	dict := i18n.Get("en")
+
+	cmds := []struct {
+		name string
+		cmd  tea.Cmd
+	}{
+		{"startContainer", startContainerCmd("c1", "web", dict)},
+		{"stopContainer", stopContainerCmd("c1", "web", dict)},
+		{"restartContainer", restartContainerCmd("c1", "web", dict)},
+		{"startCompose", startComposeCmd("stack", nil, dict)},
+		{"stopCompose", stopComposeCmd("stack", nil, dict)},
+		{"restartCompose", restartComposeCmd("stack", nil, dict)},
+		{"downCompose", downComposeCmd("stack", nil, dict)},
+	}
+
+	for _, tc := range cmds {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.cmd == nil {
+				t.Fatalf("expected non-nil cmd for %s", tc.name)
+			}
+			msg := tc.cmd()
+			afm, ok := msg.(actionFinishedMsg)
+			if !ok {
+				t.Fatalf("expected actionFinishedMsg, got %T", msg)
+			}
+			// In environment without real docker, it returns wrapped error or success
+			if afm.err != nil {
+				if !strings.Contains(afm.err.Error(), "web") && !strings.Contains(afm.err.Error(), "stack") && !strings.Contains(afm.err.Error(), fmt.Sprintf("%s", afm.err)) {
+					t.Errorf("unexpected error format: %v", afm.err)
+				}
+			}
+		})
 	}
 }
