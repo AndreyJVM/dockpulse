@@ -46,12 +46,12 @@
 
 ```bash
 # AMD64 (x86_64)
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.1_amd64.deb
-sudo dpkg -i dockpulse_0.7.1_amd64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.2_amd64.deb
+sudo dpkg -i dockpulse_0.7.2_amd64.deb
 
 # ARM64
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.1_arm64.deb
-sudo dpkg -i dockpulse_0.7.1_arm64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.2_arm64.deb
+sudo dpkg -i dockpulse_0.7.2_arm64.deb
 ```
 
 #### Pre-built Binaries (Linux / macOS)
@@ -60,11 +60,11 @@ Download the latest archive from [Releases](https://github.com/AndreyJVM/dockpul
 
 ```bash
 # Linux AMD64
-tar -xzf dockpulse_v0.7.1_linux_amd64.tar.gz
+tar -xzf dockpulse_v0.7.2_linux_amd64.tar.gz
 ./dockpulse
 
 # macOS (Apple Silicon)
-tar -xzf dockpulse_v0.7.1_darwin_arm64.tar.gz
+tar -xzf dockpulse_v0.7.2_darwin_arm64.tar.gz
 ./dockpulse
 ```
 
@@ -77,49 +77,49 @@ make build
 ./dockpulse
 ```
 
-### CLI Options
+### Command-line Options
 
 ```text
 Usage:
   dockpulse [options]
 
 Options:
-  -i, --interval <duration>  Auto-refresh interval (default: 2s, e.g. 1s, 500ms)
+  -i, --interval <duration>  Auto-refresh interval (default: 2s, e.g., 1s, 500ms)
   -t, --tab <1-4>            Initial active tab (1: Host, 2: Docker, 3: Compose, 4: Swarm) (default: 1)
-  -l, --lang <en|ru>         Interface language (default: auto-detect from system locale)
-  -v, --version              Show version
-  -h, --help                 Show help
+  -l, --lang <en|ru>         Interface language: en or ru (default: auto-detected)
+  -v, --version              Show version information
+  -h, --help                 Show help message
 ```
 
-### Keybindings
+### Hotkeys
 
 | Key | Action |
 |---|---|
 | `1`..`4` / `Tab` / `←`/`→` | Switch tabs (Host, Docker, Compose, Swarm) |
-| `r`, `R` | Force refresh data |
+| `r`, `R` | Force immediate refresh |
 | `↑` / `↓` (or `k` / `j`) | Navigate rows / select items |
-| `/` | Search & filter items (`Esc` to reset) |
+| `/` | Search & filter (`Esc` to clear) |
 | `s`, `S`, `o`, `O` | Sort containers (CPU, Memory, Name, Status) |
 | `L` | View logs (scroll with `↑`/`↓`/`PgUp`/`PgDn`) |
-| `Enter` / `I` | Inspect container details |
+| `Enter` / `I` | Inspect container (details, mounts, network, ports, health) |
 | `E` | Attach interactive shell (`/bin/bash` or `/bin/sh`) |
 | `S` | Start / Stop container or Compose stack |
 | `P` | Restart container or Compose stack |
-| `K` | Force Kill container (`SIGKILL`) |
+| `K` | Force kill (`SIGKILL`) container |
 | `x`, `d` | Remove container (with confirmation) |
 | `U` | Start Compose stack |
-| `D` | Down Compose stack (with confirmation) |
-| `C` | Docker System Prune modal |
-| `?` | Toggle help modal |
-| `q` / `Esc` / `Ctrl+C` | Exit application |
+| `D` | Compose down (`docker compose down`) with confirmation |
+| `C` | Docker system prune (cleanup unused resources) |
+| `?` | Toggle help / hotkey shortcuts modal |
+| `q` / `Esc` / `Ctrl+C` | Quit application |
 
 ---
 
 ## Русский
 
-### Основные возможности
+### Возможности
 
-- **Состояние хоста**: Загрузка CPU и ядер, память RAM, динамические спарклайны истории, дисковые разделы, скорость сети в реальном времени (RX/TX), аптайм и топ процессов по потреблению ресурсов.
+- **Метрики хоста**: Использование процессора, число ядер, оперативная память, спарклайн-графики трендов, точки монтирования дисков, сетевой трафик (RX/TX), аптайм и топ ресурсоемких процессов.
 - **Docker-контейнеры**:
   - Мониторинг CPU% и RAM для каждого контейнера с цветовой индикацией.
   - Интерактивная сортировка по CPU%, RAM, имени или статусу (`s`, `o`).
@@ -127,16 +127,16 @@ Options:
   - Статусы Healthcheck (`[healthy]`, `[unhealthy]`, `[starting]`).
   - Поиск и фильтрация по имени, образу, ID или статусу здоровья (`/`).
   - Встроенный просмотрщик логов с поддержкой прокрутки (`L`).
-  - Детальное окно инспекции контейнера (`Enter` / `I`).
-  - Интерактивный терминал (`E` — `/bin/bash` или `/bin/sh`) внутри контейнера.
-  - Управление питанием: Старт / Стоп (`S`), Перезапуск (`P`), Принудительное завершение (`K` — `SIGKILL`).
+  - Детальная инспекция контейнера (`Enter` / `I`).
+  - Подключение к интерактивному шеллу (`E` — `/bin/bash` или `/bin/sh`) внутри контейнера.
+  - Управление питанием: Старт / Остановка (`S`), Перезапуск (`P`), Принудительное завершение (`K` — `SIGKILL`).
   - Безопасное удаление контейнера с подтверждением (`x`, `d`).
-  - Очистка Docker System Prune (`C`) с оценкой освобождаемого места и подтверждением.
-  - Поддержка сокетов: стандартный Docker, Rootless Docker, Docker Desktop (macOS) и Podman (<2 мс задержки).
-- **Docker Compose**: Автоматическая группировка по проектам и сервисам, статус стеков, просмотр логов стека (`L`), запуск/остановка/рестарт (`U` / `S` / `P`) и сворачивание стека (`D` / down) с подтверждением.
-- **Docker Swarm**: Мониторинг нод (Leader, Manager, Worker), список служб, число реплик с индикацией деградации и просмотр логов служб (`L`).
-- **Двуязычный интерфейс (i18n)**: Русская и английская локализация с автоматическим определением по окружению системы (`LANG`, `LC_*`) и флагом `--lang`.
-- **Нулевые зависимости**: Единый статический бинарный файл (<12 МБ) без внешних рантаймов и библиотек. Работает на Linux и macOS.
+  - Модальное окно очистки ресурсов Docker (System Prune) (`C`) с оценкой освобождаемого места.
+  - Поддержка сокетов: Docker daemon, Rootless Docker, Docker Desktop (macOS) и Podman (отклик <2 мс).
+- **Docker Compose**: Автоматическая группировка проектов/сервисов, сводный статус здоровья, просмотр логов проекта (`L`), управление сервисами (`U` / `S` / `P`) и сворачивание стека (`D` / down) с подтверждением.
+- **Docker Swarm**: Роли узлов кластера (Leader, Manager, Worker), список служб, статус реплик с цветовой индикацией сбоев и логи сервисов (`L`).
+- **Двуязычный интерфейс (i18n)**: Русская и английская локализация с автоопределением языка (`LANG`, `LC_*`) и ключом `--lang`.
+- **Без внешних зависимостей**: Автономный бинарник (<12 МБ) без сторонних рантайм-зависимостей. Работает на Linux и macOS.
 
 ### Установка
 
@@ -144,12 +144,12 @@ Options:
 
 ```bash
 # AMD64 (x86_64)
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.1_amd64.deb
-sudo dpkg -i dockpulse_0.7.1_amd64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.2_amd64.deb
+sudo dpkg -i dockpulse_0.7.2_amd64.deb
 
 # ARM64
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.1_arm64.deb
-sudo dpkg -i dockpulse_0.7.1_arm64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.7.2_arm64.deb
+sudo dpkg -i dockpulse_0.7.2_arm64.deb
 ```
 
 #### Готовые бинарные файлы (Linux / macOS)
@@ -158,11 +158,11 @@ sudo dpkg -i dockpulse_0.7.1_arm64.deb
 
 ```bash
 # Linux AMD64
-tar -xzf dockpulse_v0.7.1_linux_amd64.tar.gz
+tar -xzf dockpulse_v0.7.2_linux_amd64.tar.gz
 ./dockpulse
 
 # macOS (Apple Silicon)
-tar -xzf dockpulse_v0.7.1_darwin_arm64.tar.gz
+tar -xzf dockpulse_v0.7.2_darwin_arm64.tar.gz
 ./dockpulse
 ```
 
