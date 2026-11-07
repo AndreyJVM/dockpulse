@@ -203,3 +203,146 @@ func TestRenderDockerView(t *testing.T) {
 		t.Errorf("expected Block I/O in details panel, got: %s", view)
 	}
 }
+
+func TestFormatContainerStatus(t *testing.T) {
+	tests := []struct {
+		state    string
+		health   string
+		expected string
+	}{
+		{"running", "healthy", "● [healthy]"},
+		{"running", "unhealthy", "▲ [unhealthy]"},
+		{"running", "starting", "⏳ [starting]"},
+		{"running", "", "● running"},
+		{"paused", "", "⏸ paused"},
+		{"restarting", "", "↻ restarting"},
+		{"exited", "", "○ exited"},
+		{"", "", "○ stopped"},
+	}
+
+	for _, tc := range tests {
+		text, _ := formatContainerStatus(tc.state, tc.health)
+		if text != tc.expected {
+			t.Errorf("formatContainerStatus(%q, %q) = %q, expected %q", tc.state, tc.health, text, tc.expected)
+		}
+	}
+}
+
+func TestFormatContainerMetrics(t *testing.T) {
+	// Stopped container
+	cpu, mem := formatContainerMetrics(monitor.ContainerItem{State: "exited"})
+	if cpu != "-" || mem != "-" {
+		t.Errorf("expected - and - for stopped container, got %s and %s", cpu, mem)
+	}
+
+	// Running with limit
+	cpu, mem = formatContainerMetrics(monitor.ContainerItem{
+		State:      "running",
+		CPUPerc:    15.5,
+		MemUsageMB: 120.0,
+		MemLimitMB: 512.0,
+		MemPerc:    23.4,
+	})
+	if cpu != "15.5%" || !strings.Contains(mem, "120.0M (23.4%)") {
+		t.Errorf("unexpected metrics format: %s, %s", cpu, mem)
+	}
+
+	// Running without limit (MemLimitMB == 0)
+	_, memNoLimit := formatContainerMetrics(monitor.ContainerItem{
+		State:      "running",
+		MemUsageMB: 64.0,
+		MemLimitMB: 0,
+	})
+	if memNoLimit != "64.0M" {
+		t.Errorf("expected 64.0M, got: %s", memNoLimit)
+	}
+}
+
+func TestStyleCPU(t *testing.T) {
+	// Stopped container returns DimStyle
+	stopped := styleCPU(99.0, "exited", "  99.0%")
+	if !strings.Contains(stopped, "99.0%") {
+		t.Errorf("expected formatted string in output, got: %s", stopped)
+	}
+
+	// Running >= 80
+	high := styleCPU(85.0, "running", "  85.0%")
+	if !strings.Contains(high, "85.0%") {
+		t.Errorf("expected formatted string in output, got: %s", high)
+	}
+
+	// Running >= 50
+	mid := styleCPU(60.0, "running", "  60.0%")
+	if !strings.Contains(mid, "60.0%") {
+		t.Errorf("expected formatted string in output, got: %s", mid)
+	}
+
+	// Running normal
+	low := styleCPU(20.0, "running", "  20.0%")
+	if !strings.Contains(low, "20.0%") {
+		t.Errorf("expected formatted string in output, got: %s", low)
+	}
+}
+
+func TestRenderDockerView_EdgeCases(t *testing.T) {
+	// 1. Daemon down
+	downView := RenderDocker(DockerContext{
+		DockerInfo: monitor.DockerSummary{Status: "stopped"},
+	})
+	if !strings.Contains(downView, "Docker") {
+		t.Errorf("expected daemon down notice, got: %s", downView)
+	}
+
+	// 2. Filter active with results and sorting badge
+	dict := i18n.Get("en")
+	containers := []monitor.ContainerItem{
+		{ID: "c1", Name: "app", State: "running", Ports: "80:80"},
+	}
+	filteredView := RenderDocker(DockerContext{
+		DockerInfo:           monitor.DockerSummary{Status: "running", Containers: containers},
+		Containers:           containers,
+		TotalContainersCount: 1,
+		CursorIdx:            -1, // Edge case: invalid negative cursor should not panic
+		FilterQuery:          "app",
+		SortMode:             1,
+		SortNames:            []string{"Default", "CPU"},
+		I18n:                 &dict,
+	})
+	if !strings.Contains(filteredView, "Filter:") || !strings.Contains(filteredView, "Sort:") {
+		t.Errorf("expected filter and sort badges, got: %s", filteredView)
+	}
+
+	// 3. Filter mode active (IsFiltering == true)
+	filteringView := RenderDocker(DockerContext{
+		DockerInfo:  monitor.DockerSummary{Status: "running", Containers: containers},
+		Containers:  containers,
+		IsFiltering: true,
+		FilterQuery: "ap",
+		I18n:        &dict,
+	})
+	if !strings.Contains(filteringView, "[Search: ap") {
+		t.Errorf("expected search prompt in filtering view, got: %s", filteringView)
+	}
+
+	// 4. No containers matched filter
+	noMatchView := RenderDocker(DockerContext{
+		DockerInfo:  monitor.DockerSummary{Status: "running", Containers: containers},
+		Containers:  nil,
+		FilterQuery: "xyz",
+		I18n:        &dict,
+	})
+	if !strings.Contains(noMatchView, "No containers found matching") {
+		t.Errorf("expected no match notice, got: %s", noMatchView)
+	}
+
+	// 5. Cursor out of bounds should not panic, and nil I18n safely handled
+	outOfBoundsView := RenderDocker(DockerContext{
+		DockerInfo: monitor.DockerSummary{Status: "running", Containers: containers},
+		Containers: containers,
+		CursorIdx:  999,
+		I18n:       nil,
+	})
+	if !strings.Contains(outOfBoundsView, "app") {
+		t.Errorf("expected container row in view, got: %s", outOfBoundsView)
+	}
+}

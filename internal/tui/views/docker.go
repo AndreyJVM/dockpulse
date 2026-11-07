@@ -11,6 +11,18 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const (
+	colWidthID     = 8
+	colWidthName   = 20
+	colWidthImage  = 22
+	colWidthStatus = 20
+	colWidthCPU    = 7
+	colWidthMem    = 14
+	minPortsWidth  = 20
+	minCardWidth   = 96
+	detailColWidth = 18
+)
+
 // DockerContext contains data needed to render the Docker Containers tab.
 type DockerContext struct {
 	DockerInfo            monitor.DockerSummary
@@ -29,195 +41,225 @@ type DockerContext struct {
 // RenderDocker renders the Docker Containers tab.
 func RenderDocker(ctx DockerContext) string {
 	var s strings.Builder
+	dict := getDictionary(ctx.I18n)
 
-	s.WriteString(theme.TitleStyle.Render(ctx.I18n.DockerTabTitle) + "\n")
-	s.WriteString(fmt.Sprintf("  %s %s    %s %d    %s %s\n\n",
-		theme.DimStyle.Render(ctx.I18n.ServiceLabel), ctx.FormattedDockerStatus,
-		theme.DimStyle.Render(ctx.I18n.ImagesCountLabel), ctx.DockerInfo.ImagesCount,
-		theme.DimStyle.Render(ctx.I18n.VersionLabel), ctx.DockerInfo.Version,
-	))
+	renderDockerHeader(&ctx, dict, &s)
 
 	if len(ctx.DockerInfo.Containers) == 0 {
-		if ctx.DockerInfo.Status == "running" {
-			s.WriteString("  " + theme.DimStyle.Render(ctx.I18n.ContainersNotRunning) + "\n")
-		} else {
-			s.WriteString("  " + theme.YellowStyle.Render(ctx.I18n.DockerDaemonDown) + "\n")
-		}
+		renderEmptyContainersNotice(&ctx, dict, &s)
 		return s.String()
+	}
+
+	renderFilterAndSortBadges(&ctx, dict, &s)
+
+	if len(ctx.Containers) == 0 {
+		renderNoContainersFoundNotice(&ctx, dict, &s)
+		return s.String()
+	}
+
+	renderContainerTable(&ctx, dict, &s)
+	renderContainerDetailsCard(&ctx, dict, &s)
+
+	return s.String()
+}
+
+func getDictionary(dict *i18n.Dictionary) *i18n.Dictionary {
+	if dict != nil {
+		return dict
+	}
+	d := i18n.Get("en")
+	return &d
+}
+
+func renderDockerHeader(ctx *DockerContext, dict *i18n.Dictionary, s *strings.Builder) {
+	s.WriteString(theme.TitleStyle.Render(dict.DockerTabTitle) + "\n")
+	s.WriteString(fmt.Sprintf("  %s %s    %s %d    %s %s\n\n",
+		theme.DimStyle.Render(dict.ServiceLabel), ctx.FormattedDockerStatus,
+		theme.DimStyle.Render(dict.ImagesCountLabel), ctx.DockerInfo.ImagesCount,
+		theme.DimStyle.Render(dict.VersionLabel), ctx.DockerInfo.Version,
+	))
+}
+
+func renderEmptyContainersNotice(ctx *DockerContext, dict *i18n.Dictionary, s *strings.Builder) {
+	if ctx.DockerInfo.Status == "running" {
+		s.WriteString("  " + theme.DimStyle.Render(dict.ContainersNotRunning) + "\n")
+	} else {
+		s.WriteString("  " + theme.YellowStyle.Render(dict.DockerDaemonDown) + "\n")
+	}
+}
+
+func renderFilterAndSortBadges(ctx *DockerContext, dict *i18n.Dictionary, s *strings.Builder) {
+	if ctx.IsFiltering {
+		s.WriteString("  " + theme.YellowStyle.Render(fmt.Sprintf(dict.FilterPrompt, ctx.FilterQuery)) + "  " + theme.DimStyle.Render(dict.FilterHint) + "\n\n")
+		return
 	}
 
 	var statusBadges []string
-	if ctx.IsFiltering {
-		s.WriteString("  " + theme.YellowStyle.Render(fmt.Sprintf(ctx.I18n.FilterPrompt, ctx.FilterQuery)) + "  " + theme.DimStyle.Render(ctx.I18n.FilterHint) + "\n\n")
-	} else {
-		if ctx.FilterQuery != "" {
-			statusBadges = append(statusBadges, theme.ActiveTabStyle.Render(fmt.Sprintf(ctx.I18n.FilterActiveBadge, ctx.FilterQuery))+"  "+theme.DimStyle.Render(fmt.Sprintf(ctx.I18n.FilterResultsCount, len(ctx.Containers), ctx.TotalContainersCount)))
-		}
-		if ctx.SortMode != 0 && ctx.SortMode < len(ctx.SortNames) {
-			statusBadges = append(statusBadges, theme.CyanStyle.Render(fmt.Sprintf(ctx.I18n.SortBadge, ctx.SortNames[ctx.SortMode])))
-		}
-		if len(statusBadges) > 0 {
-			s.WriteString("  " + strings.Join(statusBadges, "   ") + "\n\n")
-		}
+	if ctx.FilterQuery != "" {
+		statusBadges = append(statusBadges, theme.ActiveTabStyle.Render(fmt.Sprintf(dict.FilterActiveBadge, ctx.FilterQuery))+"  "+theme.DimStyle.Render(fmt.Sprintf(dict.FilterResultsCount, len(ctx.Containers), ctx.TotalContainersCount)))
 	}
-
-	if len(ctx.Containers) == 0 {
-		s.WriteString("  " + theme.YellowStyle.Render(fmt.Sprintf(ctx.I18n.NoContainersFound, ctx.FilterQuery)) + "\n")
-		s.WriteString("  " + theme.DimStyle.Render(ctx.I18n.PressEscToClear) + "\n")
-		return s.String()
+	if ctx.SortMode > 0 && ctx.SortMode < len(ctx.SortNames) {
+		statusBadges = append(statusBadges, theme.CyanStyle.Render(fmt.Sprintf(dict.SortBadge, ctx.SortNames[ctx.SortMode])))
 	}
+	if len(statusBadges) > 0 {
+		s.WriteString("  " + strings.Join(statusBadges, "   ") + "\n\n")
+	}
+}
 
+func renderNoContainersFoundNotice(ctx *DockerContext, dict *i18n.Dictionary, s *strings.Builder) {
+	s.WriteString("  " + theme.YellowStyle.Render(fmt.Sprintf(dict.NoContainersFound, ctx.FilterQuery)) + "\n")
+	s.WriteString("  " + theme.DimStyle.Render(dict.PressEscToClear) + "\n")
+}
+
+func renderContainerTable(ctx *DockerContext, dict *i18n.Dictionary, s *strings.Builder) {
 	headerText := fmt.Sprintf("  %-8s  %-20s  %-22s  %-20s  %-7s  %-14s  %s",
-		ctx.I18n.ColID,
-		ctx.I18n.ColName,
-		ctx.I18n.ColImage,
-		ctx.I18n.ColStatus,
-		ctx.I18n.ColCPU,
-		ctx.I18n.ColMem,
-		ctx.I18n.ColPorts,
+		dict.ColID,
+		dict.ColName,
+		dict.ColImage,
+		dict.ColStatus,
+		dict.ColCPU,
+		dict.ColMem,
+		dict.ColPorts,
 	)
 	s.WriteString(theme.DimStyle.Render(headerText) + "\n")
-	s.WriteString("  " + theme.DimStyle.Render(strings.Repeat("─", max(ctx.Width-4, 96))) + "\n")
+	s.WriteString("  " + theme.DimStyle.Render(strings.Repeat("─", max(ctx.Width-4, minCardWidth))) + "\n")
 
 	for i, c := range ctx.Containers {
-		prefix := "  "
-		if i == ctx.CursorIdx {
-			prefix = theme.GreenStyle.Render("► ")
-		}
+		isSelected := (i == ctx.CursorIdx)
+		s.WriteString(renderContainerRow(c, isSelected, ctx.Width))
+	}
+}
 
-		cID := components.PadRight(components.Truncate(c.ID, 8), 8)
-		cName := components.PadRight(components.Truncate(c.Name, 20), 20)
-		cImg := components.PadRight(components.Truncate(c.Image, 22), 22)
+func formatContainerMetrics(c monitor.ContainerItem) (string, string) {
+	if c.State != "running" {
+		return "-", "-"
+	}
 
-		statusText, statusStyle := formatContainerStatus(c.State, c.Health)
-		statusPadded := components.PadRight(components.Truncate(statusText, 20), 20)
+	cpuRaw := fmt.Sprintf("%.1f%%", c.CPUPerc)
+	var memRaw string
+	if c.MemLimitMB > 0 {
+		memRaw = fmt.Sprintf("%.1fM (%.1f%%)", c.MemUsageMB, c.MemPerc)
+	} else {
+		memRaw = fmt.Sprintf("%.1fM", c.MemUsageMB)
+	}
+	return cpuRaw, memRaw
+}
 
-		cpuRaw := "-"
-		memRaw := "-"
-		if c.State == "running" {
-			cpuRaw = fmt.Sprintf("%.1f%%", c.CPUPerc)
-			if c.MemLimitMB > 0 {
-				memRaw = fmt.Sprintf("%.1fM (%.1f%%)", c.MemUsageMB, c.MemPerc)
-			} else {
-				memRaw = fmt.Sprintf("%.1fM", c.MemUsageMB)
+func renderContainerRow(c monitor.ContainerItem, isSelected bool, termWidth int) string {
+	prefix := "  "
+	if isSelected {
+		prefix = theme.GreenStyle.Render("► ")
+	}
+
+	cID := components.PadRight(components.Truncate(c.ID, colWidthID), colWidthID)
+	cName := components.PadRight(components.Truncate(c.Name, colWidthName), colWidthName)
+	cImg := components.PadRight(components.Truncate(c.Image, colWidthImage), colWidthImage)
+
+	statusText, statusStyle := formatContainerStatus(c.State, c.Health)
+	statusPadded := components.PadRight(components.Truncate(statusText, colWidthStatus), colWidthStatus)
+
+	cpuRaw, memRaw := formatContainerMetrics(c)
+	cpuPadded := components.PadLeft(cpuRaw, colWidthCPU)
+	memPadded := components.PadRight(components.Truncate(memRaw, colWidthMem), colWidthMem)
+	portsPreview := components.Truncate(c.Ports, max(minPortsWidth, termWidth-105))
+
+	if isSelected {
+		plainRow := fmt.Sprintf("%-8s  %-20s  %-22s  %-20s  %-7s  %-14s  %s",
+			cID, cName, cImg, statusPadded, cpuPadded, memPadded, portsPreview,
+		)
+		return fmt.Sprintf("%s%s\n", prefix, theme.SelectedRowStyle.Render(plainRow))
+	}
+
+	row := fmt.Sprintf("%-8s  %-20s  %-22s  %s  %s  %-14s  %s",
+		cID,
+		theme.BoldStyle.Render(cName),
+		theme.DimStyle.Render(cImg),
+		statusStyle.Render(statusPadded),
+		styleCPU(c.CPUPerc, c.State, cpuPadded),
+		theme.DimStyle.Render(memPadded),
+		portsPreview,
+	)
+	return fmt.Sprintf("%s%s\n", prefix, row)
+}
+
+func renderDetailRow(label, value string) string {
+	var formattedLabel string
+	if label == "" {
+		formattedLabel = strings.Repeat(" ", detailColWidth)
+	} else {
+		formattedLabel = theme.BoldStyle.Render(components.PadRight(label, detailColWidth))
+	}
+	return fmt.Sprintf("  %s %s %s\n",
+		theme.CyanStyle.Render("│"),
+		formattedLabel,
+		value,
+	)
+}
+
+func renderContainerDetailsCard(ctx *DockerContext, dict *i18n.Dictionary, s *strings.Builder) {
+	if ctx.CursorIdx < 0 || ctx.CursorIdx >= len(ctx.Containers) {
+		return
+	}
+
+	sel := ctx.Containers[ctx.CursorIdx]
+	s.WriteString("\n")
+	cardWidth := max(ctx.Width-4, minCardWidth)
+	title := fmt.Sprintf(" %s: %s (%s) ", dict.SelectedContainerDetails, sel.Name, sel.ID)
+	topDashLen := cardWidth - lipgloss.Width(title) - 3
+	if topDashLen < 2 {
+		topDashLen = 2
+	}
+	s.WriteString("  " + theme.CyanStyle.Render("┌─") + theme.BoldStyle.Render(title) + theme.CyanStyle.Render(strings.Repeat("─", topDashLen)+"┐") + "\n")
+
+	// Ports
+	portsDisplay := sel.Ports
+	if portsDisplay == "" {
+		portsDisplay = theme.DimStyle.Render(dict.DetailNone)
+	} else {
+		portsDisplay = theme.CyanStyle.Render(portsDisplay)
+	}
+	s.WriteString(renderDetailRow(dict.DetailPortsLabel, portsDisplay))
+
+	// Volumes / Mounts
+	if len(sel.Mounts) == 0 {
+		s.WriteString(renderDetailRow(dict.DetailMountsLabel, theme.DimStyle.Render(dict.DetailNone)))
+	} else {
+		for idx, mnt := range sel.Mounts {
+			label := ""
+			if idx == 0 {
+				label = dict.DetailMountsLabel
 			}
-		}
-		cpuPadded := components.PadLeft(cpuRaw, 7)
-		memPadded := components.PadRight(components.Truncate(memRaw, 14), 14)
-		portsPreview := components.Truncate(c.Ports, max(20, ctx.Width-105))
-
-		if i == ctx.CursorIdx {
-			plainRow := fmt.Sprintf("%-8s  %-20s  %-22s  %-20s  %-7s  %-14s  %s",
-				cID, cName, cImg, statusPadded, cpuPadded, memPadded, portsPreview,
-			)
-			s.WriteString(fmt.Sprintf("%s%s\n", prefix, theme.SelectedRowStyle.Render(plainRow)))
-		} else {
-			row := fmt.Sprintf("%-8s  %-20s  %-22s  %s  %s  %-14s  %s",
-				cID,
-				theme.BoldStyle.Render(cName),
-				theme.DimStyle.Render(cImg),
-				statusStyle.Render(statusPadded),
-				styleCPU(c.CPUPerc, c.State, cpuPadded),
-				theme.DimStyle.Render(memPadded),
-				portsPreview,
-			)
-			s.WriteString(fmt.Sprintf("%s%s\n", prefix, row))
+			s.WriteString(renderDetailRow(label, theme.YellowStyle.Render("• ")+mnt))
 		}
 	}
 
-	// Bottom Details Panel for selected container
-	if len(ctx.Containers) > 0 && ctx.CursorIdx < len(ctx.Containers) {
-		sel := ctx.Containers[ctx.CursorIdx]
-		s.WriteString("\n")
-		cardWidth := max(ctx.Width-4, 96)
-		title := fmt.Sprintf(" %s: %s (%s) ", ctx.I18n.SelectedContainerDetails, sel.Name, sel.ID)
-		topDashLen := cardWidth - len([]rune(title)) - 4
-		if topDashLen < 2 {
-			topDashLen = 2
-		}
-		s.WriteString("  " + theme.CyanStyle.Render("┌─") + theme.BoldStyle.Render(title) + theme.CyanStyle.Render(strings.Repeat("─", topDashLen)+"┐") + "\n")
+	// Network I/O
+	netIODisplay := theme.DimStyle.Render("0 B / 0 B")
+	if sel.State == "running" {
+		netIODisplay = fmt.Sprintf("%s / %s",
+			theme.GreenStyle.Render(monitor.FormatBytes(int64(sel.NetRxBytes))),
+			theme.CyanStyle.Render(monitor.FormatBytes(int64(sel.NetTxBytes))),
+		)
+	}
+	s.WriteString(renderDetailRow(dict.DetailNetIOLabel, netIODisplay))
 
-		// Ports
-		portsDisplay := sel.Ports
-		if portsDisplay == "" {
-			portsDisplay = theme.DimStyle.Render(ctx.I18n.DetailNone)
-		} else {
-			portsDisplay = theme.CyanStyle.Render(portsDisplay)
-		}
-		s.WriteString(fmt.Sprintf("  %s %-18s %s\n",
-			theme.CyanStyle.Render("│"),
-			theme.BoldStyle.Render(ctx.I18n.DetailPortsLabel),
-			portsDisplay,
-		))
+	// Block I/O
+	blockIODisplay := theme.DimStyle.Render("0 B / 0 B")
+	if sel.State == "running" {
+		blockIODisplay = fmt.Sprintf("%s / %s",
+			theme.GreenStyle.Render(monitor.FormatBytes(int64(sel.BlockReadBytes))),
+			theme.YellowStyle.Render(monitor.FormatBytes(int64(sel.BlockWriteBytes))),
+		)
+	}
+	s.WriteString(renderDetailRow(dict.DetailBlockIOLabel, blockIODisplay))
 
-		// Volumes / Mounts
-		if len(sel.Mounts) == 0 {
-			s.WriteString(fmt.Sprintf("  %s %-18s %s\n",
-				theme.CyanStyle.Render("│"),
-				theme.BoldStyle.Render(ctx.I18n.DetailMountsLabel),
-				theme.DimStyle.Render(ctx.I18n.DetailNone),
-			))
-		} else {
-			for idx, mnt := range sel.Mounts {
-				label := ""
-				if idx == 0 {
-					label = theme.BoldStyle.Render(fmt.Sprintf("%-18s", ctx.I18n.DetailMountsLabel))
-				} else {
-					label = strings.Repeat(" ", 18)
-				}
-				s.WriteString(fmt.Sprintf("  %s %s %s\n",
-					theme.CyanStyle.Render("│"),
-					label,
-					theme.YellowStyle.Render("• ")+mnt,
-				))
-			}
-		}
-
-		// Network I/O
-		netIODisplay := ""
-		if sel.State == "running" {
-			netIODisplay = fmt.Sprintf("%s / %s",
-				theme.GreenStyle.Render(monitor.FormatBytes(int64(sel.NetRxBytes))),
-				theme.CyanStyle.Render(monitor.FormatBytes(int64(sel.NetTxBytes))),
-			)
-		} else {
-			netIODisplay = theme.DimStyle.Render("0 B / 0 B")
-		}
-		s.WriteString(fmt.Sprintf("  %s %-18s %s\n",
-			theme.CyanStyle.Render("│"),
-			theme.BoldStyle.Render(ctx.I18n.DetailNetIOLabel),
-			netIODisplay,
-		))
-
-		// Block I/O
-		blockIODisplay := ""
-		if sel.State == "running" {
-			blockIODisplay = fmt.Sprintf("%s / %s",
-				theme.GreenStyle.Render(monitor.FormatBytes(int64(sel.BlockReadBytes))),
-				theme.YellowStyle.Render(monitor.FormatBytes(int64(sel.BlockWriteBytes))),
-			)
-		} else {
-			blockIODisplay = theme.DimStyle.Render("0 B / 0 B")
-		}
-		s.WriteString(fmt.Sprintf("  %s %-18s %s\n",
-			theme.CyanStyle.Render("│"),
-			theme.BoldStyle.Render(ctx.I18n.DetailBlockIOLabel),
-			blockIODisplay,
-		))
-
-		// Compose Info
-		if sel.ComposeProject != "" {
-			s.WriteString(fmt.Sprintf("  %s %-18s %s\n",
-				theme.CyanStyle.Render("│"),
-				theme.BoldStyle.Render(ctx.I18n.DetailComposeLabel),
-				fmt.Sprintf("%s / %s", theme.BoldStyle.Render(sel.ComposeProject), sel.ComposeService),
-			))
-		}
-
-		s.WriteString("  " + theme.CyanStyle.Render("└"+strings.Repeat("─", cardWidth-2)+"┘") + "\n")
+	// Compose Info
+	if sel.ComposeProject != "" {
+		composeDisplay := fmt.Sprintf("%s / %s", theme.BoldStyle.Render(sel.ComposeProject), sel.ComposeService)
+		s.WriteString(renderDetailRow(dict.DetailComposeLabel, composeDisplay))
 	}
 
-	return s.String()
+	s.WriteString("  " + theme.CyanStyle.Render("└"+strings.Repeat("─", cardWidth-2)+"┘") + "\n")
 }
 
 func formatContainerStatus(state, health string) (string, lipgloss.Style) {
