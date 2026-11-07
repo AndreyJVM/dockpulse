@@ -11,7 +11,7 @@ import (
 
 func TestRenderLogs(t *testing.T) {
 	dict := i18n.Get("en")
-	
+
 	// Empty logs
 	emptyView := RenderLogs(nil, 0, "test-container", "c12345", 100, &dict)
 	if !strings.Contains(emptyView, "test-container") || !strings.Contains(emptyView, dict.NoLogsOutput) {
@@ -29,23 +29,86 @@ func TestRenderLogs(t *testing.T) {
 	}
 }
 
+func TestCalculateLogRange(t *testing.T) {
+	// Zero lines
+	s, e := calculateLogRange(0, 0, 18)
+	if s != 0 || e != 0 {
+		t.Errorf("expected 0, 0 for empty lines, got %d, %d", s, e)
+	}
+
+	// Negative scroll clamped to 0
+	s, e = calculateLogRange(50, -5, 18)
+	if s != 0 || e != 18 {
+		t.Errorf("expected 0, 18 for negative scroll, got %d, %d", s, e)
+	}
+
+	// Scroll beyond line count clamped to max
+	s, e = calculateLogRange(10, 50, 18)
+	if s != 9 || e != 10 {
+		t.Errorf("expected 9, 10 for excessive scroll, got %d, %d", s, e)
+	}
+
+	// Normal middle range
+	s, e = calculateLogRange(100, 20, 18)
+	if s != 20 || e != 38 {
+		t.Errorf("expected 20, 38, got %d, %d", s, e)
+	}
+}
+
+func TestGetLogGutterStyle(t *testing.T) {
+	errStyle := getLogGutterStyle("2026-11-07 ERROR: connection refused")
+	if errStyle.GetForeground() == nil {
+		t.Errorf("expected colored style for ERROR line")
+	}
+
+	warnStyle := getLogGutterStyle("2026-11-07 [WARN] slow response detected")
+	if warnStyle.GetForeground() == nil {
+		t.Errorf("expected colored style for WARN line")
+	}
+
+	infoStyle := getLogGutterStyle("2026-11-07 info: server listening on port 8080")
+	if infoStyle.GetForeground() == nil {
+		t.Errorf("expected styled output for normal line")
+	}
+}
+
+func TestRenderLogs_EdgeCases(t *testing.T) {
+	lines := []string{
+		"INFO started",
+		"WARN slow query",
+		"ERROR db down",
+	}
+
+	// Negative scroll should not panic and render safely
+	negView := RenderLogs(lines, -10, "app", "id1", 60, nil)
+	if !strings.Contains(negView, "app") || !strings.Contains(negView, "INFO started") {
+		t.Errorf("expected safe render with negative scroll, got: %s", negView)
+	}
+
+	// Excessive scroll should not panic
+	bigScrollView := RenderLogs(lines, 100, "app", "id1", 60, nil)
+	if !strings.Contains(bigScrollView, "ERROR db down") {
+		t.Errorf("expected last line on excessive scroll, got: %s", bigScrollView)
+	}
+}
+
 func TestRenderInspect(t *testing.T) {
 	dict := i18n.Get("ru")
 
 	detail := monitor.ContainerDetail{
-		ID:        "c123456789",
-		Name:      "web-service",
-		Image:     "nginx:alpine",
-		State:     "running",
-		Status:    "Up 3 hours",
-		Health:    "healthy",
-		CPUPerc:   4.5,
-		MemUsageMB: 120.0,
-		MemPerc:   3.2,
-		Created:   "2026-11-06",
-		IP:        "172.17.0.2",
-		Gateway:   "172.17.0.1",
-		Command:   "nginx -g daemon off;",
+		ID:              "c123456789",
+		Name:            "web-service",
+		Image:           "nginx:alpine",
+		State:           "running",
+		Status:          "Up 3 hours",
+		Health:          "healthy",
+		CPUPerc:         4.5,
+		MemUsageMB:      120.0,
+		MemPerc:         3.2,
+		Created:         "2026-11-06",
+		IP:              "172.17.0.2",
+		Gateway:         "172.17.0.1",
+		Command:         "nginx -g daemon off;",
 		Mounts:          []string{"/host/data -> /data (ro)"},
 		NetRxBytes:      5 * 1024 * 1024,
 		NetTxBytes:      10 * 1024 * 1024,
