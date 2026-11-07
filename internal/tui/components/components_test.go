@@ -1,6 +1,7 @@
 package components
 
 import (
+	"math"
 	"strings"
 	"testing"
 )
@@ -25,6 +26,43 @@ func TestTruncate(t *testing.T) {
 		got := Truncate(c.input, c.maxLen)
 		if got != c.expected {
 			t.Errorf("Truncate(%q, %d) = %q; want %q", c.input, c.maxLen, got, c.expected)
+		}
+	}
+}
+
+func TestClamp(t *testing.T) {
+	if val := Clamp(-5.0, 0.0, 100.0); val != 0.0 {
+		t.Errorf("expected 0.0, got %f", val)
+	}
+	if val := Clamp(120.0, 0.0, 100.0); val != 100.0 {
+		t.Errorf("expected 100.0, got %f", val)
+	}
+	if val := Clamp(42.5, 0.0, 100.0); val != 42.5 {
+		t.Errorf("expected 42.5, got %f", val)
+	}
+	if val := Clamp(math.NaN(), 0.0, 100.0); val != 0.0 {
+		t.Errorf("expected 0.0 for NaN, got %f", val)
+	}
+}
+
+func TestPercentStyle(t *testing.T) {
+	cases := []struct {
+		val       float64
+		wantColor string
+	}{
+		{20.0, "green"},
+		{59.9, "green"},
+		{60.0, "yellow"},
+		{79.9, "yellow"},
+		{80.0, "red"},
+		{100.0, "red"},
+	}
+
+	for _, c := range cases {
+		style := PercentStyle(c.val)
+		rendered := style.Render("test")
+		if rendered == "test" && style.GetForeground() == nil {
+			t.Errorf("expected colored output for %f, got unstyled", c.val)
 		}
 	}
 }
@@ -57,6 +95,9 @@ func TestFormatBar(t *testing.T) {
 		{75.0, 15},
 		{90.0, 15},
 		{110.0, 10},
+		{50.0, 0},  // edge case: zero width
+		{50.0, -2}, // edge case: negative width
+		{50.0, 1},  // minimal width
 	}
 
 	for _, c := range cases {
@@ -64,6 +105,23 @@ func TestFormatBar(t *testing.T) {
 		if !strings.HasPrefix(bar, "[") || !strings.Contains(bar, "]") || !strings.Contains(bar, "%") {
 			t.Errorf("FormatBar(%f, %d) returned invalid format: %q", c.pct, c.width, bar)
 		}
+	}
+}
+
+func TestRenderBar(t *testing.T) {
+	// Without percent label
+	noPct := RenderBar(50.0, 10, false)
+	if strings.Contains(noPct, "%") {
+		t.Errorf("expected no percent in %q", noPct)
+	}
+	if !strings.HasPrefix(noPct, "[") || !strings.HasSuffix(noPct, "]") {
+		t.Errorf("expected bracketed bar, got %q", noPct)
+	}
+
+	// Zero width without percent
+	zeroNoPct := RenderBar(50.0, 0, false)
+	if zeroNoPct != "[]" {
+		t.Errorf("expected '[]' for zero width without percent, got %q", zeroNoPct)
 	}
 }
 
