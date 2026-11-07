@@ -152,40 +152,38 @@ func GetDockerDiskUsage() (DockerDiskUsage, error) {
 	}
 
 	// CLI fallback
-	if IsDockerCLIAvailable() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		out, err := dockerCLICommandRunner(ctx, "system", "df", "--format", "{{json .}}")
-		if err == nil && len(out) > 0 {
-			var usage DockerDiskUsage
-			lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-			for _, line := range lines {
-				var item struct {
-					Type        string `json:"Type"`
-					TotalCount  string `json:"TotalCount"`
-					Active      string `json:"Active"`
-					Size        string `json:"Size"`
-					Reclaimable string `json:"Reclaimable"`
-				}
-				if json.Unmarshal([]byte(line), &item) == nil {
-					switch strings.ToLower(item.Type) {
-					case "images":
-						usage.Images.TotalCount = parseCLIInt(item.TotalCount)
-						usage.Images.ActiveCount = parseCLIInt(item.Active)
-					case "containers":
-						usage.Containers.TotalCount = parseCLIInt(item.TotalCount)
-						usage.Containers.ActiveCount = parseCLIInt(item.Active)
-					case "local volumes", "volumes":
-						usage.Volumes.TotalCount = parseCLIInt(item.TotalCount)
-						usage.Volumes.ActiveCount = parseCLIInt(item.Active)
-					case "build cache":
-						usage.BuildCache.TotalCount = parseCLIInt(item.TotalCount)
-						usage.BuildCache.ActiveCount = parseCLIInt(item.Active)
-					}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := dockerCLICommandRunner(ctx, "system", "df", "--format", "{{json .}}")
+	if err == nil && len(out) > 0 {
+		var usage DockerDiskUsage
+		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+		for _, line := range lines {
+			var item struct {
+				Type        string `json:"Type"`
+				TotalCount  string `json:"TotalCount"`
+				Active      string `json:"Active"`
+				Size        string `json:"Size"`
+				Reclaimable string `json:"Reclaimable"`
+			}
+			if json.Unmarshal([]byte(line), &item) == nil {
+				switch strings.ToLower(item.Type) {
+				case "images":
+					usage.Images.TotalCount = parseCLIInt(item.TotalCount)
+					usage.Images.ActiveCount = parseCLIInt(item.Active)
+				case "containers":
+					usage.Containers.TotalCount = parseCLIInt(item.TotalCount)
+					usage.Containers.ActiveCount = parseCLIInt(item.Active)
+				case "local volumes", "volumes":
+					usage.Volumes.TotalCount = parseCLIInt(item.TotalCount)
+					usage.Volumes.ActiveCount = parseCLIInt(item.Active)
+				case "build cache":
+					usage.BuildCache.TotalCount = parseCLIInt(item.TotalCount)
+					usage.BuildCache.ActiveCount = parseCLIInt(item.Active)
 				}
 			}
-			return usage, nil
 		}
+		return usage, nil
 	}
 
 	return DockerDiskUsage{}, fmt.Errorf("служба Docker недоступна")
