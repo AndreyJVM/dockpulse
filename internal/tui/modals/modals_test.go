@@ -159,6 +159,37 @@ func TestRenderPrune(t *testing.T) {
 	}
 }
 
+func TestGetPruneActionName(t *testing.T) {
+	dict := i18n.Get("en")
+	if act1 := getPruneActionName(1, &dict); act1 != dict.PruneWarnAction1 {
+		t.Errorf("expected %q, got %q", dict.PruneWarnAction1, act1)
+	}
+	if act2 := getPruneActionName(2, &dict); act2 != dict.PruneWarnAction2 {
+		t.Errorf("expected %q, got %q", dict.PruneWarnAction2, act2)
+	}
+	if act3 := getPruneActionName(3, &dict); act3 != dict.PruneWarnAction3 {
+		t.Errorf("expected %q, got %q", dict.PruneWarnAction3, act3)
+	}
+	if act4 := getPruneActionName(4, &dict); act4 != dict.PruneWarnAction4 {
+		t.Errorf("expected %q, got %q", dict.PruneWarnAction4, act4)
+	}
+	if actOther := getPruneActionName(99, &dict); actOther != "" {
+		t.Errorf("expected empty string for unknown step, got %q", actOther)
+	}
+}
+
+func TestRenderPrune_NilDictAndZeroTotal(t *testing.T) {
+	usage := monitor.DockerDiskUsage{
+		Images:     monitor.DockerDiskItem{TotalCount: 2, ActiveCount: 1, TotalSize: 1000, Reclaimable: 500},
+		Containers: monitor.DockerDiskItem{TotalCount: 1, ActiveCount: 0, TotalSize: 2000, Reclaimable: 1500},
+	}
+	// nil dict should safely fallback to default without panic
+	view := RenderPrune(usage, "", 0, nil)
+	if !strings.Contains(view, "1000 B") || !strings.Contains(view, "2.0 KB") {
+		t.Errorf("expected categories in prune view, got: %s", view)
+	}
+}
+
 func TestRenderComposeDown(t *testing.T) {
 	dict := i18n.Get("en")
 	view := RenderComposeDown("my-stack", &dict)

@@ -9,76 +9,121 @@ import (
 	"github.com/AndreyJVM/dockpulse/internal/tui/theme"
 )
 
+const (
+	pruneColTypeWidth   = 16
+	pruneColSizeWidth   = 12
+	pruneColActiveWidth = 14
+	pruneTableWidth     = 58
+)
+
 // RenderPrune renders the Docker resource pruning menu and confirmation modal.
 func RenderPrune(usage monitor.DockerDiskUsage, usageErr string, confirmStep int, dict *i18n.Dictionary) string {
 	var s strings.Builder
+	d := getModalDictionary(dict)
 
-	s.WriteString(theme.TitleStyle.Render(dict.PruneTitle) + "\n\n")
+	s.WriteString(theme.TitleStyle.Render(d.PruneTitle) + "\n\n")
 
 	if usageErr != "" {
-		s.WriteString(fmt.Sprintf("  %s %s\n\n", theme.DimStyle.Render(dict.StatusLabel), theme.RedStyle.Render(usageErr)))
+		s.WriteString(fmt.Sprintf("  %s %s\n\n", theme.DimStyle.Render(d.StatusLabel), theme.RedStyle.Render(usageErr)))
 	} else {
-		s.WriteString("  " + theme.BoldStyle.Render(dict.CurrentDiskUsage) + "\n")
-		s.WriteString(fmt.Sprintf("  %-16s %-12s %-14s %s\n",
-			theme.DimStyle.Render(dict.TypeCol), theme.DimStyle.Render(dict.SizeCol), theme.DimStyle.Render(dict.ActiveTotalCol), theme.DimStyle.Render(dict.ReclaimableCol),
-		))
-		s.WriteString("  " + theme.DimStyle.Render(strings.Repeat("─", 58)) + "\n")
-
-		u := usage
-		s.WriteString(fmt.Sprintf("  %-16s %-12s %-14s %s\n",
-			dict.TypeImages, monitor.FormatBytes(u.Images.TotalSize),
-			fmt.Sprintf("%d / %d", u.Images.ActiveCount, u.Images.TotalCount),
-			theme.YellowStyle.Render(monitor.FormatBytes(u.Images.Reclaimable)),
-		))
-		s.WriteString(fmt.Sprintf("  %-16s %-12s %-14s %s\n",
-			dict.TypeContainers, monitor.FormatBytes(u.Containers.TotalSize),
-			fmt.Sprintf("%d / %d", u.Containers.ActiveCount, u.Containers.TotalCount),
-			theme.YellowStyle.Render(monitor.FormatBytes(u.Containers.Reclaimable)),
-		))
-		s.WriteString(fmt.Sprintf("  %-16s %-12s %-14s %s\n",
-			dict.TypeVolumes, monitor.FormatBytes(u.Volumes.TotalSize),
-			fmt.Sprintf("%d / %d", u.Volumes.ActiveCount, u.Volumes.TotalCount),
-			theme.YellowStyle.Render(monitor.FormatBytes(u.Volumes.Reclaimable)),
-		))
-		s.WriteString(fmt.Sprintf("  %-16s %-12s %-14s %s\n",
-			dict.TypeBuildCache, monitor.FormatBytes(u.BuildCache.TotalSize),
-			fmt.Sprintf("%d / %d", u.BuildCache.ActiveCount, u.BuildCache.TotalCount),
-			theme.YellowStyle.Render(monitor.FormatBytes(u.BuildCache.Reclaimable)),
-		))
-		s.WriteString("  " + theme.DimStyle.Render(strings.Repeat("─", 58)) + "\n")
-		s.WriteString(fmt.Sprintf("  %-16s %-12s %-14s %s\n\n",
-			theme.BoldStyle.Render(dict.TypeTotal), theme.BoldStyle.Render(monitor.FormatBytes(u.TotalSize)),
-			"", theme.GreenStyle.Render(monitor.FormatBytes(u.TotalRecl)),
-		))
+		s.WriteString(renderPruneUsageTable(usage, d))
 	}
 
 	if confirmStep > 0 {
-		var actionName string
-		switch confirmStep {
-		case 1:
-			actionName = dict.PruneWarnAction1
-		case 2:
-			actionName = dict.PruneWarnAction2
-		case 3:
-			actionName = dict.PruneWarnAction3
-		case 4:
-			actionName = dict.PruneWarnAction4
-		}
-
-		s.WriteString("  " + theme.RedStyle.Render(dict.PruneWarnTitle) + theme.BoldStyle.Render(actionName) + "\n")
-		s.WriteString("  " + dict.PruneWarnIrrev + "\n\n")
-		s.WriteString(fmt.Sprintf("  %s %s  |  %s %s\n",
-			theme.GreenStyle.Render("[Y]"), dict.FooterConfirm,
-			theme.DimStyle.Render("[N / Esc]"), dict.FooterCancel,
-		))
+		s.WriteString(renderPruneConfirmStep(confirmStep, d))
 	} else {
-		s.WriteString("  " + theme.BoldStyle.Render(dict.PruneChooseAction) + "\n")
-		s.WriteString(fmt.Sprintf("  %s %s\n", theme.GreenStyle.Render("[1]"), dict.PruneOpt1))
-		s.WriteString(fmt.Sprintf("  %s %s\n", theme.GreenStyle.Render("[2]"), dict.PruneOpt2))
-		s.WriteString(fmt.Sprintf("  %s %s\n", theme.GreenStyle.Render("[3]"), dict.PruneOpt3))
-		s.WriteString(fmt.Sprintf("  %s %s\n\n", theme.YellowStyle.Render("[4]"), dict.PruneOpt4))
-		s.WriteString(fmt.Sprintf("  %s %s\n", theme.DimStyle.Render("[Esc / Q]"), dict.FooterClose))
+		s.WriteString(renderPruneActionMenu(d))
 	}
 
 	return theme.BoxStyle.Render(s.String())
+}
+
+func renderPruneRow(name string, item monitor.DockerDiskItem) string {
+	return fmt.Sprintf("  %-16s %-12s %-14s %s\n",
+		name,
+		monitor.FormatBytes(item.TotalSize),
+		fmt.Sprintf("%d / %d", item.ActiveCount, item.TotalCount),
+		theme.YellowStyle.Render(monitor.FormatBytes(item.Reclaimable)),
+	)
+}
+
+func renderPruneUsageTable(u monitor.DockerDiskUsage, d *i18n.Dictionary) string {
+	var sb strings.Builder
+	sb.WriteString("  " + theme.BoldStyle.Render(d.CurrentDiskUsage) + "\n")
+	sb.WriteString(fmt.Sprintf("  %-16s %-12s %-14s %s\n",
+		theme.DimStyle.Render(d.TypeCol),
+		theme.DimStyle.Render(d.SizeCol),
+		theme.DimStyle.Render(d.ActiveTotalCol),
+		theme.DimStyle.Render(d.ReclaimableCol),
+	))
+	sb.WriteString("  " + theme.DimStyle.Render(strings.Repeat("─", pruneTableWidth)) + "\n")
+
+	categories := []struct {
+		name string
+		item monitor.DockerDiskItem
+	}{
+		{d.TypeImages, u.Images},
+		{d.TypeContainers, u.Containers},
+		{d.TypeVolumes, u.Volumes},
+		{d.TypeBuildCache, u.BuildCache},
+	}
+
+	for _, c := range categories {
+		sb.WriteString(renderPruneRow(c.name, c.item))
+	}
+
+	totalSize := u.TotalSize
+	totalRecl := u.TotalRecl
+	if totalSize == 0 && totalRecl == 0 {
+		totalSize = u.Images.TotalSize + u.Containers.TotalSize + u.Volumes.TotalSize + u.BuildCache.TotalSize
+		totalRecl = u.Images.Reclaimable + u.Containers.Reclaimable + u.Volumes.Reclaimable + u.BuildCache.Reclaimable
+	}
+
+	sb.WriteString("  " + theme.DimStyle.Render(strings.Repeat("─", pruneTableWidth)) + "\n")
+	sb.WriteString(fmt.Sprintf("  %-16s %-12s %-14s %s\n\n",
+		theme.BoldStyle.Render(d.TypeTotal),
+		theme.BoldStyle.Render(monitor.FormatBytes(totalSize)),
+		"",
+		theme.GreenStyle.Render(monitor.FormatBytes(totalRecl)),
+	))
+
+	return sb.String()
+}
+
+func getPruneActionName(step int, d *i18n.Dictionary) string {
+	switch step {
+	case 1:
+		return d.PruneWarnAction1
+	case 2:
+		return d.PruneWarnAction2
+	case 3:
+		return d.PruneWarnAction3
+	case 4:
+		return d.PruneWarnAction4
+	default:
+		return ""
+	}
+}
+
+func renderPruneConfirmStep(confirmStep int, d *i18n.Dictionary) string {
+	actionName := getPruneActionName(confirmStep, d)
+	var sb strings.Builder
+	sb.WriteString("  " + theme.RedStyle.Render(d.PruneWarnTitle) + theme.BoldStyle.Render(actionName) + "\n")
+	sb.WriteString("  " + d.PruneWarnIrrev + "\n\n")
+	sb.WriteString(fmt.Sprintf("  %s %s  |  %s %s\n",
+		theme.GreenStyle.Render("[Y]"), d.FooterConfirm,
+		theme.DimStyle.Render("[N / Esc]"), d.FooterCancel,
+	))
+	return sb.String()
+}
+
+func renderPruneActionMenu(d *i18n.Dictionary) string {
+	var sb strings.Builder
+	sb.WriteString("  " + theme.BoldStyle.Render(d.PruneChooseAction) + "\n")
+	sb.WriteString(fmt.Sprintf("  %s %s\n", theme.GreenStyle.Render("[1]"), d.PruneOpt1))
+	sb.WriteString(fmt.Sprintf("  %s %s\n", theme.GreenStyle.Render("[2]"), d.PruneOpt2))
+	sb.WriteString(fmt.Sprintf("  %s %s\n", theme.GreenStyle.Render("[3]"), d.PruneOpt3))
+	sb.WriteString(fmt.Sprintf("  %s %s\n\n", theme.YellowStyle.Render("[4]"), d.PruneOpt4))
+	sb.WriteString(fmt.Sprintf("  %s %s\n", theme.DimStyle.Render("[Esc / Q]"), d.FooterClose))
+	return sb.String()
 }
