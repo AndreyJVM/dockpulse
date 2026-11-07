@@ -196,6 +196,40 @@ func renderDetailRow(label, value string) string {
 	)
 }
 
+// FormatPortDisplay converts a raw comma-separated ports string into clean,
+// deduplicated mappings with unicode arrows (e.g. "0.0.0.0:8080 → 8080/tcp").
+func FormatPortDisplay(portsStr string) []string {
+	if strings.TrimSpace(portsStr) == "" {
+		return nil
+	}
+	rawParts := strings.Split(portsStr, ",")
+	seenMap := make(map[string]bool)
+	var result []string
+
+	for _, p := range rawParts {
+		tr := strings.TrimSpace(p)
+		if tr == "" {
+			continue
+		}
+
+		clean := strings.ReplaceAll(tr, "->", " → ")
+
+		// Deduplicate IPv6 if identical IPv4 mapping exists
+		dedupKey := clean
+		if strings.HasPrefix(clean, "[::]:") {
+			dedupKey = "0.0.0.0:" + strings.TrimPrefix(clean, "[::]:")
+		}
+
+		if seenMap[dedupKey] || seenMap[clean] {
+			continue
+		}
+		seenMap[dedupKey] = true
+		seenMap[clean] = true
+		result = append(result, clean)
+	}
+	return result
+}
+
 func renderContainerDetailsCard(ctx *DockerContext, dict *i18n.Dictionary, s *strings.Builder) {
 	if ctx.CursorIdx < 0 || ctx.CursorIdx >= len(ctx.Containers) {
 		return
@@ -211,16 +245,72 @@ func renderContainerDetailsCard(ctx *DockerContext, dict *i18n.Dictionary, s *st
 	}
 	s.WriteString("  " + theme.CyanStyle.Render("┌─") + theme.BoldStyle.Render(title) + theme.CyanStyle.Render(strings.Repeat("─", topDashLen)+"┐") + "\n")
 
-	// Ports
-	portsDisplay := sel.Ports
-	if portsDisplay == "" {
-		portsDisplay = theme.DimStyle.Render(dict.DetailNone)
+	// 1. IP / Network
+	ipDisplay := sel.IPAddress
+	if ipDisplay == "" {
+		if sel.NetworkName != "" {
+			ipDisplay = fmt.Sprintf("%s (%s)", theme.DimStyle.Render(dict.DetailNone), sel.NetworkName)
+		} else {
+			ipDisplay = theme.DimStyle.Render(dict.DetailNone)
+		}
+	} else if sel.NetworkName != "" {
+		ipDisplay = fmt.Sprintf("%s  %s", theme.BoldStyle.Render(ipDisplay), theme.DimStyle.Render(fmt.Sprintf("(%s)", sel.NetworkName)))
 	} else {
-		portsDisplay = theme.CyanStyle.Render(portsDisplay)
+		ipDisplay = theme.BoldStyle.Render(ipDisplay)
 	}
-	s.WriteString(renderDetailRow(dict.DetailPortsLabel, portsDisplay))
+	s.WriteString(renderDetailRow(dict.DetailIPLabel, ipDisplay))
 
-	// Volumes / Mounts
+	// 2. Uptime / Started
+	uptimeDisplay := sel.Status
+	if uptimeDisplay == "" {
+		uptimeDisplay = sel.State
+	}
+	if sel.Created != "" {
+		uptimeDisplay = fmt.Sprintf("%s  %s %s",
+			theme.GreenStyle.Render(uptimeDisplay),
+			theme.DimStyle.Render("• "+dict.CreatedLabel),
+			theme.DimStyle.Render(sel.Created),
+		)
+	} else {
+		uptimeDisplay = theme.GreenStyle.Render(uptimeDisplay)
+	}
+	s.WriteString(renderDetailRow(dict.DetailUptimeLabel, uptimeDisplay))
+
+	// 3. Restart Policy
+	restartDisplay := sel.RestartPolicy
+	if restartDisplay == "" {
+		restartDisplay = theme.DimStyle.Render(dict.DetailNone)
+	} else {
+		switch strings.ToLower(restartDisplay) {
+		case "always", "unless-stopped":
+			restartDisplay = theme.GreenStyle.Render(restartDisplay)
+		case "on-failure":
+			restartDisplay = theme.YellowStyle.Render(restartDisplay)
+		case "no":
+			restartDisplay = theme.DimStyle.Render(restartDisplay)
+		default:
+			restartDisplay = theme.CyanStyle.Render(restartDisplay)
+		}
+	}
+	s.WriteString(renderDetailRow(dict.DetailRestartPolicyLabel, restartDisplay))
+
+	// 4. Ports
+	portItems := FormatPortDisplay(sel.Ports)
+	if len(portItems) == 0 {
+		s.WriteString(renderDetailRow(dict.DetailPortsLabel, theme.DimStyle.Render(dict.DetailNone)))
+	} else if len(portItems) == 1 {
+		s.WriteString(renderDetailRow(dict.DetailPortsLabel, theme.CyanStyle.Render(portItems[0])))
+	} else {
+		for idx, port := range portItems {
+			label := ""
+			if idx == 0 {
+				label = dict.DetailPortsLabel
+			}
+			s.WriteString(renderDetailRow(label, theme.CyanStyle.Render("• ")+theme.CyanStyle.Render(port)))
+		}
+	}
+
+	// 5. Volumes / Mounts
 	if len(sel.Mounts) == 0 {
 		s.WriteString(renderDetailRow(dict.DetailMountsLabel, theme.DimStyle.Render(dict.DetailNone)))
 	} else {
@@ -233,7 +323,7 @@ func renderContainerDetailsCard(ctx *DockerContext, dict *i18n.Dictionary, s *st
 		}
 	}
 
-	// Network I/O
+	// 6. Network I/O
 	netIODisplay := theme.DimStyle.Render("0 B / 0 B")
 	if sel.State == "running" {
 		netIODisplay = fmt.Sprintf("%s / %s",
@@ -243,7 +333,7 @@ func renderContainerDetailsCard(ctx *DockerContext, dict *i18n.Dictionary, s *st
 	}
 	s.WriteString(renderDetailRow(dict.DetailNetIOLabel, netIODisplay))
 
-	// Block I/O
+	// 7. Block I/O
 	blockIODisplay := theme.DimStyle.Render("0 B / 0 B")
 	if sel.State == "running" {
 		blockIODisplay = fmt.Sprintf("%s / %s",
@@ -253,7 +343,7 @@ func renderContainerDetailsCard(ctx *DockerContext, dict *i18n.Dictionary, s *st
 	}
 	s.WriteString(renderDetailRow(dict.DetailBlockIOLabel, blockIODisplay))
 
-	// Compose Info
+	// 8. Compose Info
 	if sel.ComposeProject != "" {
 		composeDisplay := fmt.Sprintf("%s / %s", theme.BoldStyle.Render(sel.ComposeProject), sel.ComposeService)
 		s.WriteString(renderDetailRow(dict.DetailComposeLabel, composeDisplay))

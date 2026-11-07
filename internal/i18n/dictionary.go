@@ -96,6 +96,9 @@ type Dictionary struct {
 	DetailComposeLabel     string
 	DetailNetIOLabel       string
 	DetailBlockIOLabel     string
+	DetailIPLabel            string
+	DetailUptimeLabel        string
+	DetailRestartPolicyLabel string
 	SortBadge              string
 	SortModeDefault        string
 	SortModeCPU            string
@@ -329,6 +332,9 @@ var Ru = Dictionary{
 	DetailComposeLabel:     "Compose:",
 	DetailNetIOLabel:       "Сеть (Net I/O):",
 	DetailBlockIOLabel:     "Диск (Block I/O):",
+	DetailIPLabel:            "IP / Сеть:",
+	DetailUptimeLabel:        "Аптайм / Запуск:",
+	DetailRestartPolicyLabel: "Restart Policy:",
 	SortBadge:              "Сортировка: %s",
 	SortModeDefault:        "По умолчанию",
 	SortModeCPU:            "CPU ↓",
@@ -553,6 +559,9 @@ var En = Dictionary{
 	DetailComposeLabel:     "Compose:",
 	DetailNetIOLabel:       "Net I/O:",
 	DetailBlockIOLabel:     "Block I/O:",
+	DetailIPLabel:            "IP / Network:",
+	DetailUptimeLabel:        "Uptime / Started:",
+	DetailRestartPolicyLabel: "Restart Policy:",
 	SortBadge:              "Sort: %s",
 	SortModeDefault:        "Default",
 	SortModeCPU:            "CPU ↓",

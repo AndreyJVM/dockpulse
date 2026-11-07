@@ -114,6 +114,7 @@ func TestRenderInspect(t *testing.T) {
 		NetTxBytes:      10 * 1024 * 1024,
 		BlockReadBytes:  2 * 1024 * 1024,
 		BlockWriteBytes: 4 * 1024 * 1024,
+		RestartPolicy:   "unless-stopped",
 	}
 
 	view := RenderInspect(detail, &dict)
@@ -128,6 +129,9 @@ func TestRenderInspect(t *testing.T) {
 	}
 	if !strings.Contains(view, "Block I/O:") || !strings.Contains(view, "2.0 MB / 4.0 MB") {
 		t.Errorf("expected Block I/O in inspect view, got: %s", view)
+	}
+	if !strings.Contains(view, "unless-stopped") || !strings.Contains(view, "Restart Policy:") {
+		t.Errorf("expected Restart Policy in inspect view, got: %s", view)
 	}
 }
 

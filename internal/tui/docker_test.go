@@ -273,6 +273,10 @@ func TestDockerTabSelectedContainerDetails(t *testing.T) {
 			Mounts:         []string{"/var/www -> /usr/share/nginx/html (ro)", "nginx-logs -> /var/log/nginx (rw)"},
 			ComposeProject: "my-stack",
 			ComposeService: "web",
+			IPAddress:      "172.18.0.5",
+			NetworkName:    "my-network",
+			RestartPolicy:  "unless-stopped",
+			Created:        "2026-11-07 15:30:00",
 			NetRxBytes:     12 * 1024 * 1024,
 			NetTxBytes:     45 * 1024 * 1024,
 			BlockReadBytes:  10 * 1024 * 1024,
@@ -284,8 +288,17 @@ func TestDockerTabSelectedContainerDetails(t *testing.T) {
 	if !strings.Contains(view, "SELECTED CONTAINER DETAILS") {
 		t.Errorf("expected details panel header in View(), got: %s", view)
 	}
-	if !strings.Contains(view, "8080->80/tcp, 8443->443/tcp") {
-		t.Errorf("expected full ports in details panel, got: %s", view)
+	if !strings.Contains(view, "8080 → 80/tcp") || !strings.Contains(view, "8443 → 443/tcp") {
+		t.Errorf("expected formatted ports in details panel, got: %s", view)
+	}
+	if !strings.Contains(view, "172.18.0.5") || !strings.Contains(view, "my-network") {
+		t.Errorf("expected IP and network in details panel, got: %s", view)
+	}
+	if !strings.Contains(view, "unless-stopped") {
+		t.Errorf("expected restart policy in details panel, got: %s", view)
+	}
+	if !strings.Contains(view, "2026-11-07 15:30:00") {
+		t.Errorf("expected created timestamp in details panel, got: %s", view)
 	}
 	if !strings.Contains(view, "/var/www -> /usr/share/nginx/html (ro)") {
 		t.Errorf("expected volume mount in details panel, got: %s", view)

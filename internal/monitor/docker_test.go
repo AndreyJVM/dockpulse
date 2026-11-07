@@ -239,6 +239,9 @@ func TestGetContainerDetail_Socket(t *testing.T) {
 						"Cmd": ["app", "start"],
 						"Env": ["PORT=8080"]
 					},
+					"HostConfig": {
+						"RestartPolicy": {"Name": "unless-stopped"}
+					},
 					"NetworkSettings": {
 						"IPAddress": "172.17.0.2",
 						"Gateway": "172.17.0.1",
@@ -263,8 +266,52 @@ func TestGetContainerDetail_Socket(t *testing.T) {
 	if detail.Name != "my-app" || detail.Image != "my-app:v1" || detail.Health != "healthy" {
 		t.Errorf("unexpected detail: %+v", detail)
 	}
-	if detail.IP != "172.17.0.2" || detail.Command != "app start" {
-		t.Errorf("unexpected network/cmd: IP=%s Cmd=%s", detail.IP, detail.Command)
+	if detail.IP != "172.17.0.2" || detail.Command != "app start" || detail.RestartPolicy != "unless-stopped" {
+		t.Errorf("unexpected network/cmd/restart: IP=%s Cmd=%s Restart=%s", detail.IP, detail.Command, detail.RestartPolicy)
+	}
+}
+
+func TestGetContainerDetail_NetworkFallback(t *testing.T) {
+	origFinder := dockerSocketFinder
+	origFactory := socketClientFactory
+	defer func() {
+		dockerSocketFinder = origFinder
+		socketClientFactory = origFactory
+	}()
+
+	dockerSocketFinder = func() string { return "/tmp/mock.sock" }
+	socketClientFactory = func(_ string) *http.Client {
+		return newMockHTTPClient(func(req *http.Request) (*http.Response, error) {
+			if strings.Contains(req.URL.Path, "/containers/net-fallback/json") {
+				return mockStringResponse(http.StatusOK, `{
+					"Name": "/custom-net-app",
+					"State": {"Status": "running"},
+					"HostConfig": {"RestartPolicy": {"Name": "always"}},
+					"NetworkSettings": {
+						"IPAddress": "",
+						"Networks": {
+							"my-bridge": {
+								"IPAddress": "172.20.0.10",
+								"Gateway": "172.20.0.1",
+								"MacAddress": "02:42:ac:14:00:0a"
+							}
+						}
+					}
+				}`), nil
+			}
+			return mockStringResponse(http.StatusOK, `{}`), nil
+		})
+	}
+
+	detail, err := GetContainerDetail("net-fallback")
+	if err != nil {
+		t.Fatalf("GetContainerDetail failed: %v", err)
+	}
+	if detail.IP != "172.20.0.10" || detail.Gateway != "172.20.0.1" || detail.MACAddress != "02:42:ac:14:00:0a" {
+		t.Errorf("expected network fallback values, got: %+v", detail)
+	}
+	if detail.RestartPolicy != "always" {
+		t.Errorf("expected RestartPolicy always, got: %q", detail.RestartPolicy)
 	}
 }
 
@@ -347,6 +394,14 @@ func TestFormatPorts(t *testing.T) {
 			name: "public and private",
 			ports: []rawPort{
 				{PublicPort: 8080, PrivatePort: 80, Type: "tcp"},
+			},
+			expected: "8080->80/tcp",
+		},
+		{
+			name: "duplicate public and private (IPv4 and IPv6)",
+			ports: []rawPort{
+				{IP: "0.0.0.0", PublicPort: 8080, PrivatePort: 80, Type: "tcp"},
+				{IP: "::", PublicPort: 8080, PrivatePort: 80, Type: "tcp"},
 			},
 			expected: "8080->80/tcp",
 		},

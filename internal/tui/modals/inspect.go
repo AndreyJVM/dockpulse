@@ -52,7 +52,14 @@ func RenderInspect(d monitor.ContainerDetail, dict *i18n.Dictionary) string {
 			))
 		}
 	}
-	s.WriteString(fmt.Sprintf("  %s %s\n", theme.DimStyle.Render(dict.CreatedLabel), d.Created))
+	restartVal := d.RestartPolicy
+	if restartVal == "" {
+		restartVal = dict.DetailNone
+	}
+	s.WriteString(fmt.Sprintf("  %s %s    %s %s\n",
+		theme.DimStyle.Render(dict.CreatedLabel), d.Created,
+		theme.DimStyle.Render(dict.DetailRestartPolicyLabel), theme.CyanStyle.Render(restartVal),
+	))
 	s.WriteString(fmt.Sprintf("  %s %s    %s %s\n", theme.DimStyle.Render(dict.IPAddrLabel), theme.BoldStyle.Render(d.IP), theme.DimStyle.Render(dict.GatewayLabel), d.Gateway))
 	s.WriteString(fmt.Sprintf("  %s %s\n", theme.DimStyle.Render(dict.CommandLabel), components.Truncate(d.Command, 60)))
 

@@ -47,6 +47,11 @@ type ContainerItem struct {
 	ComposeService  string
 	Labels          map[string]string
 	Mounts          []string
+	IPAddress       string
+	NetworkName     string
+	Created         string
+	StartedAt       string
+	RestartPolicy   string
 	CPUPerc         float64
 	MemUsageMB      float64
 	MemLimitMB      float64
@@ -69,6 +74,7 @@ type ContainerDetail struct {
 	IP              string
 	Gateway         string
 	MACAddress      string
+	RestartPolicy   string
 	Command         string
 	Mounts          []string
 	Env             []string
@@ -252,6 +258,46 @@ func fetchContainerStats(client *http.Client, containerID string) ContainerStats
 	return calculateContainerStats(s)
 }
 
+// fetchContainerInspect запрашивает краткие метаданные инспекции контейнера через сокет.
+func fetchContainerInspect(client *http.Client, containerID string) (restartPolicy, startedAt string) {
+	ctx, cancel := context.WithTimeout(context.Background(), containerStatsTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://localhost/containers/%s/json", containerID), nil)
+	if err != nil {
+		return "", ""
+	}
+
+	resp, err := client.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		if resp != nil && resp.Body != nil {
+			resp.Body.Close()
+		}
+		return "", ""
+	}
+	defer resp.Body.Close()
+
+	var data struct {
+		HostConfig struct {
+			RestartPolicy struct {
+				Name string `json:"Name"`
+			} `json:"RestartPolicy"`
+		} `json:"HostConfig"`
+		State struct {
+			StartedAt string `json:"StartedAt"`
+		} `json:"State"`
+	}
+
+	if json.NewDecoder(resp.Body).Decode(&data) == nil {
+		started := data.State.StartedAt
+		if t, err := time.Parse(time.RFC3339Nano, started); err == nil && !t.IsZero() {
+			started = t.Local().Format("2006-01-02 15:04:05")
+		}
+		return data.HostConfig.RestartPolicy.Name, started
+	}
+	return "", ""
+}
+
 // FindDockerSocket ищет доступный UNIX-сокет Docker или Podman.
 func FindDockerSocket() string {
 	if dockerHost := os.Getenv("DOCKER_HOST"); strings.HasPrefix(dockerHost, "unix://") {
@@ -325,11 +371,17 @@ func formatPorts(ports []rawPort) string {
 		return ""
 	}
 	portsList := make([]string, 0, len(ports))
+	seen := make(map[string]bool)
 	for _, p := range ports {
+		var entry string
 		if p.PublicPort > 0 {
-			portsList = append(portsList, fmt.Sprintf("%d->%d/%s", p.PublicPort, p.PrivatePort, p.Type))
+			entry = fmt.Sprintf("%d->%d/%s", p.PublicPort, p.PrivatePort, p.Type)
 		} else if p.PrivatePort > 0 {
-			portsList = append(portsList, fmt.Sprintf("%d/%s", p.PrivatePort, p.Type))
+			entry = fmt.Sprintf("%d/%s", p.PrivatePort, p.Type)
+		}
+		if entry != "" && !seen[entry] {
+			seen[entry] = true
+			portsList = append(portsList, entry)
 		}
 	}
 	return strings.Join(portsList, ", ")
@@ -393,6 +445,13 @@ func GetDockerSummary() DockerSummary {
 				Status string            `json:"Status"`
 				Ports  []rawPort         `json:"Ports"`
 				Labels map[string]string `json:"Labels"`
+				Created int64            `json:"Created"`
+				NetworkSettings struct {
+					Networks map[string]struct {
+						IPAddress string `json:"IPAddress"`
+						Gateway   string `json:"Gateway"`
+					} `json:"Networks"`
+				} `json:"NetworkSettings"`
 				Mounts []struct {
 					Type        string `json:"Type"`
 					Name        string `json:"Name"`
@@ -441,6 +500,25 @@ func GetDockerSummary() DockerSummary {
 						}
 					}
 
+					var ipAddr, netName string
+					if len(c.NetworkSettings.Networks) > 0 {
+						var ips []string
+						var nets []string
+						for nName, nData := range c.NetworkSettings.Networks {
+							nets = append(nets, nName)
+							if nData.IPAddress != "" {
+								ips = append(ips, nData.IPAddress)
+							}
+						}
+						ipAddr = strings.Join(ips, ", ")
+						netName = strings.Join(nets, ", ")
+					}
+
+					createdStr := ""
+					if c.Created > 0 {
+						createdStr = time.Unix(c.Created, 0).Format("2006-01-02 15:04:05")
+					}
+
 					summary.Containers = append(summary.Containers, ContainerItem{
 						ID:             cID,
 						Name:           name,
@@ -453,20 +531,23 @@ func GetDockerSummary() DockerSummary {
 						ComposeProject: composeProject,
 						ComposeService: composeService,
 						Labels:         c.Labels,
+						IPAddress:      ipAddr,
+						NetworkName:    netName,
+						Created:        createdStr,
 					})
 				}
 
-				// Параллельный опрос метрик CPU и памяти с ограниченным числом горутин
+				// Параллельный опрос метрик и инспекции с ограниченным числом горутин
 				if len(summary.Containers) > 0 {
 					var wg sync.WaitGroup
 					sem := make(chan struct{}, maxConcurrentStatsFetch)
 					for i := range summary.Containers {
-						if summary.Containers[i].State == "running" {
-							wg.Add(1)
-							sem <- struct{}{}
-							go func(idx int, cID string) {
-								defer wg.Done()
-								defer func() { <-sem }()
+						wg.Add(1)
+						sem <- struct{}{}
+						go func(idx int, cID, state string) {
+							defer wg.Done()
+							defer func() { <-sem }()
+							if state == "running" {
 								stats := fetchContainerStats(client, cID)
 								summary.Containers[idx].CPUPerc = stats.CPUPerc
 								summary.Containers[idx].MemUsageMB = stats.MemUsageMB
@@ -476,8 +557,15 @@ func GetDockerSummary() DockerSummary {
 								summary.Containers[idx].NetTxBytes = stats.NetTxBytes
 								summary.Containers[idx].BlockReadBytes = stats.BlockReadBytes
 								summary.Containers[idx].BlockWriteBytes = stats.BlockWriteBytes
-							}(i, summary.Containers[i].ID)
-						}
+							}
+							rp, started := fetchContainerInspect(client, cID)
+							if rp != "" {
+								summary.Containers[idx].RestartPolicy = rp
+							}
+							if started != "" {
+								summary.Containers[idx].StartedAt = started
+							}
+						}(i, summary.Containers[i].ID, summary.Containers[i].State)
 					}
 					wg.Wait()
 				}
@@ -502,7 +590,7 @@ func GetDockerSummary() DockerSummary {
 	if summary.Status == DockerStatusRunning && len(summary.Containers) == 0 {
 		psCtx, psCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer psCancel()
-		psOut, psErr := dockerCLICommandRunner(psCtx, "ps", "-a", "--format", "{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Status}}\t{{.Ports}}\t{{.Mounts}}\t{{.Labels}}")
+		psOut, psErr := dockerCLICommandRunner(psCtx, "ps", "-a", "--format", "{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Status}}\t{{.Ports}}\t{{.Mounts}}\t{{.Labels}}\t{{.Networks}}\t{{.CreatedAt}}\t{{.RunningFor}}")
 		if psErr == nil {
 			lines := strings.Split(strings.TrimSpace(string(psOut)), "\n")
 			for _, line := range lines {
@@ -538,6 +626,16 @@ func GetDockerSummary() DockerSummary {
 							}
 						}
 					}
+					var cNet, cCreated, cStarted string
+					if len(parts) >= 9 {
+						cNet = parts[8]
+					}
+					if len(parts) >= 10 {
+						cCreated = parts[9]
+					}
+					if len(parts) >= 11 {
+						cStarted = parts[10]
+					}
 					summary.Containers = append(summary.Containers, ContainerItem{
 						ID:             cID,
 						Name:           cName,
@@ -549,7 +647,37 @@ func GetDockerSummary() DockerSummary {
 						Mounts:         cMounts,
 						ComposeProject: pProj,
 						ComposeService: pSvc,
+						NetworkName:    cNet,
+						Created:        cCreated,
+						StartedAt:      cStarted,
 					})
+				}
+			}
+		}
+		if len(summary.Containers) > 0 {
+			inspectCtx, inspectCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer inspectCancel()
+			inspectArgs := []string{"inspect", "--format", "{{slice .Id 0 12}}|{{.HostConfig.RestartPolicy.Name}}|{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}"}
+			for _, c := range summary.Containers {
+				inspectArgs = append(inspectArgs, c.ID)
+			}
+			if insOut, insErr := dockerCLICommandRunner(inspectCtx, inspectArgs...); insErr == nil {
+				for _, line := range strings.Split(strings.TrimSpace(string(insOut)), "\n") {
+					f := strings.Split(line, "|")
+					if len(f) >= 3 {
+						cID := strings.TrimSpace(f[0])
+						rPolicy := strings.TrimSpace(f[1])
+						ips := strings.Fields(f[2])
+						for idx := range summary.Containers {
+							if summary.Containers[idx].ID == cID {
+								summary.Containers[idx].RestartPolicy = rPolicy
+								if len(ips) > 0 && summary.Containers[idx].IPAddress == "" {
+									summary.Containers[idx].IPAddress = strings.Join(ips, ", ")
+								}
+								break
+							}
+						}
+					}
 				}
 			}
 		}
@@ -735,10 +863,20 @@ func GetContainerDetail(containerID string) (ContainerDetail, error) {
 					Cmd   []string `json:"Cmd"`
 					Env   []string `json:"Env"`
 				} `json:"Config"`
+				HostConfig struct {
+					RestartPolicy struct {
+						Name string `json:"Name"`
+					} `json:"RestartPolicy"`
+				} `json:"HostConfig"`
 				NetworkSettings struct {
 					IPAddress  string `json:"IPAddress"`
 					Gateway    string `json:"Gateway"`
 					MacAddress string `json:"MacAddress"`
+					Networks   map[string]struct {
+						IPAddress  string `json:"IPAddress"`
+						Gateway    string `json:"Gateway"`
+						MacAddress string `json:"MacAddress"`
+					} `json:"Networks"`
 				} `json:"NetworkSettings"`
 				Mounts []struct {
 					Source      string `json:"Source"`
@@ -758,9 +896,24 @@ func GetContainerDetail(containerID string) (ContainerDetail, error) {
 				} else {
 					detail.Health = ParseHealthStatus(detail.Status)
 				}
+				detail.RestartPolicy = data.HostConfig.RestartPolicy.Name
 				detail.IP = data.NetworkSettings.IPAddress
 				detail.Gateway = data.NetworkSettings.Gateway
 				detail.MACAddress = data.NetworkSettings.MacAddress
+				if detail.IP == "" {
+					for _, net := range data.NetworkSettings.Networks {
+						if net.IPAddress != "" {
+							detail.IP = net.IPAddress
+							if detail.Gateway == "" {
+								detail.Gateway = net.Gateway
+							}
+							if detail.MACAddress == "" {
+								detail.MACAddress = net.MacAddress
+							}
+							break
+						}
+					}
+				}
 				detail.Command = strings.Join(data.Config.Cmd, " ")
 
 				for _, m := range data.Mounts {
@@ -804,6 +957,33 @@ func GetContainerDetail(containerID string) (ContainerDetail, error) {
 				if health, ok := state["Health"].(map[string]interface{}); ok {
 					if hStatus, ok := health["Status"].(string); ok {
 						detail.Health = ParseHealthStatus(hStatus)
+					}
+				}
+			}
+			if hostConfig, ok := first["HostConfig"].(map[string]interface{}); ok {
+				if rp, ok := hostConfig["RestartPolicy"].(map[string]interface{}); ok {
+					if name, ok := rp["Name"].(string); ok {
+						detail.RestartPolicy = name
+					}
+				}
+			}
+			if detail.IP == "" {
+				if netSettings, ok := first["NetworkSettings"].(map[string]interface{}); ok {
+					if nets, ok := netSettings["Networks"].(map[string]interface{}); ok {
+						for _, n := range nets {
+							if nMap, ok := n.(map[string]interface{}); ok {
+								if ip, ok := nMap["IPAddress"].(string); ok && ip != "" {
+									detail.IP = ip
+									if gw, ok := nMap["Gateway"].(string); ok && detail.Gateway == "" {
+										detail.Gateway = gw
+									}
+									if mac, ok := nMap["MacAddress"].(string); ok && detail.MACAddress == "" {
+										detail.MACAddress = mac
+									}
+									break
+								}
+							}
+						}
 					}
 				}
 			}

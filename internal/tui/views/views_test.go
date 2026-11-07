@@ -346,3 +346,98 @@ func TestRenderDockerView_EdgeCases(t *testing.T) {
 		t.Errorf("expected container row in view, got: %s", outOfBoundsView)
 	}
 }
+
+func TestFormatPortDisplay(t *testing.T) {
+	// Empty input
+	if got := FormatPortDisplay(""); got != nil {
+		t.Errorf("expected nil for empty string, got: %v", got)
+	}
+	if got := FormatPortDisplay("   "); got != nil {
+		t.Errorf("expected nil for whitespace string, got: %v", got)
+	}
+
+	// Single exposed port
+	if got := FormatPortDisplay("80/tcp"); len(got) != 1 || got[0] != "80/tcp" {
+		t.Errorf("expected [80/tcp], got: %v", got)
+	}
+
+	// Arrow conversion
+	if got := FormatPortDisplay("8080->80/tcp"); len(got) != 1 || got[0] != "8080 → 80/tcp" {
+		t.Errorf("expected arrow converted, got: %v", got)
+	}
+
+	// IPv6 deduplication
+	ipv46 := "0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp, 0.0.0.0:443->443/tcp"
+	got := FormatPortDisplay(ipv46)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 deduped ports, got %d: %v", len(got), got)
+	}
+	if got[0] != "0.0.0.0:8080 → 8080/tcp" || got[1] != "0.0.0.0:443 → 443/tcp" {
+		t.Errorf("unexpected deduped ports: %v", got)
+	}
+}
+
+func TestRenderContainerDetailsCard_Extended(t *testing.T) {
+	dict := i18n.Get("en")
+
+	// 1. Container with complete extended fields (IP, Network, RestartPolicy, Created)
+	cFull := monitor.ContainerItem{
+		ID:            "c123456789ab",
+		Name:          "prod-api",
+		Image:         "api:v2",
+		State:         "running",
+		Status:        "Up 4 hours",
+		IPAddress:     "10.0.1.25",
+		NetworkName:   "backend-net",
+		RestartPolicy: "always",
+		Created:       "2026-11-07 12:00:00",
+		Ports:         "0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp",
+	}
+
+	viewFull := RenderDocker(DockerContext{
+		DockerInfo: monitor.DockerSummary{Status: "running", Containers: []monitor.ContainerItem{cFull}},
+		Containers: []monitor.ContainerItem{cFull},
+		CursorIdx:  0,
+		I18n:       &dict,
+		Width:      100,
+	})
+
+	if !strings.Contains(viewFull, "10.0.1.25") || !strings.Contains(viewFull, "backend-net") {
+		t.Errorf("expected IP and network name in details card, got: %s", viewFull)
+	}
+	if !strings.Contains(viewFull, "always") {
+		t.Errorf("expected restart policy always in details card, got: %s", viewFull)
+	}
+	if !strings.Contains(viewFull, "2026-11-07 12:00:00") {
+		t.Errorf("expected created timestamp in details card, got: %s", viewFull)
+	}
+	if !strings.Contains(viewFull, "0.0.0.0:8080 → 8080/tcp") {
+		t.Errorf("expected arrow formatted port in details card, got: %s", viewFull)
+	}
+
+	// 2. Container with on-failure restart policy and no IP
+	cOnFailure := monitor.ContainerItem{
+		ID:            "c98765432100",
+		Name:          "worker-job",
+		Image:         "job:latest",
+		State:         "stopped",
+		Status:        "Exited (1)",
+		RestartPolicy: "on-failure",
+	}
+
+	viewOnFail := RenderDocker(DockerContext{
+		DockerInfo: monitor.DockerSummary{Status: "running", Containers: []monitor.ContainerItem{cOnFailure}},
+		Containers: []monitor.ContainerItem{cOnFailure},
+		CursorIdx:  0,
+		I18n:       &dict,
+		Width:      100,
+	})
+
+	if !strings.Contains(viewOnFail, "on-failure") {
+		t.Errorf("expected on-failure restart policy, got: %s", viewOnFail)
+	}
+	if !strings.Contains(viewOnFail, "none") {
+		t.Errorf("expected none for missing IP, got: %s", viewOnFail)
+	}
+}
+
