@@ -12,7 +12,15 @@ import (
 	"time"
 )
 
-const swarmTimeout = 5 * time.Second
+const (
+	swarmTimeout        = 5 * time.Second
+	swarmLogsTimeout    = 10 * time.Second
+	defaultSwarmTail    = 100
+	swarmIDTruncateLen  = 12
+	swarmStatusActive   = "Активен"
+	swarmStatusInactive = "Не активен"
+	swarmTextInactive   = "Docker Swarm не активирован"
+)
 
 // SwarmNode представляет узел кластера Swarm.
 type SwarmNode struct {
@@ -50,6 +58,52 @@ type SwarmSummary struct {
 	Text          string
 }
 
+func truncateSwarmID(id string) string {
+	if len(id) > swarmIDTruncateLen {
+		return id[:swarmIDTruncateLen]
+	}
+	return id
+}
+
+func lookupTaskCount(taskMap map[string]int, fullID, shortID string) int {
+	if taskMap == nil {
+		return 0
+	}
+	if count, ok := taskMap[fullID]; ok {
+		return count
+	}
+	return taskMap[shortID]
+}
+
+func cleanSwarmImage(rawImage string) string {
+	return strings.Split(rawImage, "@")[0]
+}
+
+func fetchSocketAPI(client *http.Client, path string, timeout time.Duration) ([]byte, error) {
+	if client == nil {
+		return nil, fmt.Errorf("http client is nil")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost"+path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status %d from %s", resp.StatusCode, path)
+	}
+
+	return io.ReadAll(resp.Body)
+}
+
 // parseSwarmInfo разбирает JSON ответа Docker Engine API /info для секции Swarm.
 func parseSwarmInfo(body []byte) (SwarmSummary, bool) {
 	var infoData struct {
@@ -66,15 +120,10 @@ func parseSwarmInfo(body []byte) (SwarmSummary, bool) {
 		return SwarmSummary{}, false
 	}
 
-	nodeID := infoData.Swarm.NodeID
-	if len(nodeID) > 12 {
-		nodeID = nodeID[:12]
-	}
-
 	return SwarmSummary{
 		IsActive:      true,
-		StatusDisplay: "Активен",
-		NodeID:        nodeID,
+		StatusDisplay: swarmStatusActive,
+		NodeID:        truncateSwarmID(infoData.Swarm.NodeID),
 		IsManager:     infoData.Swarm.ControlAvailable,
 		NodesCount:    infoData.Swarm.Nodes,
 		ManagersCount: infoData.Swarm.Managers,
@@ -132,24 +181,12 @@ func parseSwarmNodes(body []byte, nodeTasks map[string]int) []SwarmNode {
 		return nil
 	}
 
-	var nodes []SwarmNode
+	nodes := make([]SwarmNode, 0, len(rawNodes))
 	for _, n := range rawNodes {
-		fullID := n.ID
-		nid := fullID
-		if len(nid) > 12 {
-			nid = nid[:12]
-		}
+		nid := truncateSwarmID(n.ID)
 		availability := n.Spec.Availability
 		if availability == "" {
 			availability = "active"
-		}
-
-		activeTasks := 0
-		if nodeTasks != nil {
-			activeTasks = nodeTasks[fullID]
-			if activeTasks == 0 && nodeTasks[nid] > 0 {
-				activeTasks = nodeTasks[nid]
-			}
 		}
 
 		nodes = append(nodes, SwarmNode{
@@ -159,63 +196,72 @@ func parseSwarmNodes(body []byte, nodeTasks map[string]int) []SwarmNode {
 			State:        n.Status.State,
 			Availability: availability,
 			IsLeader:     n.ManagerStatus.Leader,
-			ActiveTasks:  activeTasks,
+			ActiveTasks:  lookupTaskCount(nodeTasks, n.ID, nid),
 		})
 	}
 	return nodes
 }
 
+type swarmServiceRaw struct {
+	ID   string `json:"ID"`
+	Spec struct {
+		Name         string `json:"Name"`
+		TaskTemplate struct {
+			ContainerSpec struct {
+				Image string `json:"Image"`
+			} `json:"ContainerSpec"`
+		} `json:"TaskTemplate"`
+		Mode struct {
+			Replicated *struct {
+				Replicas int `json:"Replicas"`
+			} `json:"Replicated"`
+			Global *struct{} `json:"Global"`
+		} `json:"Mode"`
+	} `json:"Spec"`
+	Endpoint struct {
+		Ports []struct {
+			Protocol      string `json:"Protocol"`
+			TargetPort    int    `json:"TargetPort"`
+			PublishedPort int    `json:"PublishedPort"`
+		} `json:"Ports"`
+	} `json:"Endpoint"`
+}
+
+func formatSwarmServicePorts(ports []struct {
+	Protocol      string `json:"Protocol"`
+	TargetPort    int    `json:"TargetPort"`
+	PublishedPort int    `json:"PublishedPort"`
+}) string {
+	if len(ports) == 0 {
+		return ""
+	}
+	portList := make([]string, 0, len(ports))
+	for _, p := range ports {
+		if p.PublishedPort > 0 {
+			portList = append(portList, fmt.Sprintf("%d:%d/%s", p.PublishedPort, p.TargetPort, p.Protocol))
+		} else if p.TargetPort > 0 {
+			portList = append(portList, fmt.Sprintf("%d/%s", p.TargetPort, p.Protocol))
+		}
+	}
+	return strings.Join(portList, ", ")
+}
+
 // parseSwarmServices разбирает JSON ответа Docker Engine API /services.
 func parseSwarmServices(body []byte, runningTasks map[string]int) []SwarmService {
-	var rawSvcs []struct {
-		ID   string `json:"ID"`
-		Spec struct {
-			Name         string `json:"Name"`
-			TaskTemplate struct {
-				ContainerSpec struct {
-					Image string `json:"Image"`
-				} `json:"ContainerSpec"`
-			} `json:"TaskTemplate"`
-			Mode struct {
-				Replicated *struct {
-					Replicas int `json:"Replicas"`
-				} `json:"Replicated"`
-				Global *struct{} `json:"Global"`
-			} `json:"Mode"`
-		} `json:"Spec"`
-		Endpoint struct {
-			Ports []struct {
-				Protocol      string `json:"Protocol"`
-				TargetPort    int    `json:"TargetPort"`
-				PublishedPort int    `json:"PublishedPort"`
-			} `json:"Ports"`
-		} `json:"Endpoint"`
-	}
-
+	var rawSvcs []swarmServiceRaw
 	if json.Unmarshal(body, &rawSvcs) != nil {
 		return nil
 	}
 
-	var svcs []SwarmService
+	svcs := make([]SwarmService, 0, len(rawSvcs))
 	for _, s := range rawSvcs {
-		fullID := s.ID
-		sid := fullID
-		if len(sid) > 12 {
-			sid = sid[:12]
-		}
-		img := strings.Split(s.Spec.TaskTemplate.ContainerSpec.Image, "@")[0]
+		sid := truncateSwarmID(s.ID)
+		running := lookupTaskCount(runningTasks, s.ID, sid)
 
 		mode := "replicated"
 		targetReplicas := 0
-		running := 0
-		if runningTasks != nil {
-			running = runningTasks[fullID]
-			if running == 0 && runningTasks[sid] > 0 {
-				running = runningTasks[sid]
-			}
-		}
-
 		var rep string
+
 		if s.Spec.Mode.Global != nil {
 			mode = "global"
 			targetReplicas = running
@@ -227,24 +273,15 @@ func parseSwarmServices(body []byte, runningTasks map[string]int) []SwarmService
 			rep = fmt.Sprintf("%d", running)
 		}
 
-		var portList []string
-		for _, p := range s.Endpoint.Ports {
-			if p.PublishedPort > 0 {
-				portList = append(portList, fmt.Sprintf("%d:%d/%s", p.PublishedPort, p.TargetPort, p.Protocol))
-			} else if p.TargetPort > 0 {
-				portList = append(portList, fmt.Sprintf("%d/%s", p.TargetPort, p.Protocol))
-			}
-		}
-
 		svcs = append(svcs, SwarmService{
 			ID:              sid,
 			Name:            s.Spec.Name,
-			Image:           img,
+			Image:           cleanSwarmImage(s.Spec.TaskTemplate.ContainerSpec.Image),
 			Mode:            mode,
 			Replicas:        rep,
 			RunningReplicas: running,
 			TargetReplicas:  targetReplicas,
-			Ports:           strings.Join(portList, ", "),
+			Ports:           formatSwarmServicePorts(s.Endpoint.Ports),
 		})
 	}
 	return svcs
@@ -269,52 +306,122 @@ func parseSwarmCLIInfo(output string) (isActive bool, isManager bool, nodes int,
 	return isActive, isManager, nodes, managers
 }
 
+// parseSwarmCLINodes разбирает вывод команды docker node ls.
+func parseSwarmCLINodes(output string) []SwarmNode {
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	nodes := make([]SwarmNode, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.Split(line, "\t")
+		if len(parts) >= 5 {
+			isLeader := false
+			if len(parts) >= 6 && strings.Contains(strings.ToLower(parts[5]), "leader") {
+				isLeader = true
+			}
+			nodes = append(nodes, SwarmNode{
+				ID:           truncateSwarmID(parts[0]),
+				Hostname:     parts[1],
+				Role:         strings.ToLower(parts[2]),
+				State:        strings.ToLower(parts[3]),
+				Availability: strings.ToLower(parts[4]),
+				IsLeader:     isLeader,
+			})
+		}
+	}
+	return nodes
+}
+
+// parseSwarmCLIServices разбирает вывод команды docker service ls.
+func parseSwarmCLIServices(output string) []SwarmService {
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	svcs := make([]SwarmService, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.Split(line, "\t")
+		if len(parts) >= 5 {
+			mode := strings.ToLower(parts[2])
+			repStr := parts[3]
+			running := 0
+			target := 0
+
+			repParts := strings.Split(repStr, "/")
+			if len(repParts) == 2 {
+				running, _ = strconv.Atoi(strings.TrimSpace(repParts[0]))
+				tStr := strings.Fields(repParts[1])
+				if len(tStr) > 0 {
+					target, _ = strconv.Atoi(tStr[0])
+				}
+			}
+
+			ports := ""
+			if len(parts) >= 6 {
+				ports = parts[5]
+			}
+
+			svcs = append(svcs, SwarmService{
+				ID:              truncateSwarmID(parts[0]),
+				Name:            parts[1],
+				Mode:            mode,
+				Replicas:        repStr,
+				RunningReplicas: running,
+				TargetReplicas:  target,
+				Image:           cleanSwarmImage(parts[4]),
+				Ports:           ports,
+			})
+		}
+	}
+	return svcs
+}
+
 // GetSwarmSummary собирает информацию о кластере Swarm.
 func GetSwarmSummary() SwarmSummary {
 	sockPath := dockerSocketFinder()
 	summary := SwarmSummary{
 		IsActive:      false,
-		StatusDisplay: "Не активен",
-		Text:          "Docker Swarm не активирован",
+		StatusDisplay: swarmStatusInactive,
+		Text:          swarmTextInactive,
 	}
 
 	if sockPath != "" {
 		client := socketClientFactory(sockPath)
-		ctx, cancel := context.WithTimeout(context.Background(), swarmTimeout)
-		defer cancel()
-
-		req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/info", nil)
+		body, err := fetchSocketAPI(client, "/info", swarmTimeout)
 		if err == nil {
-			resp, err := client.Do(req)
-			if err == nil && resp.StatusCode == http.StatusOK {
-				defer resp.Body.Close()
-				body, _ := io.ReadAll(resp.Body)
+			if parsed, ok := parseSwarmInfo(body); ok {
+				summary = parsed
 
-				if parsed, ok := parseSwarmInfo(body); ok {
-					summary = parsed
-					svcTasks, nodeTasks := fetchSwarmTasks(client)
+				// Параллельный опрос /tasks, /nodes и /services для минимизации задержки
+				var (
+					tasksBody    []byte
+					nodesBody    []byte
+					servicesBody []byte
+					wg           sync.WaitGroup
+				)
+				wg.Add(3)
+				go func() {
+					defer wg.Done()
+					tasksBody, _ = fetchSocketAPI(client, "/tasks", swarmTimeout)
+				}()
+				go func() {
+					defer wg.Done()
+					nodesBody, _ = fetchSocketAPI(client, "/nodes", swarmTimeout)
+				}()
+				go func() {
+					defer wg.Done()
+					servicesBody, _ = fetchSocketAPI(client, "/services", swarmTimeout)
+				}()
+				wg.Wait()
 
-					var (
-						nodes    []SwarmNode
-						services []SwarmService
-						wg       sync.WaitGroup
-					)
-					wg.Add(2)
-					go func() {
-						defer wg.Done()
-						nodes = fetchSwarmNodes(client, nodeTasks)
-					}()
-					go func() {
-						defer wg.Done()
-						services = fetchSwarmServices(client, svcTasks)
-					}()
-					wg.Wait()
-
-					summary.Nodes = nodes
-					summary.Services = services
-					summary.Text = fmt.Sprintf("Кластер Swarm: %d нод (%d менеджеров), %d служб", summary.NodesCount, summary.ManagersCount, len(summary.Services))
-					return summary
-				}
+				svcTasks, nodeTasks := parseSwarmTasks(tasksBody)
+				summary.Nodes = parseSwarmNodes(nodesBody, nodeTasks)
+				summary.Services = parseSwarmServices(servicesBody, svcTasks)
+				summary.Text = fmt.Sprintf("Кластер Swarm: %d нод (%d менеджеров), %d служб", summary.NodesCount, summary.ManagersCount, len(summary.Services))
+				return summary
 			}
 		}
 	}
@@ -327,11 +434,25 @@ func GetSwarmSummary() SwarmSummary {
 		active, isManager, nodes, managers := parseSwarmCLIInfo(string(out))
 		if active {
 			summary.IsActive = true
-			summary.StatusDisplay = "Активен"
+			summary.StatusDisplay = swarmStatusActive
 			summary.IsManager = isManager
 			summary.NodesCount = nodes
 			summary.ManagersCount = managers
-			summary.Text = fmt.Sprintf("Кластер Swarm: %d нод (%d менеджеров)", nodes, managers)
+
+			if isManager {
+				if nodeOut, nErr := dockerCLICommandRunner(ctx, "node", "ls", "--format", "{{.ID}}\t{{.Hostname}}\t{{.Role}}\t{{.Status}}\t{{.Availability}}\t{{.ManagerStatus}}"); nErr == nil {
+					summary.Nodes = parseSwarmCLINodes(string(nodeOut))
+				}
+				if svcOut, sErr := dockerCLICommandRunner(ctx, "service", "ls", "--format", "{{.ID}}\t{{.Name}}\t{{.Mode}}\t{{.Replicas}}\t{{.Image}}\t{{.Ports}}"); sErr == nil {
+					summary.Services = parseSwarmCLIServices(string(svcOut))
+				}
+			}
+
+			if len(summary.Services) > 0 {
+				summary.Text = fmt.Sprintf("Кластер Swarm: %d нод (%d менеджеров), %d служб", summary.NodesCount, summary.ManagersCount, len(summary.Services))
+			} else {
+				summary.Text = fmt.Sprintf("Кластер Swarm: %d нод (%d менеджеров)", nodes, managers)
+			}
 			return summary
 		}
 	}
@@ -340,76 +461,47 @@ func GetSwarmSummary() SwarmSummary {
 }
 
 func fetchSwarmTasks(client *http.Client) (map[string]int, map[string]int) {
-	ctx, cancel := context.WithTimeout(context.Background(), swarmTimeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/tasks", nil)
+	body, err := fetchSocketAPI(client, "/tasks", swarmTimeout)
 	if err != nil {
 		return make(map[string]int), make(map[string]int)
 	}
-
-	resp, err := client.Do(req)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		return make(map[string]int), make(map[string]int)
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
 	return parseSwarmTasks(body)
 }
 
 func fetchSwarmNodes(client *http.Client, nodeTasks map[string]int) []SwarmNode {
-	ctx, cancel := context.WithTimeout(context.Background(), swarmTimeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/nodes", nil)
+	body, err := fetchSocketAPI(client, "/nodes", swarmTimeout)
 	if err != nil {
 		return nil
 	}
-
-	resp, err := client.Do(req)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		return nil
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
 	return parseSwarmNodes(body, nodeTasks)
 }
 
 func fetchSwarmServices(client *http.Client, runningTasks map[string]int) []SwarmService {
-	ctx, cancel := context.WithTimeout(context.Background(), swarmTimeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/services", nil)
+	body, err := fetchSocketAPI(client, "/services", swarmTimeout)
 	if err != nil {
 		return nil
 	}
-
-	resp, err := client.Do(req)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		return nil
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
 	return parseSwarmServices(body, runningTasks)
 }
 
 // GetSwarmServiceLogs читает логи службы Swarm по её ID или имени.
 func GetSwarmServiceLogs(serviceID string, tailLines int) (string, error) {
+	cleanID := strings.TrimSpace(serviceID)
+	if cleanID == "" {
+		return "", fmt.Errorf("service ID cannot be empty")
+	}
 	if tailLines <= 0 {
-		tailLines = 100
+		tailLines = defaultSwarmTail
 	}
 
 	sockPath := dockerSocketFinder()
 	if sockPath != "" {
 		client := socketClientFactory(sockPath)
-		url := fmt.Sprintf("http://localhost/services/%s/logs?stdout=1&stderr=1&tail=%d", serviceID, tailLines)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		url := fmt.Sprintf("/services/%s/logs?stdout=1&stderr=1&tail=%d", cleanID, tailLines)
+		ctx, cancel := context.WithTimeout(context.Background(), swarmLogsTimeout)
 		defer cancel()
 
-		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost"+url, nil)
 		if err == nil {
 			resp, err := client.Do(req)
 			if err == nil {
@@ -421,9 +513,9 @@ func GetSwarmServiceLogs(serviceID string, tailLines int) (string, error) {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), swarmLogsTimeout)
 	defer cancel()
-	out, err := dockerCLICommandRunner(ctx, "service", "logs", "--tail", fmt.Sprintf("%d", tailLines), serviceID)
+	out, err := dockerCLICommandRunner(ctx, "service", "logs", "--tail", strconv.Itoa(tailLines), cleanID)
 	if err != nil {
 		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}

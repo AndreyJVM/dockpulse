@@ -577,3 +577,103 @@ func TestGetSwarmServiceLogs_DefaultTail(t *testing.T) {
 		t.Errorf("expected default tail 100 in args: %v", capturedArgs)
 	}
 }
+
+func TestTruncateSwarmID(t *testing.T) {
+	if got := truncateSwarmID("12345"); got != "12345" {
+		t.Errorf("expected 12345, got %s", got)
+	}
+	if got := truncateSwarmID("1234567890abcdef123"); got != "1234567890ab" {
+		t.Errorf("expected 1234567890ab, got %s", got)
+	}
+}
+
+func TestLookupTaskCount(t *testing.T) {
+	if got := lookupTaskCount(nil, "full", "short"); got != 0 {
+		t.Errorf("expected 0 for nil map, got %d", got)
+	}
+	taskMap := map[string]int{"fullID": 5, "shortID": 2}
+	if got := lookupTaskCount(taskMap, "fullID", "shortID"); got != 5 {
+		t.Errorf("expected 5 for fullID, got %d", got)
+	}
+	if got := lookupTaskCount(taskMap, "unknown", "shortID"); got != 2 {
+		t.Errorf("expected 2 for shortID, got %d", got)
+	}
+	if got := lookupTaskCount(taskMap, "unknown", "unknown"); got != 0 {
+		t.Errorf("expected 0 for unknown, got %d", got)
+	}
+}
+
+func TestCleanSwarmImage(t *testing.T) {
+	if got := cleanSwarmImage("nginx:alpine@sha256:123456"); got != "nginx:alpine" {
+		t.Errorf("expected nginx:alpine, got %s", got)
+	}
+	if got := cleanSwarmImage("redis:latest"); got != "redis:latest" {
+		t.Errorf("expected redis:latest, got %s", got)
+	}
+}
+
+func TestFormatSwarmServicePorts(t *testing.T) {
+	if got := formatSwarmServicePorts(nil); got != "" {
+		t.Errorf("expected empty string, got %q", got)
+	}
+	ports := []struct {
+		Protocol      string `json:"Protocol"`
+		TargetPort    int    `json:"TargetPort"`
+		PublishedPort int    `json:"PublishedPort"`
+	}{
+		{Protocol: "tcp", TargetPort: 80, PublishedPort: 8080},
+		{Protocol: "udp", TargetPort: 53, PublishedPort: 0},
+	}
+	if got := formatSwarmServicePorts(ports); got != "8080:80/tcp, 53/udp" {
+		t.Errorf("expected 8080:80/tcp, 53/udp, got %q", got)
+	}
+}
+
+func TestParseSwarmCLINodes(t *testing.T) {
+	output := "node1234567890\thost-1\tmanager\tready\tactive\tLeader\nworker123456789\thost-2\tworker\tdown\tdrain\t\n\n"
+	nodes := parseSwarmCLINodes(output)
+	if len(nodes) != 2 {
+		t.Fatalf("expected 2 nodes, got %d", len(nodes))
+	}
+	if nodes[0].ID != "node12345678" || nodes[0].Hostname != "host-1" || !nodes[0].IsLeader {
+		t.Errorf("unexpected leader node: %+v", nodes[0])
+	}
+	if nodes[1].ID != "worker123456" || nodes[1].Role != "worker" || nodes[1].IsLeader {
+		t.Errorf("unexpected worker node: %+v", nodes[1])
+	}
+}
+
+func TestParseSwarmCLIServices(t *testing.T) {
+	output := "svc1234567890\tapi-service\treplicated\t2/2\tapi:v1@sha256:abc\t*:8080->80/tcp\nsvcGlobal12345\tlogger\tglobal\t1/1 (global)\tfluentd:latest\t\n"
+	svcs := parseSwarmCLIServices(output)
+	if len(svcs) != 2 {
+		t.Fatalf("expected 2 services, got %d", len(svcs))
+	}
+	if svcs[0].Name != "api-service" || svcs[0].RunningReplicas != 2 || svcs[0].TargetReplicas != 2 || svcs[0].Image != "api:v1" {
+		t.Errorf("unexpected replicated service: %+v", svcs[0])
+	}
+	if svcs[1].Name != "logger" || svcs[1].Mode != "global" || svcs[1].RunningReplicas != 1 || svcs[1].TargetReplicas != 1 {
+		t.Errorf("unexpected global service: %+v", svcs[1])
+	}
+}
+
+func TestFetchSocketAPI_Errors(t *testing.T) {
+	// Nil client
+	if _, err := fetchSocketAPI(nil, "/test", swarmTimeout); err == nil {
+		t.Errorf("expected error for nil client")
+	}
+
+	// Non-200 status code
+	client404 := newMockHTTPClient(func(_ *http.Request) (*http.Response, error) {
+		return mockStringResponse(http.StatusNotFound, "not found"), nil
+	})
+	if _, err := fetchSocketAPI(client404, "/test", swarmTimeout); err == nil {
+		t.Errorf("expected error for 404 response")
+	}
+}
+
+func TestGetSwarmServiceLogs_EmptyID(t *testing.T) {
+	if _, err := GetSwarmServiceLogs("   ", 100); err == nil {
+		t.Errorf("expected error for empty service ID")
+	}
+}
