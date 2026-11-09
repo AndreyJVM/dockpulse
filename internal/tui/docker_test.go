@@ -348,12 +348,21 @@ func TestContainerExecHotkeysAndMessages(t *testing.T) {
 	}
 	m.cursorIdx = 0
 
-	// 1. Press 'e' on running container
+	// 1. Press 'e' on running container opens exec modal
 	res, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
 	m = res.(Model)
 	if monitor.IsDockerCLIAvailable() {
+		if m.activeModal != "exec" {
+			t.Fatalf("expected activeModal 'exec', got %q", m.activeModal)
+		}
+		if m.execTargetID != "c1" {
+			t.Errorf("expected execTargetID 'c1', got %q", m.execTargetID)
+		}
+		// Select first option (auto bash) via enter
+		res, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		m = res.(Model)
 		if cmd == nil {
-			t.Errorf("expected non-nil tea.Cmd from tea.ExecProcess on running container")
+			t.Errorf("expected non-nil tea.Cmd from tea.ExecProcess on selecting option")
 		}
 	} else {
 		if !strings.Contains(m.actionMessage, "утилита docker не найдена") {
@@ -362,6 +371,7 @@ func TestContainerExecHotkeysAndMessages(t *testing.T) {
 	}
 
 	// 2. Press 'E' on stopped container
+	m.activeModal = ""
 	m.cursorIdx = 1
 	res, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("E")})
 	m = res.(Model)
@@ -387,6 +397,7 @@ func TestContainerExecHotkeysAndMessages(t *testing.T) {
 	}
 
 	// 5. Check footer and help hints
+	m.activeModal = ""
 	view := m.View()
 	if !strings.Contains(view, "[E]") || !strings.Contains(view, "Shell") {
 		t.Errorf("expected '[E] Shell' in tab 2 footer view, got: %s", view)

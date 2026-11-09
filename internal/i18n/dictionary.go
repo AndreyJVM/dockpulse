@@ -177,6 +177,17 @@ type Dictionary struct {
 	ComposeDownNotice  string
 	ComposeDownConfirm string
 
+	// Модальное окно: Exec / Shell
+	ExecModalTitle       string
+	ExecModeAutoBash     string
+	ExecModeSh           string
+	ExecModeZsh          string
+	ExecModeAttach       string
+	ExecModeRootBash     string
+	ExecModeCustom       string
+	ExecCustomPrompt     string
+	ExecCustomHint       string
+
 	// Модальное окно: Remove Container
 	RemoveContainerTitle   string
 	ContainerLabel         string
@@ -407,6 +418,16 @@ var Ru = Dictionary{
 	ComposeDownNotice:  "Остановка и удаление всех контейнеров проекта (docker compose down)",
 	ComposeDownConfirm: "Вы уверены, что хотите выполнить down для проекта %s?",
 
+	ExecModalTitle:       "ПОДКЛЮЧЕНИЕ К КОНТЕЙНЕРУ (EXEC / ATTACH)",
+	ExecModeAutoBash:     "Auto Bash / Sh (интерактивный shell по умолчанию)",
+	ExecModeSh:           "POSIX Shell (/bin/sh)",
+	ExecModeZsh:          "Zsh Shell (/bin/zsh)",
+	ExecModeAttach:       "Docker Attach (подключение к STDIN/STDOUT контейнера)",
+	ExecModeRootBash:     "Root Shell (запуск под пользователем root: -u 0)",
+	ExecModeCustom:       "Пользовательская команда (custom command)...",
+	ExecCustomPrompt:     "Команда для запуска: %s",
+	ExecCustomHint:       "[Enter] - запуск, [Esc] - назад к меню",
+
 	RemoveContainerTitle:   "ПОДТВЕРЖДЕНИЕ УДАЛЕНИЯ КОНТЕЙНЕРА",
 	ContainerLabel:         "Контейнер: %s",
 	RemoveContainerNotice:  "Контейнер и его временные данные будут безвозвратно удалены (docker rm -f).",
@@ -633,6 +654,16 @@ var En = Dictionary{
 	WarningLabel:       "Warning:",
 	ComposeDownNotice:  "Stopping and removing all project containers (docker compose down)",
 	ComposeDownConfirm: "Are you sure you want to down project %s?",
+
+	ExecModalTitle:       "CONNECT TO CONTAINER (EXEC / ATTACH)",
+	ExecModeAutoBash:     "Auto Bash / Sh (interactive default shell)",
+	ExecModeSh:           "POSIX Shell (/bin/sh)",
+	ExecModeZsh:          "Zsh Shell (/bin/zsh)",
+	ExecModeAttach:       "Docker Attach (attach to container STDIN/STDOUT)",
+	ExecModeRootBash:     "Root Shell (run as root user: -u 0)",
+	ExecModeCustom:       "Custom Command...",
+	ExecCustomPrompt:     "Command to execute: %s",
+	ExecCustomHint:       "[Enter] - run, [Esc] - back to menu",
 
 	RemoveContainerTitle:   "CONFIRM CONTAINER REMOVAL",
 	ContainerLabel:         "Container: %s",

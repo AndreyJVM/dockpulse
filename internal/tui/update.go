@@ -141,6 +141,10 @@ func (m Model) handleModalInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.activeModal == "exec" {
+		return m.handleExecModalInput(msg)
+	}
+
 	if m.activeModal == "prune" {
 		switch msg.String() {
 		case "q":
@@ -451,13 +455,13 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.showToast(m.i18n.ToastDockerNotFound)
 					return m, nil
 				}
-				cmd := monitor.GetContainerExecCommand(c.ID)
-				return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
-					return execFinishedMsg{
-						containerName: c.Name,
-						err:           err,
-					}
-				})
+				m.activeModal = "exec"
+				m.execTargetID = c.ID
+				m.execTargetName = c.Name
+				m.execCursorIdx = 0
+				m.execIsCustomInput = false
+				m.execCustomCmd = ""
+				return m, nil
 			}
 		}
 
@@ -521,3 +525,106 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
+
+func (m Model) launchExecProcess(opts monitor.ExecOptions) (tea.Model, tea.Cmd) {
+	targetID := m.execTargetID
+	targetName := m.execTargetName
+	m.activeModal = ""
+	m.execTargetID = ""
+	m.execTargetName = ""
+	m.execIsCustomInput = false
+	m.execCustomCmd = ""
+
+	cmd := monitor.GetContainerExecCommandWithOptions(targetID, opts)
+	return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
+		return execFinishedMsg{
+			containerName: targetName,
+			err:           err,
+		}
+	})
+}
+
+func (m Model) handleExecModalInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.execIsCustomInput {
+		switch msg.String() {
+		case "esc":
+			m.execIsCustomInput = false
+			return m, nil
+		case "enter":
+			if strings.TrimSpace(m.execCustomCmd) == "" {
+				m.execIsCustomInput = false
+				return m, nil
+			}
+			return m.launchExecProcess(monitor.ExecOptions{
+				Mode:      "custom",
+				CustomCmd: m.execCustomCmd,
+			})
+		case "backspace":
+			if len(m.execCustomCmd) > 0 {
+				run := []rune(m.execCustomCmd)
+				m.execCustomCmd = string(run[:len(run)-1])
+			}
+			return m, nil
+		default:
+			if msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace {
+				m.execCustomCmd += msg.String()
+			}
+			return m, nil
+		}
+	}
+
+	switch msg.String() {
+	case "esc", "q":
+		m.activeModal = ""
+		m.execTargetID = ""
+		m.execTargetName = ""
+		return m, nil
+	case "up", "k":
+		if m.execCursorIdx > 0 {
+			m.execCursorIdx--
+		} else {
+			m.execCursorIdx = 5
+		}
+		return m, nil
+	case "down", "j":
+		if m.execCursorIdx < 5 {
+			m.execCursorIdx++
+		} else {
+			m.execCursorIdx = 0
+		}
+		return m, nil
+	case "1", "b", "B":
+		return m.launchExecProcess(monitor.ExecOptions{Mode: "auto"})
+	case "2", "s", "S":
+		return m.launchExecProcess(monitor.ExecOptions{Mode: "sh"})
+	case "3", "z", "Z":
+		return m.launchExecProcess(monitor.ExecOptions{Mode: "zsh"})
+	case "4", "a", "A":
+		return m.launchExecProcess(monitor.ExecOptions{Mode: "attach"})
+	case "5", "r", "R":
+		return m.launchExecProcess(monitor.ExecOptions{Mode: "root"})
+	case "6", "c", "C":
+		m.execIsCustomInput = true
+		m.execCustomCmd = ""
+		return m, nil
+	case "enter":
+		switch m.execCursorIdx {
+		case 0:
+			return m.launchExecProcess(monitor.ExecOptions{Mode: "auto"})
+		case 1:
+			return m.launchExecProcess(monitor.ExecOptions{Mode: "sh"})
+		case 2:
+			return m.launchExecProcess(monitor.ExecOptions{Mode: "zsh"})
+		case 3:
+			return m.launchExecProcess(monitor.ExecOptions{Mode: "attach"})
+		case 4:
+			return m.launchExecProcess(monitor.ExecOptions{Mode: "root"})
+		case 5:
+			m.execIsCustomInput = true
+			m.execCustomCmd = ""
+			return m, nil
+		}
+	}
+	return m, nil
+}
+

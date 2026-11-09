@@ -52,7 +52,12 @@ type Model struct {
 	cursorIdx           int
 	composeCursorIdx    int
 	swarmCursorIdx      int
-	activeModal         string // "", "logs", "inspect", "compose_down", "prune", "remove_container"
+	activeModal         string // "", "logs", "inspect", "compose_down", "prune", "remove_container", "exec"
+	execTargetID        string
+	execTargetName      string
+	execCursorIdx       int
+	execIsCustomInput   bool
+	execCustomCmd       string
 	logsTargetName      string
 	logsTargetID        string
 	logsLines           []string

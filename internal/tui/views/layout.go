@@ -58,6 +58,9 @@ func RenderFooter(ctx FooterContext) string {
 		} else if ctx.ActiveModal == "remove_container" {
 			content = theme.RedStyle.Render("[Y]") + " " + d.FooterConfirm + " (Remove)  |  " +
 				theme.BoldStyle.Render("[N / Esc]") + " " + d.FooterCancel
+		} else if ctx.ActiveModal == "exec" {
+			content = theme.BoldStyle.Render("[1-6 / Enter]") + " " + d.FooterSelectAction + "  |  " +
+				theme.BoldStyle.Render("[Esc / Q]") + " " + d.FooterCancel
 		} else if ctx.ActiveModal == "prune" {
 			if ctx.PruneConfirm > 0 {
 				content = theme.BoldStyle.Render("[Y]") + " " + d.FooterConfirmPrune + "  |  " +

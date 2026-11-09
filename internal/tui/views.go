@@ -39,6 +39,8 @@ func (m Model) View() string {
 		b.WriteString(m.renderComposeDownModal())
 	} else if m.activeModal == "remove_container" {
 		b.WriteString(m.renderRemoveContainerModal())
+	} else if m.activeModal == "exec" {
+		b.WriteString(m.renderExecModal())
 	} else if m.activeModal == "prune" {
 		b.WriteString(m.renderPruneModal())
 	} else if m.showHelp {
@@ -145,6 +147,17 @@ func (m Model) renderComposeDownModal() string {
 
 func (m Model) renderRemoveContainerModal() string {
 	return modals.RenderRemoveContainer(m.removeContainerTargetName, m.removeContainerTargetID, &m.i18n)
+}
+
+func (m Model) renderExecModal() string {
+	return modals.RenderExec(modals.ExecModalContext{
+		ContainerName: m.execTargetName,
+		ContainerID:   m.execTargetID,
+		CursorIdx:     m.execCursorIdx,
+		IsCustomInput: m.execIsCustomInput,
+		CustomCmd:     m.execCustomCmd,
+		I18n:          &m.i18n,
+	})
 }
 
 func (m Model) renderHelpBox() string {
