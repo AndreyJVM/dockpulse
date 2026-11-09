@@ -3,13 +3,34 @@ package monitor
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
 )
 
-// SystemInfo содержит общие данные о хосте.
+const (
+	bytesPerGB         = 1024 * 1024 * 1024
+	secondsPerMinute   = 60
+	secondsPerHour     = 3600
+	secondsPerDay      = 86400
+	defaultUnknownHost = "Unknown"
+	defaultUnknownOS   = "Unknown"
+	defaultEmptyKernel = "-"
+	defaultEmptyUptime = "-"
+	defaultCoreCount   = 1
+)
+
+var (
+	hostInfoGetter      = host.Info
+	osHostnameGetter    = os.Hostname
+	cpuPercentGetter    = cpu.Percent
+	cpuCountsGetter     = cpu.Counts
+	virtualMemoryGetter = mem.VirtualMemory
+)
+
+// SystemInfo holds general host system metrics and details.
 type SystemInfo struct {
 	Hostname  string
 	OS        string
@@ -18,13 +39,13 @@ type SystemInfo struct {
 	UptimeSec uint64
 }
 
-// CPUInfo содержит метрики процессора.
+// CPUInfo holds processor utilization percentage and core count.
 type CPUInfo struct {
 	Percent float64
 	Cores   int
 }
 
-// MemoryInfo содержит метрики оперативной памяти.
+// MemoryInfo holds system RAM statistics in gigabytes and percentage.
 type MemoryInfo struct {
 	TotalGB     float64
 	UsedGB      float64
@@ -32,42 +53,67 @@ type MemoryInfo struct {
 	Percent     float64
 }
 
-// GetSystemInfo возвращает базовую информацию о хосте.
+// GetSystemInfo retrieves basic host system information including hostname, OS, kernel, and uptime.
 func GetSystemInfo() SystemInfo {
-	hInfo, err := host.Info()
-	hostname, _ := os.Hostname()
+	hInfo, err := hostInfoGetter()
+	hostname, _ := osHostnameGetter()
 
-	if err != nil {
+	if err != nil || hInfo == nil {
+		if hostname == "" {
+			hostname = defaultUnknownHost
+		}
 		return SystemInfo{
 			Hostname: hostname,
-			OS:       "Unknown",
-			Kernel:   "-",
-			Uptime:   "-",
+			OS:       defaultUnknownOS,
+			Kernel:   defaultEmptyKernel,
+			Uptime:   defaultEmptyUptime,
 		}
 	}
 
-	uptimeStr := formatUptime(hInfo.Uptime)
+	finalHostname := hInfo.Hostname
+	if finalHostname == "" {
+		finalHostname = hostname
+	}
+	if finalHostname == "" {
+		finalHostname = defaultUnknownHost
+	}
+
+	platform := strings.TrimSpace(fmt.Sprintf("%s %s", hInfo.Platform, hInfo.PlatformVersion))
+	if platform == "" {
+		platform = hInfo.OS
+	}
+	if platform == "" {
+		platform = defaultUnknownOS
+	}
+
+	kernel := hInfo.KernelVersion
+	if kernel == "" {
+		kernel = defaultEmptyKernel
+	}
 
 	return SystemInfo{
-		Hostname:  hInfo.Hostname,
-		OS:        fmt.Sprintf("%s %s", hInfo.Platform, hInfo.PlatformVersion),
-		Kernel:    hInfo.KernelVersion,
-		Uptime:    uptimeStr,
+		Hostname:  finalHostname,
+		OS:        platform,
+		Kernel:    kernel,
+		Uptime:    formatUptime(hInfo.Uptime),
 		UptimeSec: hInfo.Uptime,
 	}
 }
 
-// GetCPUInfo возвращает нагрузку на CPU и число ядер.
+// GetCPUInfo retrieves current overall CPU utilization percentage and logical core count.
 func GetCPUInfo() CPUInfo {
-	percentages, err := cpu.Percent(0, false)
+	percentages, err := cpuPercentGetter(0, false)
 	pct := 0.0
 	if err == nil && len(percentages) > 0 {
 		pct = percentages[0]
+		if pct < 0 {
+			pct = 0
+		}
 	}
 
-	cores, err := cpu.Counts(true)
-	if err != nil || cores == 0 {
-		cores = 1
+	cores, err := cpuCountsGetter(true)
+	if err != nil || cores <= 0 {
+		cores = defaultCoreCount
 	}
 
 	return CPUInfo{
@@ -76,25 +122,26 @@ func GetCPUInfo() CPUInfo {
 	}
 }
 
-// GetMemoryInfo возвращает статистику RAM.
+// GetMemoryInfo retrieves virtual memory (RAM) utilization statistics.
 func GetMemoryInfo() MemoryInfo {
-	vm, err := mem.VirtualMemory()
-	if err != nil {
+	vm, err := virtualMemoryGetter()
+	if err != nil || vm == nil {
 		return MemoryInfo{}
 	}
 
 	return MemoryInfo{
-		TotalGB:     float64(vm.Total) / (1024 * 1024 * 1024),
-		UsedGB:      float64(vm.Used) / (1024 * 1024 * 1024),
-		AvailableGB: float64(vm.Available) / (1024 * 1024 * 1024),
+		TotalGB:     float64(vm.Total) / bytesPerGB,
+		UsedGB:      float64(vm.Used) / bytesPerGB,
+		AvailableGB: float64(vm.Available) / bytesPerGB,
 		Percent:     vm.UsedPercent,
 	}
 }
 
+// formatUptime converts uptime in seconds to a human-readable duration string.
 func formatUptime(uptimeSec uint64) string {
-	days := uptimeSec / (60 * 60 * 24)
-	hours := (uptimeSec % (60 * 60 * 24)) / 3600
-	minutes := (uptimeSec % 3600) / 60
+	days := uptimeSec / secondsPerDay
+	hours := (uptimeSec % secondsPerDay) / secondsPerHour
+	minutes := (uptimeSec % secondsPerHour) / secondsPerMinute
 
 	if days > 0 {
 		return fmt.Sprintf("%d дн %02d:%02d", days, hours, minutes)
