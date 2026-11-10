@@ -195,7 +195,11 @@ type Dictionary struct {
 	RemoveContainerConfirm string
 
 	// Модальное окно: Справка
-	HelpTitle     string
+	HelpTitle          string
+	HelpSecNav         string
+	HelpSecContainers  string
+	HelpSecCompose     string
+	HelpSecGeneral     string
 	HelpKeyTabs   string
 	HelpKeyPrev   string
 	HelpKeyNav    string
@@ -433,7 +437,11 @@ var Ru = Dictionary{
 	RemoveContainerNotice:  "Контейнер и его временные данные будут безвозвратно удалены (docker rm -f).",
 	RemoveContainerConfirm: "Вы уверены, что хотите принудительно удалить контейнер %s?",
 
-	HelpTitle:     "ГОРЯЧИЕ КЛАВИШИ:",
+	HelpTitle:         "ГОРЯЧИЕ КЛАВИШИ:",
+	HelpSecNav:        "НАВИГАЦИЯ",
+	HelpSecContainers: "КОНТЕЙНЕРЫ",
+	HelpSecCompose:    "COMPOSE & SWARM",
+	HelpSecGeneral:    "СИСТЕМА И ОБЩИЕ",
 	HelpKeyTabs:   "Переключение вкладок (1: Host, 2: Docker, 3: Compose, 4: Swarm)",
 	HelpKeyPrev:   "След. / пред. вкладка",
 	HelpKeyNav:    "Перемещение курсора (контейнеры, стеки Compose, службы Swarm)",
@@ -670,7 +678,11 @@ var En = Dictionary{
 	RemoveContainerNotice:  "The container and its ephemeral data will be permanently removed (docker rm -f).",
 	RemoveContainerConfirm: "Are you sure you want to force remove container %s?",
 
-	HelpTitle:     "HOTKEYS:",
+	HelpTitle:         "HOTKEYS:",
+	HelpSecNav:        "NAVIGATION",
+	HelpSecContainers: "CONTAINERS",
+	HelpSecCompose:    "COMPOSE & SWARM",
+	HelpSecGeneral:    "SYSTEM & GENERAL",
 	HelpKeyTabs:   "Switch tabs (1: Host, 2: Docker, 3: Compose, 4: Swarm)",
 	HelpKeyPrev:   "Next / previous tab",
 	HelpKeyNav:    "Move cursor (containers, Compose stacks, Swarm services)",

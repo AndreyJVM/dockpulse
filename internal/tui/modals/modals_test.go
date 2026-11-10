@@ -212,10 +212,31 @@ func TestRenderRemoveContainer(t *testing.T) {
 
 func TestRenderHelp(t *testing.T) {
 	dict := i18n.Get("en")
-	view := RenderHelp(2*time.Second, &dict)
-	if !strings.Contains(view, dict.HelpTitle) || !strings.Contains(view, "[K]") || !strings.Contains(view, "[x]") {
-		t.Errorf("expected help title and new shortcut keys [K] and [x], got: %s", view)
-	}
+
+	t.Run("standard en rendering", func(t *testing.T) {
+		view := RenderHelp(2*time.Second, &dict)
+		if !strings.Contains(view, dict.HelpTitle) || !strings.Contains(view, "[K]") || !strings.Contains(view, "[x]") {
+			t.Errorf("expected help title and new shortcut keys [K] and [x], got: %s", view)
+		}
+		if !strings.Contains(view, dict.HelpSecNav) || !strings.Contains(view, dict.HelpSecContainers) {
+			t.Errorf("expected section titles in help view, got: %s", view)
+		}
+	})
+
+	t.Run("nil dictionary fallback", func(t *testing.T) {
+		view := RenderHelp(3*time.Second, nil)
+		if !strings.Contains(view, "[K]") || !strings.Contains(view, "HOTKEYS:") {
+			t.Errorf("expected fallback en help view when dict is nil, got: %s", view)
+		}
+	})
+
+	t.Run("russian rendering", func(t *testing.T) {
+		ruDict := i18n.Get("ru")
+		view := RenderHelp(5*time.Second, &ruDict)
+		if !strings.Contains(view, "ГОРЯЧИЕ КЛАВИШИ:") || !strings.Contains(view, "КОНТЕЙНЕРЫ") {
+			t.Errorf("expected ru sections in help view, got: %s", view)
+		}
+	})
 }
 
 func TestRenderExec(t *testing.T) {
