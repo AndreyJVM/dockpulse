@@ -19,12 +19,6 @@ const (
 	sortModeCount
 )
 
-type tickMsg time.Time
-
-type execFinishedMsg struct {
-	containerName string
-	err           error
-}
 
 func tickCmd(d time.Duration) tea.Cmd {
 	if d <= 0 {

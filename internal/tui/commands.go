@@ -20,21 +20,6 @@ const (
 	PruneOptionAll        = 4
 )
 
-type actionFinishedMsg struct {
-	message string
-	err     error
-	refresh bool
-}
-
-type dataFetchedMsg struct {
-	sysInfo    monitor.SystemInfo
-	cpuInfo    monitor.CPUInfo
-	memInfo    monitor.MemoryInfo
-	dockerInfo monitor.DockerSummary
-	compose    []monitor.ComposeProject
-	swarm      monitor.SwarmSummary
-	timestamp  string
-}
 
 func fetchAllData() dataFetchedMsg {
 	dockerInfo := monitor.GetDockerSummary()
