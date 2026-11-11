@@ -90,7 +90,7 @@ release-tag: release-check
 	git tag -a "v$${CUR_VER}" -m "Release v$${CUR_VER}"; \
 	echo "Tag v$${CUR_VER} successfully created!"; \
 	echo ""; \
-	echo "To publish the release and automatically build cross-platform binaries & .deb packages:"; \
+	echo "To publish the release and automatically build Linux binaries & .deb packages:"; \
 	echo "  git push origin main --tags"
 
 # Полный релиз текущей версии

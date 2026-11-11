@@ -5,7 +5,7 @@
 - Автономный TUI интерфейс на Bubble Tea и Lip Gloss
 - Интерактивное управление контейнерами Docker (логи, инспекция, старт/стоп/перезапуск)
 - Поддержка мониторинга хоста, Docker, Docker Compose и Docker Swarm
-- Кроссплатформенная сборка для Linux (amd64, arm64) и macOS (Apple Silicon, Intel)
+- Сборка для Linux (amd64, arm64)
 
 ### Установка:
 ```bash
