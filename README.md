@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/AndreyJVM/dockpulse/actions/workflows/ci.yml/badge.svg)](https://github.com/AndreyJVM/dockpulse/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/AndreyJVM/dockpulse?color=blue&logo=github)](https://github.com/AndreyJVM/dockpulse/releases)
-[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.27.3+-00ADD8?logo=go)](https://golang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS-lightgrey)](https://github.com/AndreyJVM/dockpulse/releases)
 
@@ -68,7 +68,7 @@ tar -xzf dockpulse_v0.7.4_darwin_arm64.tar.gz
 ./dockpulse
 ```
 
-#### Build from Source (Go 1.21+)
+#### Build from Source (Go 1.27.3+)
 
 ```bash
 git clone https://github.com/AndreyJVM/dockpulse.git
@@ -166,7 +166,7 @@ tar -xzf dockpulse_v0.7.4_darwin_arm64.tar.gz
 ./dockpulse
 ```
 
-#### Сборка из исходников (Go 1.21+)
+#### Сборка из исходников (Go 1.27.3+)
 
 ```bash
 git clone https://github.com/AndreyJVM/dockpulse.git
