@@ -9,15 +9,15 @@ import (
 )
 
 func (m Model) handleModalInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.activeModal == "compose_down" {
+	if m.activeModal == ModalComposeDown {
 		switch msg.String() {
 		case "esc", "q", "n", "N":
-			m.activeModal = ""
+			m.closeModal()
 			m.composeDownTarget = ""
 			return m, nil
 		case "y", "Y":
 			target := m.composeDownTarget
-			m.activeModal = ""
+			m.closeModal()
 			m.composeDownTarget = ""
 			m.showToast(fmt.Sprintf(m.i18n.ToastDowningCompose, target))
 			return m, downComposeCmd(target, m.dockerInfo.Containers, m.i18n)
@@ -25,17 +25,17 @@ func (m Model) handleModalInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.activeModal == "remove_container" {
+	if m.activeModal == ModalRemoveContainer {
 		switch msg.String() {
 		case "esc", "q", "n", "N":
-			m.activeModal = ""
+			m.closeModal()
 			m.removeContainerTargetID = ""
 			m.removeContainerTargetName = ""
 			return m, nil
 		case "y", "Y":
 			targetID := m.removeContainerTargetID
 			targetName := m.removeContainerTargetName
-			m.activeModal = ""
+			m.closeModal()
 			m.removeContainerTargetID = ""
 			m.removeContainerTargetName = ""
 			m.showToast(fmt.Sprintf(m.i18n.ToastRemovingCont, targetName))
@@ -44,21 +44,21 @@ func (m Model) handleModalInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.activeModal == "exec" {
+	if m.activeModal == ModalExec {
 		return m.handleExecModalInput(msg)
 	}
 
-	if m.activeModal == "prune" {
+	if m.activeModal == ModalPrune {
 		switch msg.String() {
 		case "q":
-			m.activeModal = ""
+			m.closeModal()
 			m.pruneConfirm = 0
 			return m, nil
 		case "esc":
 			if m.pruneConfirm > 0 {
 				m.pruneConfirm = 0
 			} else {
-				m.activeModal = ""
+				m.closeModal()
 			}
 			return m, nil
 		case "1", "2", "3", "4":
@@ -78,7 +78,7 @@ func (m Model) handleModalInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "y", "Y":
 			if m.pruneConfirm > 0 {
 				opt := m.pruneConfirm
-				m.activeModal = ""
+				m.closeModal()
 				m.pruneConfirm = 0
 				m.showToast(m.i18n.ToastPruning)
 				return m, pruneCmd(opt, m.i18n)
@@ -95,29 +95,29 @@ func (m Model) handleModalInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch msg.String() {
 	case "q", "esc":
-		m.activeModal = ""
+		m.closeModal()
 		return m, nil
 
 	case "up", "k":
-		if m.activeModal == "logs" && m.logsScroll > 0 {
+		if m.activeModal == ModalLogs && m.logsScroll > 0 {
 			m.logsScroll--
 		}
 		return m, nil
 
 	case "down", "j":
-		if m.activeModal == "logs" && m.logsScroll < len(m.logsLines)-10 {
+		if m.activeModal == ModalLogs && m.logsScroll < len(m.logsLines)-10 {
 			m.logsScroll++
 		}
 		return m, nil
 
 	case "pgup":
-		if m.activeModal == "logs" {
+		if m.activeModal == ModalLogs {
 			m.logsScroll = max(0, m.logsScroll-10)
 		}
 		return m, nil
 
 	case "pgdown":
-		if m.activeModal == "logs" {
+		if m.activeModal == ModalLogs {
 			m.logsScroll = min(max(0, len(m.logsLines)-10), m.logsScroll+10)
 		}
 		return m, nil
@@ -137,7 +137,7 @@ func (m Model) handleHelpInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) launchExecProcess(opts monitor.ExecOptions) (tea.Model, tea.Cmd) {
 	targetID := m.execTargetID
 	targetName := m.execTargetName
-	m.activeModal = ""
+	m.closeModal()
 	m.execTargetID = ""
 	m.execTargetName = ""
 	m.execIsCustomInput = false
@@ -183,7 +183,7 @@ func (m Model) handleExecModalInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch msg.String() {
 	case "esc", "q":
-		m.activeModal = ""
+		m.closeModal()
 		m.execTargetID = ""
 		m.execTargetName = ""
 		return m, nil
