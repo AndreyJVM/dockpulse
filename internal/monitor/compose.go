@@ -21,14 +21,27 @@ const (
 	StatusDisplayPartial = "Частично"
 	StatusDisplayStopped = "Остановлен"
 
+	// Action names for Compose CLI commands
+	ActionRestart = "restart"
+	ActionStop    = "stop"
+	ActionStart   = "start"
+	ActionDown    = "down"
+
 	// Tail and timeout defaults
-	defaultTailLines      = 100
-	minPerContainerTail   = 20
-	composeLogsTimeout    = 5 * time.Second
-	composeRestartTimeout = 30 * time.Second
+	defaultTailLines       = 100
+	minPerContainerTail    = 20
+	composeLogsTimeout     = 5 * time.Second
+	composeRestartTimeout  = 30 * time.Second
+	emptyProjectLogsNotice = "Логи сервисов проекта пусты или сервисы не выводили сообщений."
+	containerStateRunning  = "running"
 )
 
-// ComposeService представляет сервис внутри проекта Compose.
+var (
+	execLookPath         = exec.LookPath
+	composeCommandRunner = runComposeCommand
+)
+
+// ComposeService represents a service container inside a Compose project.
 type ComposeService struct {
 	Name          string
 	ContainerName string
@@ -38,7 +51,7 @@ type ComposeService struct {
 	Ports         string
 }
 
-// ComposeProject представляет стек/проект Docker Compose.
+// ComposeProject represents a Docker Compose stack/project with aggregated health.
 type ComposeProject struct {
 	Name            string
 	Status          string // "running", "partial", "stopped"
@@ -48,7 +61,7 @@ type ComposeProject struct {
 	Services        []ComposeService
 }
 
-// GetComposeProjects группирует контейнеры по проектам Compose.
+// GetComposeProjects groups containers into Docker Compose projects and computes aggregate statuses.
 func GetComposeProjects(containers []ContainerItem) []ComposeProject {
 	projectsMap := make(map[string]*ComposeProject)
 
@@ -85,13 +98,13 @@ func GetComposeProjects(containers []ContainerItem) []ComposeProject {
 		proj.TotalServices = len(proj.Services)
 		running := 0
 		for _, s := range proj.Services {
-			if s.State == "running" {
+			if s.State == containerStateRunning {
 				running++
 			}
 		}
 		proj.RunningServices = running
 
-		// Стабильная детерминированная сортировка сервисов внутри каждого проекта
+		// Deterministic sort of services within each project
 		slices.SortFunc(proj.Services, func(a, b ComposeService) int {
 			if n := strings.Compare(a.Name, b.Name); n != 0 {
 				return n
@@ -121,7 +134,7 @@ func GetComposeProjects(containers []ContainerItem) []ComposeProject {
 	return res
 }
 
-// filterContainersByProject возвращает контейнеры, принадлежащие указанному проекту Compose.
+// filterContainersByProject filters containers belonging to the specified Compose project.
 func filterContainersByProject(containers []ContainerItem, projectName string) []ContainerItem {
 	projectName = strings.TrimSpace(projectName)
 	if projectName == "" {
@@ -136,22 +149,23 @@ func filterContainersByProject(containers []ContainerItem, projectName string) [
 	return res
 }
 
-var composeCommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
-	if _, err := exec.LookPath("docker"); err == nil {
+// runComposeCommand executes a Docker Compose CLI command with fallback to standalone docker-compose.
+func runComposeCommand(ctx context.Context, args ...string) ([]byte, error) {
+	if _, err := execLookPath("docker"); err == nil {
 		cmd := exec.CommandContext(ctx, "docker", append([]string{"compose"}, args...)...)
 		out, cErr := cmd.CombinedOutput()
 		if cErr == nil {
 			return out, nil
 		}
-		// Если docker compose вернул ошибку, пробуем standalone утилиту docker-compose
-		if _, dcErr := exec.LookPath("docker-compose"); dcErr == nil {
+		// If 'docker compose' returned an error, fallback to standalone 'docker-compose'
+		if _, dcErr := execLookPath("docker-compose"); dcErr == nil {
 			cmdDC := exec.CommandContext(ctx, "docker-compose", args...)
 			return cmdDC.CombinedOutput()
 		}
 		return out, cErr
 	}
 
-	if _, dcErr := exec.LookPath("docker-compose"); dcErr == nil {
+	if _, dcErr := execLookPath("docker-compose"); dcErr == nil {
 		cmdDC := exec.CommandContext(ctx, "docker-compose", args...)
 		return cmdDC.CombinedOutput()
 	}
@@ -159,13 +173,13 @@ var composeCommandRunner = func(ctx context.Context, args ...string) ([]byte, er
 	return nil, exec.ErrNotFound
 }
 
-// GetComposeProjectLogs читает логи всех сервисов проекта Compose.
+// GetComposeProjectLogs retrieves aggregated logs for all services in a Compose project.
 func GetComposeProjectLogs(projectName string, containers []ContainerItem, tailLines int) (string, error) {
 	if tailLines <= 0 {
 		tailLines = defaultTailLines
 	}
 
-	// 1. Попытка через docker compose CLI
+	// 1. Attempt via Docker Compose CLI
 	if strings.TrimSpace(projectName) != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), composeLogsTimeout)
 		defer cancel()
@@ -175,7 +189,7 @@ func GetComposeProjectLogs(projectName string, containers []ContainerItem, tailL
 		}
 	}
 
-	// 2. Fallback: параллельный сбор логов по найденным контейнерам проекта
+	// 2. Fallback: fetch logs concurrently across identified project containers
 	projectContainers := filterContainersByProject(containers, projectName)
 	if len(projectContainers) == 0 {
 		return "", fmt.Errorf("контейнеры проекта %q не найдены", projectName)
@@ -221,19 +235,19 @@ func GetComposeProjectLogs(projectName string, containers []ContainerItem, tailL
 	}
 
 	if sb.Len() == 0 {
-		return "Логи сервисов проекта пусты или сервисы не выводили сообщений.", nil
+		return emptyProjectLogsNotice, nil
 	}
 	return sb.String(), nil
 }
 
-// executeComposeProjectAction выполняет действие над проектом Compose через CLI с fallback на функцию контейнера.
+// executeComposeProjectAction executes a project-level lifecycle action via CLI with fallback to per-container handler.
 func executeComposeProjectAction(projectName, actionName string, containers []ContainerItem, fallbackFn func(id string) error) error {
 	projectContainers := filterContainersByProject(containers, projectName)
 	if len(projectContainers) == 0 {
 		return fmt.Errorf("не найдено контейнеров для проекта %q", projectName)
 	}
 
-	// 1. Попытка через docker compose CLI
+	// 1. Attempt via Docker Compose CLI
 	if strings.TrimSpace(projectName) != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), composeRestartTimeout)
 		defer cancel()
@@ -242,7 +256,7 @@ func executeComposeProjectAction(projectName, actionName string, containers []Co
 		}
 	}
 
-	// 2. Fallback: параллельное выполнение действия для каждого контейнера проекта
+	// 2. Fallback: execute action concurrently for each container in the project
 	var (
 		wg   sync.WaitGroup
 		mu   sync.Mutex
@@ -265,12 +279,14 @@ func executeComposeProjectAction(projectName, actionName string, containers []Co
 		slices.Sort(errs)
 		var actionTitle string
 		switch actionName {
-		case "restart":
+		case ActionRestart:
 			actionTitle = "перезапуска"
-		case "stop":
+		case ActionStop:
 			actionTitle = "остановки"
-		case "start":
+		case ActionStart:
 			actionTitle = "запуска"
+		case ActionDown:
+			actionTitle = "сворачивания (down)"
 		default:
 			actionTitle = actionName
 		}
@@ -279,60 +295,26 @@ func executeComposeProjectAction(projectName, actionName string, containers []Co
 	return nil
 }
 
-// RestartComposeProject перезапускает все контейнеры проекта Compose.
+// RestartComposeProject restarts all containers in a Compose project.
 func RestartComposeProject(projectName string, containers []ContainerItem) error {
-	return executeComposeProjectAction(projectName, "restart", containers, RestartContainer)
+	return executeComposeProjectAction(projectName, ActionRestart, containers, RestartContainer)
 }
 
-// StopComposeProject останавливает все контейнеры проекта Compose.
+// StopComposeProject stops all containers in a Compose project.
 func StopComposeProject(projectName string, containers []ContainerItem) error {
-	return executeComposeProjectAction(projectName, "stop", containers, StopContainer)
+	return executeComposeProjectAction(projectName, ActionStop, containers, StopContainer)
 }
 
-// StartComposeProject запускает все контейнеры проекта Compose.
+// StartComposeProject starts all containers in a Compose project.
 func StartComposeProject(projectName string, containers []ContainerItem) error {
-	return executeComposeProjectAction(projectName, "start", containers, StartContainer)
+	return executeComposeProjectAction(projectName, ActionStart, containers, StartContainer)
 }
 
-// DownComposeProject сворачивает проект Compose (docker compose down), с fallback на остановку и удаление контейнеров.
+// DownComposeProject tears down a Compose project (docker compose down),
+// with a concurrent fallback to stop and remove each container.
 func DownComposeProject(projectName string, containers []ContainerItem) error {
-	projectContainers := filterContainersByProject(containers, projectName)
-	if len(projectContainers) == 0 {
-		return fmt.Errorf("не найдено контейнеров для проекта %q", projectName)
-	}
-
-	// 1. Попытка через docker compose CLI
-	if strings.TrimSpace(projectName) != "" {
-		ctx, cancel := context.WithTimeout(context.Background(), composeRestartTimeout)
-		defer cancel()
-		if _, err := composeCommandRunner(ctx, "-p", projectName, "down"); err == nil {
-			return nil
-		}
-	}
-
-	// 2. Fallback: параллельная остановка и удаление каждого контейнера проекта
-	var (
-		wg   sync.WaitGroup
-		mu   sync.Mutex
-		errs []string
-	)
-	for _, c := range projectContainers {
-		wg.Add(1)
-		go func(cnt ContainerItem) {
-			defer wg.Done()
-			_ = StopContainer(cnt.ID)
-			if err := RemoveContainer(cnt.ID); err != nil {
-				mu.Lock()
-				errs = append(errs, fmt.Sprintf("%s: %v", cnt.Name, err))
-				mu.Unlock()
-			}
-		}(c)
-	}
-	wg.Wait()
-
-	if len(errs) > 0 {
-		slices.Sort(errs)
-		return fmt.Errorf("ошибки сворачивания (down): %s", strings.Join(errs, "; "))
-	}
-	return nil
+	return executeComposeProjectAction(projectName, ActionDown, containers, func(id string) error {
+		_ = StopContainer(id)
+		return RemoveContainer(id)
+	})
 }

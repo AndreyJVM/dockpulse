@@ -10,297 +10,130 @@ import (
 	"time"
 )
 
-const pruneTimeout = 30 * time.Second
+const (
+	pruneTimeout              = 30 * time.Second
+	totalReclaimedSpacePrefix = "Total reclaimed space:"
+)
 
-// DockerDiskItem содержит информацию об одной категории дисковых ресурсов Docker.
-type DockerDiskItem struct {
-	TotalCount  int
-	ActiveCount int
-	TotalSize   int64
-	Reclaimable int64
+type pruneResourceConfig struct {
+	socketPath     string
+	cliResource    string
+	label          string
+	parseSocketRes func(r io.Reader) (count int, reclaimed int64, ok bool)
 }
 
-// DockerDiskUsage описывает общую сводку использования дискового пространства Docker.
-type DockerDiskUsage struct {
-	Images     DockerDiskItem
-	Containers DockerDiskItem
-	Volumes    DockerDiskItem
-	BuildCache DockerDiskItem
-	TotalSize  int64
-	TotalRecl  int64
-}
-
-// FormatBytes форматирует размер в байтах в человекочитаемую строку (B, KB, MB, GB).
-func FormatBytes(b int64) string {
-	const unit = 1024
-	if b < 0 {
-		b = 0
-	}
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	suffixes := []string{"KB", "MB", "GB", "TB"}
-	if exp < len(suffixes) {
-		return fmt.Sprintf("%.1f %s", float64(b)/float64(div), suffixes[exp])
-	}
-	return fmt.Sprintf("%.1f TB", float64(b)/float64(div))
-}
-
-type systemDFRaw struct {
-	LayersSize int64 `json:"LayersSize"`
-	Images     []struct {
-		Size       int64 `json:"Size"`
-		SharedSize int64 `json:"SharedSize"`
-		Containers int64 `json:"Containers"`
-	} `json:"Images"`
-	Containers []struct {
-		SizeRw     int64  `json:"SizeRw"`
-		SizeRootFs int64  `json:"SizeRootFs"`
-		State      string `json:"State"`
-	} `json:"Containers"`
-	Volumes []struct {
-		UsageData struct {
-			Size     int64 `json:"Size"`
-			RefCount int64 `json:"RefCount"`
-		} `json:"UsageData"`
-	} `json:"Volumes"`
-	BuildCache []struct {
-		Size        int64 `json:"Size"`
-		Reclaimable bool  `json:"Reclaimable"`
-	} `json:"BuildCache"`
-}
-
-// ParseSystemDFRaw рассчитывает агрегированные дисковые показатели из структуры ответа Docker API.
-func ParseSystemDFRaw(raw systemDFRaw) DockerDiskUsage {
-	var usage DockerDiskUsage
-
-	// Images
-	usage.Images.TotalCount = len(raw.Images)
-	for _, img := range raw.Images {
-		usage.Images.TotalSize += img.Size
-		if img.Containers == 0 {
-			usage.Images.Reclaimable += img.Size
-		} else {
-			usage.Images.ActiveCount++
-		}
-	}
-
-	// Containers
-	usage.Containers.TotalCount = len(raw.Containers)
-	for _, c := range raw.Containers {
-		usage.Containers.TotalSize += c.SizeRw
-		if c.State != "running" {
-			usage.Containers.Reclaimable += c.SizeRw
-		} else {
-			usage.Containers.ActiveCount++
-		}
-	}
-
-	// Volumes
-	usage.Volumes.TotalCount = len(raw.Volumes)
-	for _, v := range raw.Volumes {
-		usage.Volumes.TotalSize += v.UsageData.Size
-		if v.UsageData.RefCount <= 0 {
-			usage.Volumes.Reclaimable += v.UsageData.Size
-		} else {
-			usage.Volumes.ActiveCount++
-		}
-	}
-
-	// BuildCache
-	usage.BuildCache.TotalCount = len(raw.BuildCache)
-	for _, bc := range raw.BuildCache {
-		usage.BuildCache.TotalSize += bc.Size
-		if bc.Reclaimable {
-			usage.BuildCache.Reclaimable += bc.Size
-		} else {
-			usage.BuildCache.ActiveCount++
-		}
-	}
-
-	usage.TotalSize = usage.Images.TotalSize + usage.Containers.TotalSize + usage.Volumes.TotalSize + usage.BuildCache.TotalSize
-	usage.TotalRecl = usage.Images.Reclaimable + usage.Containers.Reclaimable + usage.Volumes.Reclaimable + usage.BuildCache.Reclaimable
-
-	return usage
-}
-
-// GetDockerDiskUsage собирает статистику использования диска Docker (system df).
-func GetDockerDiskUsage() (DockerDiskUsage, error) {
+func executePruneResource(cfg pruneResourceConfig) (string, error) {
 	sockPath := dockerSocketFinder()
 	if sockPath != "" {
 		client := socketClientFactory(sockPath)
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), pruneTimeout)
 		defer cancel()
 
-		req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/system/df", nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://localhost/"+cfg.socketPath, nil)
 		if err == nil {
-			resp, err := client.Do(req)
-			if err == nil && resp.StatusCode == http.StatusOK {
+			resp, doErr := client.Do(req)
+			if doErr == nil && resp.StatusCode == http.StatusOK {
 				defer resp.Body.Close()
-				body, _ := io.ReadAll(resp.Body)
-				var raw systemDFRaw
-				if err := json.Unmarshal(body, &raw); err == nil {
-					return ParseSystemDFRaw(raw), nil
+				if count, reclaimed, ok := cfg.parseSocketRes(resp.Body); ok {
+					return fmt.Sprintf("Удалено %s: %d, освобождено: %s", cfg.label, count, FormatBytes(reclaimed)), nil
 				}
 			}
 		}
 	}
 
 	// CLI fallback
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), pruneTimeout)
 	defer cancel()
-	out, err := dockerCLICommandRunner(ctx, "system", "df", "--format", "{{json .}}")
-	if err == nil && len(out) > 0 {
-		var usage DockerDiskUsage
-		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-		for _, line := range lines {
-			var item struct {
-				Type        string `json:"Type"`
-				TotalCount  string `json:"TotalCount"`
-				Active      string `json:"Active"`
-				Size        string `json:"Size"`
-				Reclaimable string `json:"Reclaimable"`
-			}
-			if json.Unmarshal([]byte(line), &item) == nil {
-				switch strings.ToLower(item.Type) {
-				case "images":
-					usage.Images.TotalCount = parseCLIInt(item.TotalCount)
-					usage.Images.ActiveCount = parseCLIInt(item.Active)
-				case "containers":
-					usage.Containers.TotalCount = parseCLIInt(item.TotalCount)
-					usage.Containers.ActiveCount = parseCLIInt(item.Active)
-				case "local volumes", "volumes":
-					usage.Volumes.TotalCount = parseCLIInt(item.TotalCount)
-					usage.Volumes.ActiveCount = parseCLIInt(item.Active)
-				case "build cache":
-					usage.BuildCache.TotalCount = parseCLIInt(item.TotalCount)
-					usage.BuildCache.ActiveCount = parseCLIInt(item.Active)
-				}
-			}
-		}
-		return usage, nil
+	out, err := dockerCLICommandRunner(ctx, cfg.cliResource, "prune", "-f")
+	if err != nil {
+		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}
-
-	return DockerDiskUsage{}, fmt.Errorf("служба Docker недоступна")
+	return formatPruneCLIOutput(string(out), cfg.label), nil
 }
 
-func parseCLIInt(s string) int {
-	var n int
-	fmt.Sscanf(strings.TrimSpace(s), "%d", &n)
-	return n
-}
-
-// PruneContainers удаляет остановленные контейнеры.
+// PruneContainers removes all stopped containers.
 func PruneContainers() (string, error) {
-	sockPath := dockerSocketFinder()
-	if sockPath != "" {
-		client := socketClientFactory(sockPath)
-		ctx, cancel := context.WithTimeout(context.Background(), pruneTimeout)
-		defer cancel()
-
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://localhost/containers/prune", nil)
-		if err == nil {
-			resp, err := client.Do(req)
-			if err == nil && resp.StatusCode == http.StatusOK {
-				defer resp.Body.Close()
-				var res struct {
-					ContainersDeleted []string `json:"ContainersDeleted"`
-					SpaceReclaimed    int64    `json:"SpaceReclaimed"`
-				}
-				if json.NewDecoder(resp.Body).Decode(&res) == nil {
-					count := len(res.ContainersDeleted)
-					return fmt.Sprintf("Удалено контейнеров: %d, освобождено: %s", count, FormatBytes(res.SpaceReclaimed)), nil
-				}
+	return executePruneResource(pruneResourceConfig{
+		socketPath:  "containers/prune",
+		cliResource: "container",
+		label:       "контейнеров",
+		parseSocketRes: func(r io.Reader) (int, int64, bool) {
+			var res struct {
+				ContainersDeleted []string `json:"ContainersDeleted"`
+				SpaceReclaimed    int64    `json:"SpaceReclaimed"`
 			}
-		}
-	}
-
-	// CLI fallback
-	ctx, cancel := context.WithTimeout(context.Background(), pruneTimeout)
-	defer cancel()
-	out, err := dockerCLICommandRunner(ctx, "container", "prune", "-f")
-	if err != nil {
-		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return formatPruneCLIOutput(string(out), "контейнеров"), nil
+			if json.NewDecoder(r).Decode(&res) == nil {
+				return len(res.ContainersDeleted), res.SpaceReclaimed, true
+			}
+			return 0, 0, false
+		},
+	})
 }
 
-// PruneImages удаляет висячие (dangling) образы Docker.
+// PruneImages removes dangling Docker images.
 func PruneImages() (string, error) {
-	sockPath := dockerSocketFinder()
-	if sockPath != "" {
-		client := socketClientFactory(sockPath)
-		ctx, cancel := context.WithTimeout(context.Background(), pruneTimeout)
-		defer cancel()
-
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://localhost/images/prune", nil)
-		if err == nil {
-			resp, err := client.Do(req)
-			if err == nil && resp.StatusCode == http.StatusOK {
-				defer resp.Body.Close()
-				var res struct {
-					ImagesDeleted  []map[string]interface{} `json:"ImagesDeleted"`
-					SpaceReclaimed int64                    `json:"SpaceReclaimed"`
-				}
-				if json.NewDecoder(resp.Body).Decode(&res) == nil {
-					count := len(res.ImagesDeleted)
-					return fmt.Sprintf("Удалено образов: %d, освобождено: %s", count, FormatBytes(res.SpaceReclaimed)), nil
-				}
+	return executePruneResource(pruneResourceConfig{
+		socketPath:  "images/prune",
+		cliResource: "image",
+		label:       "образов",
+		parseSocketRes: func(r io.Reader) (int, int64, bool) {
+			var res struct {
+				ImagesDeleted  []map[string]interface{} `json:"ImagesDeleted"`
+				SpaceReclaimed int64                    `json:"SpaceReclaimed"`
 			}
-		}
-	}
-
-	// CLI fallback
-	ctx, cancel := context.WithTimeout(context.Background(), pruneTimeout)
-	defer cancel()
-	out, err := dockerCLICommandRunner(ctx, "image", "prune", "-f")
-	if err != nil {
-		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return formatPruneCLIOutput(string(out), "образов"), nil
+			if json.NewDecoder(r).Decode(&res) == nil {
+				return len(res.ImagesDeleted), res.SpaceReclaimed, true
+			}
+			return 0, 0, false
+		},
+	})
 }
 
-// PruneVolumes удаляет неиспользуемые тома Docker.
+// PruneVolumes removes unused Docker volumes.
 func PruneVolumes() (string, error) {
-	sockPath := dockerSocketFinder()
-	if sockPath != "" {
-		client := socketClientFactory(sockPath)
-		ctx, cancel := context.WithTimeout(context.Background(), pruneTimeout)
-		defer cancel()
-
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://localhost/volumes/prune", nil)
-		if err == nil {
-			resp, err := client.Do(req)
-			if err == nil && resp.StatusCode == http.StatusOK {
-				defer resp.Body.Close()
-				var res struct {
-					VolumesDeleted []string `json:"VolumesDeleted"`
-					SpaceReclaimed int64    `json:"SpaceReclaimed"`
-				}
-				if json.NewDecoder(resp.Body).Decode(&res) == nil {
-					count := len(res.VolumesDeleted)
-					return fmt.Sprintf("Удалено томов: %d, освобождено: %s", count, FormatBytes(res.SpaceReclaimed)), nil
-				}
+	return executePruneResource(pruneResourceConfig{
+		socketPath:  "volumes/prune",
+		cliResource: "volume",
+		label:       "томов",
+		parseSocketRes: func(r io.Reader) (int, int64, bool) {
+			var res struct {
+				VolumesDeleted []string `json:"VolumesDeleted"`
+				SpaceReclaimed int64    `json:"SpaceReclaimed"`
 			}
-		}
-	}
-
-	// CLI fallback
-	ctx, cancel := context.WithTimeout(context.Background(), pruneTimeout)
-	defer cancel()
-	out, err := dockerCLICommandRunner(ctx, "volume", "prune", "-f")
-	if err != nil {
-		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-	return formatPruneCLIOutput(string(out), "томов"), nil
+			if json.NewDecoder(r).Decode(&res) == nil {
+				return len(res.VolumesDeleted), res.SpaceReclaimed, true
+			}
+			return 0, 0, false
+		},
+	})
 }
 
-// PruneAll выполняет полную очистку неиспользуемых контейнеров, образов, томов и кэша сборки.
+func pruneBuildCacheSocket(sockPath string) string {
+	client := socketClientFactory(sockPath)
+	ctx, cancel := context.WithTimeout(context.Background(), pruneTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://localhost/build/prune", nil)
+	if err != nil {
+		return ""
+	}
+	resp, doErr := client.Do(req)
+	if doErr != nil || resp.StatusCode != http.StatusOK {
+		return ""
+	}
+	defer resp.Body.Close()
+
+	var res struct {
+		CachesDeleted  []string `json:"CachesDeleted"`
+		SpaceReclaimed int64    `json:"SpaceReclaimed"`
+	}
+	if json.NewDecoder(resp.Body).Decode(&res) == nil && len(res.CachesDeleted) > 0 {
+		return fmt.Sprintf("Кэш сборки: %d записей (%s)", len(res.CachesDeleted), FormatBytes(res.SpaceReclaimed))
+	}
+	return ""
+}
+
+// PruneAll performs cleanup of unused containers, images, volumes, and build cache.
 func PruneAll() (string, error) {
 	sockPath := dockerSocketFinder()
 	if sockPath != "" {
@@ -319,22 +152,8 @@ func PruneAll() (string, error) {
 			details = append(details, res)
 		}
 		// 4. Build Cache
-		client := socketClientFactory(sockPath)
-		ctx, cancel := context.WithTimeout(context.Background(), pruneTimeout)
-		defer cancel()
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://localhost/build/prune", nil)
-		if err == nil {
-			resp, err := client.Do(req)
-			if err == nil && resp.StatusCode == http.StatusOK {
-				defer resp.Body.Close()
-				var res struct {
-					CachesDeleted  []string `json:"CachesDeleted"`
-					SpaceReclaimed int64    `json:"SpaceReclaimed"`
-				}
-				if json.NewDecoder(resp.Body).Decode(&res) == nil && len(res.CachesDeleted) > 0 {
-					details = append(details, fmt.Sprintf("Кэш сборки: %d записей (%s)", len(res.CachesDeleted), FormatBytes(res.SpaceReclaimed)))
-				}
-			}
+		if bcRes := pruneBuildCacheSocket(sockPath); bcRes != "" {
+			details = append(details, bcRes)
 		}
 
 		if len(details) > 0 {
@@ -355,8 +174,8 @@ func PruneAll() (string, error) {
 func formatPruneCLIOutput(out string, label string) string {
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	for _, l := range lines {
-		if strings.Contains(l, "Total reclaimed space:") {
-			space := strings.TrimPrefix(l, "Total reclaimed space:")
+		if strings.Contains(l, totalReclaimedSpacePrefix) {
+			space := strings.TrimPrefix(l, totalReclaimedSpacePrefix)
 			return fmt.Sprintf("Очистка %s завершена. Освобождено:%s", label, space)
 		}
 	}

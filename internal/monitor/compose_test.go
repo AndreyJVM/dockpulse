@@ -54,15 +54,15 @@ func TestGetComposeProjects(t *testing.T) {
 
 	t.Run("project statuses: running, partial, stopped", func(t *testing.T) {
 		containers := []ContainerItem{
-			// All running -> "running" / "Запущен"
+			// All running -> "running"
 			{ID: "1", Name: "app-web", ComposeProject: "alpha-stack", ComposeService: "web", State: "running"},
 			{ID: "2", Name: "app-db", ComposeProject: "alpha-stack", ComposeService: "db", State: "running"},
 
-			// Partial -> "partial" / "Частично"
+			// Partial -> "partial"
 			{ID: "3", Name: "beta-api", ComposeProject: "beta-stack", ComposeService: "api", State: "running"},
 			{ID: "4", Name: "beta-worker", ComposeProject: "beta-stack", ComposeService: "worker", State: "exited"},
 
-			// All stopped -> "stopped" / "Остановлен"
+			// All stopped -> "stopped"
 			{ID: "5", Name: "gamma-redis", ComposeProject: "gamma-stack", ComposeService: "redis", State: "exited"},
 			{ID: "6", Name: "gamma-worker", ComposeProject: "gamma-stack", ComposeService: "worker", State: "created"},
 		}
