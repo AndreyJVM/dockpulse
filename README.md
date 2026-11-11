@@ -6,7 +6,7 @@
 [![Release](https://img.shields.io/github/v/release/AndreyJVM/dockpulse?color=blue&logo=github)](https://github.com/AndreyJVM/dockpulse/releases)
 [![Go Version](https://img.shields.io/badge/Go-1.27.3+-00ADD8?logo=go)](https://golang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS-lightgrey)](https://github.com/AndreyJVM/dockpulse/releases)
+[![Platform](https://img.shields.io/badge/Platform-Linux-lightgrey)](https://github.com/AndreyJVM/dockpulse/releases)
 
 **A fast, lightweight terminal TUI monitor for Host, Docker, Compose, and Swarm.**<br>
 *Быстрый и легковесный терминальный TUI-монитор для хоста, Docker, Compose и Swarm.*
@@ -34,11 +34,11 @@
   - Power control: Start / Stop (`S`), Restart (`P`), Force Kill (`K` — `SIGKILL`).
   - Safe container removal with confirmation (`x`, `d`).
   - Docker System Prune modal (`C`) with disk reclaim estimates and confirmation.
-  - Socket support: Docker daemon, Rootless Docker, Docker Desktop (macOS), and Podman (<2 ms latency).
+  - Socket support: Docker daemon, Rootless Docker, and Podman (<2 ms latency).
 - **Docker Compose**: Automatic project/service grouping, aggregated stack health, live stack logs (`L`), service control (`U` / `S` / `P`), and stack teardown (`D` / down) with confirmation.
 - **Docker Swarm**: Cluster node roles (Leader, Manager, Worker), service listings, replica counts with degradation highlights, and live service logs (`L`).
 - **Bilingual Interface (i18n)**: English and Russian language support with automatic locale detection (`LANG`, `LC_*`) and `--lang` flag.
-- **Zero Dependencies**: Standalone binary (<12 MB) with zero external runtime dependencies. Runs on Linux and macOS.
+- **Zero Dependencies**: Standalone binary (<12 MB) with zero external runtime dependencies. Runs on Linux.
 
 ### Installation
 
@@ -54,17 +54,13 @@ wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0
 sudo dpkg -i dockpulse_0.7.4_arm64.deb
 ```
 
-#### Pre-built Binaries (Linux / macOS)
+#### Pre-built Binaries (Linux)
 
 Download the latest archive from [Releases](https://github.com/AndreyJVM/dockpulse/releases):
 
 ```bash
 # Linux AMD64
 tar -xzf dockpulse_v0.7.4_linux_amd64.tar.gz
-./dockpulse
-
-# macOS (Apple Silicon)
-tar -xzf dockpulse_v0.7.4_darwin_arm64.tar.gz
 ./dockpulse
 ```
 
@@ -132,11 +128,11 @@ Options:
   - Управление питанием: Старт / Остановка (`S`), Перезапуск (`P`), Принудительное завершение (`K` — `SIGKILL`).
   - Безопасное удаление контейнера с подтверждением (`x`, `d`).
   - Модальное окно очистки ресурсов Docker (System Prune) (`C`) с оценкой освобождаемого места.
-  - Поддержка сокетов: Docker daemon, Rootless Docker, Docker Desktop (macOS) и Podman (отклик <2 мс).
+  - Поддержка сокетов: Docker daemon, Rootless Docker и Podman (отклик <2 мс).
 - **Docker Compose**: Автоматическая группировка проектов/сервисов, сводный статус здоровья, просмотр логов проекта (`L`), управление сервисами (`U` / `S` / `P`) и сворачивание стека (`D` / down) с подтверждением.
 - **Docker Swarm**: Роли узлов кластера (Leader, Manager, Worker), список служб, статус реплик с цветовой индикацией сбоев и логи сервисов (`L`).
 - **Двуязычный интерфейс (i18n)**: Русская и английская локализация с автоопределением языка (`LANG`, `LC_*`) и ключом `--lang`.
-- **Без внешних зависимостей**: Автономный бинарник (<12 МБ) без сторонних рантайм-зависимостей. Работает на Linux и macOS.
+- **Без внешних зависимостей**: Автономный бинарник (<12 МБ) без сторонних рантайм-зависимостей. Работает на Linux.
 
 ### Установка
 
@@ -152,17 +148,13 @@ wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0
 sudo dpkg -i dockpulse_0.7.4_arm64.deb
 ```
 
-#### Готовые бинарные файлы (Linux / macOS)
+#### Готовые бинарные файлы (Linux)
 
 Скачайте архив последней версии со страницы [Releases](https://github.com/AndreyJVM/dockpulse/releases):
 
 ```bash
 # Linux AMD64
 tar -xzf dockpulse_v0.7.4_linux_amd64.tar.gz
-./dockpulse
-
-# macOS (Apple Silicon)
-tar -xzf dockpulse_v0.7.4_darwin_arm64.tar.gz
 ./dockpulse
 ```
 
