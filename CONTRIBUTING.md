@@ -35,6 +35,38 @@ Thank you for your interest in contributing to **Dockpulse**! We welcome all con
    git checkout -b fix/issue-description
    ```
 
+### Project Architecture & Codebase Structure
+
+Dockpulse is structured into clear and modular packages:
+
+```text
+dockpulse/
+├── cmd/
+│   └── dockpulse/          # Application entrypoint (main.go), CLI flags, and initialization
+├── internal/               # Core internal packages (not importable by external projects)
+│   ├── monitor/            # Monitoring engine and Docker engine integrations
+│   │   ├── docker*.go      # Docker client, container stats, logs, inspect, exec, prune
+│   │   ├── compose*.go     # Docker Compose service discovery and lifecycle
+│   │   ├── swarm*.go       # Docker Swarm cluster nodes and services monitoring
+│   │   └── system*.go      # Host system metrics (CPU, RAM, Disk, Network)
+│   ├── tui/                # Terminal User Interface (Bubble Tea & Lip Gloss)
+│   │   ├── views/          # Primary views (Docker containers, Compose, Swarm, Host)
+│   │   ├── modals/         # Interactive dialogs (logs, inspect, exec, prune, help)
+│   │   ├── components/     # Reusable UI widgets (progress bar, sparkline, tables)
+│   │   ├── theme/          # Color schemes, styles, and borders
+│   │   └── update*.go      # Event handling, keybindings, and command dispatchers
+│   └── i18n/               # Internationalization engine and dictionaries (EN / RU)
+├── docs/                   # Documentation and screenshots
+└── debian/                 # Debian/Ubuntu packaging metadata
+```
+
+**Where to make your changes:**
+- Adding or modifying metrics/Docker logic? Work in `internal/monitor/`.
+- Adding a new dashboard view? Work in `internal/tui/views/`.
+- Adding a popup modal or action? Work in `internal/tui/modals/`.
+- Adding UI components or widgets? Work in `internal/tui/components/`.
+- Updating UI strings or translations? Update `internal/i18n/dictionary.go`.
+
 ### Development & Testing
 
 Use the provided `Makefile` targets to build, test, and verify your changes:
@@ -79,7 +111,14 @@ fix(monitor): handle missing docker socket gracefully
    git push origin feat/my-new-feature
    ```
 3. Open a Pull Request against the `main` branch of `AndreyJVM/dockpulse`.
-4. Provide a clear description of the problem solved, what changes were made, and how they were tested.
+4. Fill out the PR template with a clear description of the problem solved, what changes were made, and how they were tested.
+
+### Automated Dependency Updates (Dependabot)
+
+The repository uses **Dependabot** to keep dependencies and GitHub Actions workflows secure and up to date:
+- Go module updates are grouped weekly.
+- GitHub Actions updates are scheduled monthly.
+- Automated CI workflows verify every dependency bump.
 
 ---
 
@@ -113,6 +152,38 @@ fix(monitor): handle missing docker socket gracefully
    # или для исправлений:
    git checkout -b fix/issue-description
    ```
+
+### Архитектура проекта и структура каталогов
+
+Проект разбит на логически изолированные модули:
+
+```text
+dockpulse/
+├── cmd/
+│   └── dockpulse/          # Точка входа в программу (main.go), парсинг CLI-флагов
+├── internal/               # Внутренние пакеты приложения
+│   ├── monitor/            # Движок мониторинга и интеграция с Docker
+│   │   ├── docker*.go      # Клиент Docker API, статистика, логи, инспекция, exec, prune
+│   │   ├── compose*.go     # Обнаружение проектов Compose и управление сервисами
+│   │   ├── swarm*.go       # Мониторинг нод и сервисов Docker Swarm
+│   │   └── system*.go      # Метрики хоста (CPU, RAM, диск, сеть)
+│   ├── tui/                # Терминальный интерфейс (Bubble Tea и Lip Gloss)
+│   │   ├── views/          # Основные экраны (Docker, Compose, Swarm, Хост)
+│   │   ├── modals/         # Диалоговые окна (логи, инспекция, exec, подтверждения)
+│   │   ├── components/     # Переиспользуемые элементы UI (графики, прогресс-бары)
+│   │   ├── theme/          # Темы оформления, палитра цветов и рамки
+│   │   └── update*.go      # Обработка событий ввода и диспетчеризация команд
+│   └── i18n/               # Подсистема локализации и словари (RU / EN)
+├── docs/                   # Документация, скриншоты и руководства
+└── debian/                 # Файлы сборки пакетов Debian/Ubuntu
+```
+
+**Куда вносить изменения:**
+- Новые метрики или методы работы с Docker? Смотрите `internal/monitor/`.
+- Новый экран интерфейса? Смотрите `internal/tui/views/`.
+- Новое всплывающее окно или диалог? Смотрите `internal/tui/modals/`.
+- Новый виджет или элемент интерфейса? Смотрите `internal/tui/components/`.
+- Перевод или локализованные фразы? Обновляйте `internal/i18n/dictionary.go`.
 
 ### Разработка и тестирование
 
@@ -158,4 +229,11 @@ fix(monitor): handle missing docker socket gracefully
    git push origin feat/my-new-feature
    ```
 3. Откройте Pull Request в ветку `main` репозитория `AndreyJVM/dockpulse`.
-4. В описании PR укажите суть изменений, решённую проблему и способ проверки.
+4. Заполните шаблон PR: укажите суть изменений, решённую проблему и способ проверки.
+
+### Автоматическое обновление зависимостей (Dependabot)
+
+В репозитории настроен **Dependabot**, который помогает поддерживать библиотеки и GitHub Actions в актуальном и безопасном состоянии:
+- Зависимости Go обновляются с еженедельной группировкой в один общий PR.
+- Версии GitHub Actions проверяются ежемесячно.
+- Каждый PR от Dependabot автоматически тестируется через CI.

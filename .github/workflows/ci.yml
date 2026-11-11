@@ -61,6 +61,12 @@ jobs:
       - name: Run go vet
         run: go vet ./...
 
+      - name: Install revive linter
+        run: go install github.com/mgechev/revive@latest
+
+      - name: Run revive linter
+        run: revive -config revive.toml ./...
+
       - name: Run unit tests with race detector
         run: go test -v -race -coverprofile=coverage.txt ./...
 
