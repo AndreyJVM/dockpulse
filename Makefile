@@ -46,7 +46,7 @@ lint:
 # Сборка автономного бинарника Go
 build:
 	@echo "Building $(BINARY) v$(VERSION)..."
-	go build -ldflags="-s -w -X main.version=v$(VERSION)" -o $(BINARY) ./cmd/dockpulse
+	CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=v$(VERSION)" -o $(BINARY) ./cmd/dockpulse
 	@echo "Build complete: ./$(BINARY)"
 
 # Запуск приложения локально

@@ -58,7 +58,7 @@ jobs:
             OUT_DIR="bin/dockpulse_${TAG}_${OS}_${ARCH}"
             mkdir -p "${OUT_DIR}"
             echo "==> Building ${OS}/${ARCH}..."
-            GOOS="${OS}" GOARCH="${ARCH}" go build -ldflags="${LDFLAGS}" -o "${OUT_DIR}/dockpulse" ./cmd/dockpulse
+            CGO_ENABLED=0 GOOS="${OS}" GOARCH="${ARCH}" go build -ldflags="${LDFLAGS}" -o "${OUT_DIR}/dockpulse" ./cmd/dockpulse
 
             ARCHIVE="dist/dockpulse_${TAG}_${OS}_${ARCH}.tar.gz"
             tar -czf "${ARCHIVE}" -C "${OUT_DIR}" dockpulse
