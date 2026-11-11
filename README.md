@@ -11,7 +11,7 @@
 **A fast, lightweight terminal TUI monitor for Host, Docker, Compose, and Swarm.**<br>
 *Быстрый и легковесный терминальный TUI-монитор для хоста, Docker, Compose и Swarm.*
 
-[English](#english) • [Русский](#русский)
+[English](#english) • [Русский](#русский) • [Contributing](CONTRIBUTING.md)
 
 ---
 
@@ -109,6 +109,10 @@ Options:
 | `?` | Toggle help / hotkey shortcuts modal |
 | `q` / `Esc` / `Ctrl+C` | Quit application |
 
+### Contributing
+
+Contributions are welcome! Please refer to [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing guidelines, and pull request workflow.
+
 ---
 
 ## Русский
@@ -202,6 +206,10 @@ make build
 | `C` | Очистка неиспользуемых ресурсов (Docker System Prune) |
 | `?` | Окно справки по горячим клавишам |
 | `q` / `Esc` / `Ctrl+C` | Выход из приложения |
+
+### Участие в разработке
+
+Мы рады любому вкладу в проект! Инструкции по настройке окружения, тестированию и созданию Pull Request находятся в файле [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
