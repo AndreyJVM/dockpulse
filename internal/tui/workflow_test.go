@@ -148,6 +148,9 @@ func TestPruneModalAndWorkflow(t *testing.T) {
 }
 
 func TestExecModalWorkflow(t *testing.T) {
+	restore := monitor.SetDockerCLIAvailableCheckerForTesting(func() bool { return true })
+	defer restore()
+
 	m := NewModel(2*time.Second, 2, "v0.7.4")
 	m.dockerInfo = monitor.DockerSummary{
 		Status: "running",

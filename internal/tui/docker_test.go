@@ -337,6 +337,28 @@ func TestFilterContainersByHealth(t *testing.T) {
 }
 
 func TestContainerExecHotkeysAndMessages(t *testing.T) {
+	// Test when Docker CLI is not available
+	restoreUnavailable := monitor.SetDockerCLIAvailableCheckerForTesting(func() bool { return false })
+	mUnavailable := NewModel(2*time.Second, 2, "v0.5.0")
+	mUnavailable.dockerInfo = monitor.DockerSummary{
+		Status:        "running",
+		StatusDisplay: "[Запущен]",
+		Containers: []monitor.ContainerItem{
+			{ID: "c1", Name: "running-container", State: "running", Status: "Up 2 hours"},
+		},
+	}
+	mUnavailable.cursorIdx = 0
+	resUnavail, _ := mUnavailable.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
+	mUnavailResult := resUnavail.(Model)
+	if !strings.Contains(mUnavailResult.actionMessage, "утилита docker не найдена") {
+		t.Errorf("expected docker not found message, got %q", mUnavailResult.actionMessage)
+	}
+	restoreUnavailable()
+
+	// Test when Docker CLI is available
+	restoreAvailable := monitor.SetDockerCLIAvailableCheckerForTesting(func() bool { return true })
+	defer restoreAvailable()
+
 	m := NewModel(2*time.Second, 2, "v0.5.0")
 	m.dockerInfo = monitor.DockerSummary{
 		Status:        "running",
@@ -351,23 +373,17 @@ func TestContainerExecHotkeysAndMessages(t *testing.T) {
 	// 1. Press 'e' on running container opens exec modal
 	res, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
 	m = res.(Model)
-	if monitor.IsDockerCLIAvailable() {
-		if m.activeModal != "exec" {
-			t.Fatalf("expected activeModal 'exec', got %q", m.activeModal)
-		}
-		if m.execTargetID != "c1" {
-			t.Errorf("expected execTargetID 'c1', got %q", m.execTargetID)
-		}
-		// Select first option (auto bash) via enter
-		res, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-		m = res.(Model)
-		if cmd == nil {
-			t.Errorf("expected non-nil tea.Cmd from tea.ExecProcess on selecting option")
-		}
-	} else {
-		if !strings.Contains(m.actionMessage, "утилита docker не найдена") {
-			t.Errorf("expected docker not found message, got %q", m.actionMessage)
-		}
+	if m.activeModal != "exec" {
+		t.Fatalf("expected activeModal 'exec', got %q", m.activeModal)
+	}
+	if m.execTargetID != "c1" {
+		t.Errorf("expected execTargetID 'c1', got %q", m.execTargetID)
+	}
+	// Select first option (auto bash) via enter
+	res, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = res.(Model)
+	if cmd == nil {
+		t.Errorf("expected non-nil tea.Cmd from tea.ExecProcess on selecting option")
 	}
 
 	// 2. Press 'E' on stopped container

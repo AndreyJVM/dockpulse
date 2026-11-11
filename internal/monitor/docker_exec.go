@@ -5,10 +5,23 @@ import (
 	"strings"
 )
 
-// IsDockerCLIAvailable проверяет доступность утилиты docker в PATH.
-func IsDockerCLIAvailable() bool {
-	_, err := exec.LookPath("docker")
+var dockerCLIAvailableChecker = func() bool {
+	_, err := execLookPath("docker")
 	return err == nil
+}
+
+// IsDockerCLIAvailable checks availability of the docker CLI in PATH.
+func IsDockerCLIAvailable() bool {
+	return dockerCLIAvailableChecker()
+}
+
+// SetDockerCLIAvailableCheckerForTesting overrides the docker CLI check for unit tests and returns a restore function.
+func SetDockerCLIAvailableCheckerForTesting(checker func() bool) func() {
+	orig := dockerCLIAvailableChecker
+	dockerCLIAvailableChecker = checker
+	return func() {
+		dockerCLIAvailableChecker = orig
+	}
 }
 
 // ExecOptions specifies options for launching an interactive session in a container.

@@ -161,11 +161,16 @@ func TestGetDockerSummary_SocketSuccess(t *testing.T) {
 func TestGetDockerSummary_CLIFallback(t *testing.T) {
 	origFinder := dockerSocketFinder
 	origRunner := dockerCLICommandRunner
+	origLookPath := execLookPath
 	defer func() {
 		dockerSocketFinder = origFinder
 		dockerCLICommandRunner = origRunner
+		execLookPath = origLookPath
 	}()
 
+	execLookPath = func(_ string) (string, error) {
+		return "/mock/docker", nil
+	}
 	dockerSocketFinder = func() string { return "" }
 	dockerCLICommandRunner = func(_ context.Context, args ...string) ([]byte, error) {
 		if len(args) == 0 {
