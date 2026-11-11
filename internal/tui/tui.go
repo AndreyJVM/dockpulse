@@ -10,6 +10,42 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// TabID represents an active tab in the dashboard.
+type TabID int
+
+const (
+	// TabHost displays host system metrics, top processes, and trend sparklines.
+	TabHost TabID = 1
+	// TabDocker displays Docker containers, statuses, metrics, and actions.
+	TabDocker TabID = 2
+	// TabCompose displays Docker Compose projects and aggregated service statuses.
+	TabCompose TabID = 3
+	// TabSwarm displays Swarm cluster nodes and services.
+	TabSwarm TabID = 4
+	// TabCount represents the total number of primary tabs.
+	TabCount = 4
+)
+
+// ModalType represents an active modal dialog.
+type ModalType string
+
+const (
+	// ModalNone indicates no modal is active.
+	ModalNone ModalType = ""
+	// ModalLogs displays container or service logs.
+	ModalLogs ModalType = "logs"
+	// ModalInspect displays detailed container inspection data.
+	ModalInspect ModalType = "inspect"
+	// ModalComposeDown displays confirmation for docker compose down.
+	ModalComposeDown ModalType = "compose_down"
+	// ModalPrune displays Docker system prune options and confirmations.
+	ModalPrune ModalType = "prune"
+	// ModalRemoveContainer displays confirmation for removing a container.
+	ModalRemoveContainer ModalType = "remove_container"
+	// ModalExec displays the interactive container shell launcher.
+	ModalExec ModalType = "exec"
+)
+
 const (
 	SortDefault = iota
 	SortCPU
@@ -18,7 +54,6 @@ const (
 	SortStatus
 	sortModeCount
 )
-
 
 func tickCmd(d time.Duration) tea.Cmd {
 	if d <= 0 {
@@ -32,7 +67,7 @@ func tickCmd(d time.Duration) tea.Cmd {
 // Model представляет состояние TUI.
 type Model struct {
 	version         string
-	activeTab       int
+	activeTab       TabID
 	refreshInterval time.Duration
 	showHelp        bool
 	width           int
@@ -46,7 +81,7 @@ type Model struct {
 	cursorIdx           int
 	composeCursorIdx    int
 	swarmCursorIdx      int
-	activeModal         string // "", "logs", "inspect", "compose_down", "prune", "remove_container", "exec"
+	activeModal         ModalType
 	execTargetID        string
 	execTargetName      string
 	execCursorIdx       int
@@ -95,8 +130,9 @@ type Model struct {
 // NewModel создает новую TUI модель с настраиваемым интервалом обновления, начальной вкладкой и языком.
 // Если язык не передан, по умолчанию используется "ru" для обратной совместимости.
 func NewModel(refreshInterval time.Duration, initialTab int, version string, lang ...string) Model {
-	if initialTab < 1 || initialTab > 4 {
-		initialTab = 1
+	tab := TabID(initialTab)
+	if tab < TabHost || tab > TabCount {
+		tab = TabHost
 	}
 	if refreshInterval <= 0 {
 		refreshInterval = 2 * time.Second
@@ -108,7 +144,7 @@ func NewModel(refreshInterval time.Duration, initialTab int, version string, lan
 
 	m := Model{
 		version:         version,
-		activeTab:       initialTab,
+		activeTab:       tab,
 		refreshInterval: refreshInterval,
 		lang:            selectedLang,
 		i18n:            i18n.Get(selectedLang),
@@ -149,13 +185,31 @@ func (m *Model) fetchAllData() {
 	})
 }
 
+func containerStatusScore(c monitor.ContainerItem) int {
+	switch {
+	case c.State == "running" && c.Health == "unhealthy":
+		return 1
+	case c.State == "running" && c.Health == "starting":
+		return 2
+	case c.State == "running":
+		return 3
+	case c.State == "restarting":
+		return 4
+	case c.State == "paused":
+		return 5
+	default:
+		return 6
+	}
+}
+
 func (m Model) getFilteredContainers() []monitor.ContainerItem {
 	var list []monitor.ContainerItem
-	if strings.TrimSpace(m.filterQuery) == "" {
+	trimmedQuery := strings.TrimSpace(m.filterQuery)
+	if trimmedQuery == "" {
 		list = make([]monitor.ContainerItem, len(m.dockerInfo.Containers))
 		copy(list, m.dockerInfo.Containers)
 	} else {
-		q := strings.ToLower(strings.TrimSpace(m.filterQuery))
+		q := strings.ToLower(trimmedQuery)
 		for _, c := range m.dockerInfo.Containers {
 			if strings.Contains(strings.ToLower(c.Name), q) ||
 				strings.Contains(strings.ToLower(c.Image), q) ||
@@ -188,23 +242,7 @@ func (m Model) getFilteredContainers() []monitor.ContainerItem {
 		})
 	case SortStatus:
 		sort.SliceStable(list, func(i, j int) bool {
-			score := func(c monitor.ContainerItem) int {
-				switch {
-				case c.State == "running" && c.Health == "unhealthy":
-					return 1
-				case c.State == "running" && c.Health == "starting":
-					return 2
-				case c.State == "running":
-					return 3
-				case c.State == "restarting":
-					return 4
-				case c.State == "paused":
-					return 5
-				default:
-					return 6
-				}
-			}
-			si, sj := score(list[i]), score(list[j])
+			si, sj := containerStatusScore(list[i]), containerStatusScore(list[j])
 			if si != sj {
 				return si < sj
 			}
@@ -261,4 +299,67 @@ func (m *Model) recordMetricHistory(cpu, mem float64) {
 	if len(m.memHistory) > maxHistory {
 		m.memHistory = m.memHistory[len(m.memHistory)-maxHistory:]
 	}
+}
+
+// nextTab switches to the next tab cyclically.
+func (m *Model) nextTab() {
+	m.activeTab++
+	if m.activeTab > TabCount {
+		m.activeTab = TabHost
+	}
+}
+
+// prevTab switches to the previous tab cyclically.
+func (m *Model) prevTab() {
+	m.activeTab--
+	if m.activeTab < TabHost {
+		m.activeTab = TabCount
+	}
+}
+
+// setTab switches directly to the specified tab if within valid range.
+func (m *Model) setTab(tab TabID) {
+	if tab >= TabHost && tab <= TabCount {
+		m.activeTab = tab
+	}
+}
+
+// moveCursor adjusts cursor index for the active tab list by delta with cyclic wrapping.
+func (m *Model) moveCursor(delta int) {
+	switch m.activeTab {
+	case TabDocker:
+		containers := m.getFilteredContainers()
+		if len(containers) > 0 {
+			m.cursorIdx = (m.cursorIdx + delta) % len(containers)
+			if m.cursorIdx < 0 {
+				m.cursorIdx += len(containers)
+			}
+		}
+	case TabCompose:
+		if len(m.compose) > 0 {
+			m.composeCursorIdx = (m.composeCursorIdx + delta) % len(m.compose)
+			if m.composeCursorIdx < 0 {
+				m.composeCursorIdx += len(m.compose)
+			}
+		}
+	case TabSwarm:
+		if len(m.swarm.Services) > 0 {
+			m.swarmCursorIdx = (m.swarmCursorIdx + delta) % len(m.swarm.Services)
+			if m.swarmCursorIdx < 0 {
+				m.swarmCursorIdx += len(m.swarm.Services)
+			}
+		}
+	}
+}
+
+// openModal activates the specified modal dialog.
+func (m *Model) openModal(modal ModalType) {
+	m.activeModal = modal
+}
+
+// closeModal dismisses the active modal dialog and cleans ephemeral input state.
+func (m *Model) closeModal() {
+	m.activeModal = ModalNone
+	m.execIsCustomInput = false
+	m.execCustomCmd = ""
 }

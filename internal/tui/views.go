@@ -23,7 +23,7 @@ func (m Model) View() string {
 		m.i18n.TabCompose,
 		m.i18n.TabSwarm,
 	}
-	b.WriteString(views.RenderTabs(tabs, m.activeTab, m.width) + "\n")
+	b.WriteString(views.RenderTabs(tabs, int(m.activeTab), m.width) + "\n")
 
 	// Action message toast
 	if m.actionMessage != "" && time.Now().Before(m.actionMessageExpiry) {
@@ -31,37 +31,40 @@ func (m Model) View() string {
 	}
 
 	// 3. Tab contents or active modal
-	if m.activeModal == "logs" {
+	switch m.activeModal {
+	case ModalLogs:
 		b.WriteString(m.renderLogsModal())
-	} else if m.activeModal == "inspect" {
+	case ModalInspect:
 		b.WriteString(m.renderInspectModal())
-	} else if m.activeModal == "compose_down" {
+	case ModalComposeDown:
 		b.WriteString(m.renderComposeDownModal())
-	} else if m.activeModal == "remove_container" {
+	case ModalRemoveContainer:
 		b.WriteString(m.renderRemoveContainerModal())
-	} else if m.activeModal == "exec" {
+	case ModalExec:
 		b.WriteString(m.renderExecModal())
-	} else if m.activeModal == "prune" {
+	case ModalPrune:
 		b.WriteString(m.renderPruneModal())
-	} else if m.showHelp {
-		b.WriteString("\n" + m.renderHelpBox() + "\n")
-	} else {
-		switch m.activeTab {
-		case 1:
-			b.WriteString(m.renderHostTab())
-		case 2:
-			b.WriteString(m.renderDockerTab())
-		case 3:
-			b.WriteString(m.renderComposeTab())
-		case 4:
-			b.WriteString(m.renderSwarmTab())
+	default:
+		if m.showHelp {
+			b.WriteString("\n" + m.renderHelpBox() + "\n")
+		} else {
+			switch m.activeTab {
+			case TabHost:
+				b.WriteString(m.renderHostTab())
+			case TabDocker:
+				b.WriteString(m.renderDockerTab())
+			case TabCompose:
+				b.WriteString(m.renderComposeTab())
+			case TabSwarm:
+				b.WriteString(m.renderSwarmTab())
+			}
 		}
 	}
 
 	// 4. Footer
 	b.WriteString(views.RenderFooter(views.FooterContext{
-		ActiveTab:    m.activeTab,
-		ActiveModal:  m.activeModal,
+		ActiveTab:    int(m.activeTab),
+		ActiveModal:  string(m.activeModal),
 		PruneConfirm: m.pruneConfirm,
 		IsFiltering:  m.isFiltering,
 		FilterQuery:  m.filterQuery,

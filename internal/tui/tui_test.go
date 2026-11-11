@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AndreyJVM/dockpulse/internal/monitor"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -44,18 +45,18 @@ func TestModelNavigationAndUpdates(t *testing.T) {
 	// Tab switching
 	keyTests := []struct {
 		key         string
-		expectedTab int
+		expectedTab TabID
 	}{
-		{"tab", 2},
-		{"tab", 3},
-		{"right", 4},
-		{"tab", 1},
-		{"left", 4},
-		{"shift+tab", 3},
-		{"1", 1},
-		{"2", 2},
-		{"3", 3},
-		{"4", 4},
+		{"tab", TabDocker},
+		{"tab", TabCompose},
+		{"right", TabSwarm},
+		{"tab", TabHost},
+		{"left", TabSwarm},
+		{"shift+tab", TabCompose},
+		{"1", TabHost},
+		{"2", TabDocker},
+		{"3", TabCompose},
+		{"4", TabSwarm},
 	}
 
 	for _, kt := range keyTests {
@@ -176,5 +177,140 @@ func TestHostTabSparklineDisplay(t *testing.T) {
 	}
 	if !hasSparkChar {
 		t.Errorf("expected sparkline characters in view output, got: %s", view)
+	}
+}
+
+func TestNavigationMethods(t *testing.T) {
+	m := NewModel(2*time.Second, 1, "v0.7.4")
+
+	// nextTab wrapping
+	m.setTab(TabSwarm)
+	m.nextTab()
+	if m.activeTab != TabHost {
+		t.Errorf("expected wrap to TabHost, got %v", m.activeTab)
+	}
+
+	// prevTab wrapping
+	m.prevTab()
+	if m.activeTab != TabSwarm {
+		t.Errorf("expected wrap to TabSwarm, got %v", m.activeTab)
+	}
+
+	// setTab valid and invalid
+	m.setTab(TabDocker)
+	if m.activeTab != TabDocker {
+		t.Errorf("expected TabDocker, got %v", m.activeTab)
+	}
+	m.setTab(99) // Invalid, should remain unchanged
+	if m.activeTab != TabDocker {
+		t.Errorf("expected TabDocker after invalid tab, got %v", m.activeTab)
+	}
+
+	// moveCursor in Docker tab
+	m.dockerInfo.Containers = []monitor.ContainerItem{
+		{ID: "c1", Name: "app-1"},
+		{ID: "c2", Name: "app-2"},
+		{ID: "c3", Name: "app-3"},
+	}
+	m.cursorIdx = 0
+	m.moveCursor(1)
+	if m.cursorIdx != 1 {
+		t.Errorf("expected cursorIdx 1, got %d", m.cursorIdx)
+	}
+	m.moveCursor(-1)
+	if m.cursorIdx != 0 {
+		t.Errorf("expected cursorIdx 0, got %d", m.cursorIdx)
+	}
+	m.moveCursor(-1) // Wrap to end
+	if m.cursorIdx != 2 {
+		t.Errorf("expected cursorIdx wrapped to 2, got %d", m.cursorIdx)
+	}
+	m.moveCursor(1) // Wrap back to 0
+	if m.cursorIdx != 0 {
+		t.Errorf("expected cursorIdx wrapped to 0, got %d", m.cursorIdx)
+	}
+
+	// moveCursor in Compose tab
+	m.setTab(TabCompose)
+	m.compose = []monitor.ComposeProject{
+		{Name: "p1"},
+		{Name: "p2"},
+	}
+	m.composeCursorIdx = 0
+	m.moveCursor(1)
+	if m.composeCursorIdx != 1 {
+		t.Errorf("expected composeCursorIdx 1, got %d", m.composeCursorIdx)
+	}
+	m.moveCursor(1) // Wrap
+	if m.composeCursorIdx != 0 {
+		t.Errorf("expected composeCursorIdx 0, got %d", m.composeCursorIdx)
+	}
+
+	// moveCursor in Swarm tab
+	m.setTab(TabSwarm)
+	m.swarm.Services = []monitor.SwarmService{
+		{ID: "s1", Name: "svc-1"},
+		{ID: "s2", Name: "svc-2"},
+	}
+	m.swarmCursorIdx = 0
+	m.moveCursor(1)
+	if m.swarmCursorIdx != 1 {
+		t.Errorf("expected swarmCursorIdx 1, got %d", m.swarmCursorIdx)
+	}
+	m.moveCursor(1) // Wrap
+	if m.swarmCursorIdx != 0 {
+		t.Errorf("expected swarmCursorIdx 0, got %d", m.swarmCursorIdx)
+	}
+}
+
+func TestModalLifecycle(t *testing.T) {
+	m := NewModel(2*time.Second, 1, "v0.7.4")
+	if m.activeModal != ModalNone {
+		t.Errorf("expected initial activeModal to be ModalNone, got %v", m.activeModal)
+	}
+
+	m.openModal(ModalExec)
+	m.execIsCustomInput = true
+	m.execCustomCmd = "top"
+	if m.activeModal != ModalExec {
+		t.Errorf("expected ModalExec, got %v", m.activeModal)
+	}
+
+	m.closeModal()
+	if m.activeModal != ModalNone {
+		t.Errorf("expected ModalNone after closeModal, got %v", m.activeModal)
+	}
+	if m.execIsCustomInput {
+		t.Errorf("expected execIsCustomInput to be reset to false")
+	}
+	if m.execCustomCmd != "" {
+		t.Errorf("expected execCustomCmd to be reset to empty")
+	}
+}
+
+func TestContainerStatusScore(t *testing.T) {
+	tests := []struct {
+		state  string
+		health string
+		score  int
+	}{
+		{"running", "unhealthy", 1},
+		{"running", "starting", 2},
+		{"running", "healthy", 3},
+		{"running", "", 3},
+		{"restarting", "", 4},
+		{"paused", "", 5},
+		{"exited", "", 6},
+		{"unknown", "", 6},
+	}
+
+	for _, tt := range tests {
+		s := containerStatusScore(monitor.ContainerItem{
+			State:  tt.state,
+			Health: tt.health,
+		})
+		if s != tt.score {
+			t.Errorf("for state=%q health=%q expected score %d, got %d", tt.state, tt.health, tt.score, s)
+		}
 	}
 }

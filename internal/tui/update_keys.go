@@ -44,24 +44,18 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Навигация по вкладкам
 	case "tab", "right":
-		m.activeTab++
-		if m.activeTab > 4 {
-			m.activeTab = 1
-		}
+		m.nextTab()
 	case "shift+tab", "left":
-		m.activeTab--
-		if m.activeTab < 1 {
-			m.activeTab = 4
-		}
+		m.prevTab()
 
 	case "1":
-		m.activeTab = 1
+		m.setTab(TabHost)
 	case "2":
-		m.activeTab = 2
+		m.setTab(TabDocker)
 	case "3":
-		m.activeTab = 3
+		m.setTab(TabCompose)
 	case "4":
-		m.activeTab = 4
+		m.setTab(TabSwarm)
 
 	case "r", "R":
 		m.showToast(m.i18n.ToastRefreshing)
@@ -69,7 +63,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Сортировка списка контейнеров (Вкладка 2)
 	case "o", "O":
-		if m.activeTab == 2 && !m.isFiltering {
+		if m.activeTab == TabDocker && !m.isFiltering {
 			m.containerSortMode = (m.containerSortMode + 1) % sortModeCount
 			m.clampCursor()
 			sortNames := []string{
@@ -87,7 +81,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Поиск по списку контейнеров
 	case "/":
-		if m.activeTab == 2 {
+		if m.activeTab == TabDocker {
 			m.isFiltering = true
 			return m, nil
 		}
@@ -101,49 +95,13 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Навигация в списке контейнеров (Вкладка 2), Compose (Вкладка 3), Swarm (Вкладка 4)
 	case "up", "k":
-		if m.activeTab == 2 {
-			containers := m.getFilteredContainers()
-			if len(containers) > 0 {
-				m.cursorIdx--
-				if m.cursorIdx < 0 {
-					m.cursorIdx = len(containers) - 1
-				}
-			}
-		} else if m.activeTab == 3 && len(m.compose) > 0 {
-			m.composeCursorIdx--
-			if m.composeCursorIdx < 0 {
-				m.composeCursorIdx = len(m.compose) - 1
-			}
-		} else if m.activeTab == 4 && len(m.swarm.Services) > 0 {
-			m.swarmCursorIdx--
-			if m.swarmCursorIdx < 0 {
-				m.swarmCursorIdx = len(m.swarm.Services) - 1
-			}
-		}
+		m.moveCursor(-1)
 	case "down", "j":
-		if m.activeTab == 2 {
-			containers := m.getFilteredContainers()
-			if len(containers) > 0 {
-				m.cursorIdx++
-				if m.cursorIdx >= len(containers) {
-					m.cursorIdx = 0
-				}
-			}
-		} else if m.activeTab == 3 && len(m.compose) > 0 {
-			m.composeCursorIdx++
-			if m.composeCursorIdx >= len(m.compose) {
-				m.composeCursorIdx = 0
-			}
-		} else if m.activeTab == 4 && len(m.swarm.Services) > 0 {
-			m.swarmCursorIdx++
-			if m.swarmCursorIdx >= len(m.swarm.Services) {
-				m.swarmCursorIdx = 0
-			}
-		}
+		m.moveCursor(1)
 
 	// Просмотр логов контейнера, проекта Compose или службы Swarm
 	case "l", "L":
-		if m.activeTab == 2 {
+		if m.activeTab == TabDocker {
 			containers := m.getFilteredContainers()
 			if len(containers) > 0 && m.cursorIdx < len(containers) {
 				c := containers[m.cursorIdx]
@@ -155,10 +113,10 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				} else {
 					m.logsLines = strings.Split(strings.TrimSpace(logs), "\n")
 					m.logsScroll = max(0, len(m.logsLines)-18)
-					m.activeModal = "logs"
+					m.openModal(ModalLogs)
 				}
 			}
-		} else if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
+		} else if m.activeTab == TabCompose && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
 			proj := m.compose[m.composeCursorIdx]
 			m.logsTargetName = "Compose: " + proj.Name
 			m.logsTargetID = proj.Name
@@ -168,9 +126,9 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			} else {
 				m.logsLines = strings.Split(strings.TrimSpace(logs), "\n")
 				m.logsScroll = max(0, len(m.logsLines)-18)
-				m.activeModal = "logs"
+				m.openModal(ModalLogs)
 			}
-		} else if m.activeTab == 4 && len(m.swarm.Services) > 0 && m.swarmCursorIdx < len(m.swarm.Services) {
+		} else if m.activeTab == TabSwarm && len(m.swarm.Services) > 0 && m.swarmCursorIdx < len(m.swarm.Services) {
 			svc := m.swarm.Services[m.swarmCursorIdx]
 			m.logsTargetName = "Swarm: " + svc.Name
 			m.logsTargetID = svc.ID
@@ -180,27 +138,27 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			} else {
 				m.logsLines = strings.Split(strings.TrimSpace(logs), "\n")
 				m.logsScroll = max(0, len(m.logsLines)-18)
-				m.activeModal = "logs"
+				m.openModal(ModalLogs)
 			}
 		}
 
 	// Детали контейнера (Inspect)
 	case "enter", "i", "I":
 		containers := m.getFilteredContainers()
-		if m.activeTab == 2 && len(containers) > 0 && m.cursorIdx < len(containers) {
+		if m.activeTab == TabDocker && len(containers) > 0 && m.cursorIdx < len(containers) {
 			c := containers[m.cursorIdx]
 			detail, err := monitor.GetContainerDetail(c.ID)
 			if err != nil {
 				m.showToast(m.i18n.ToastInspectError + err.Error())
 			} else {
 				m.inspectTarget = detail
-				m.activeModal = "inspect"
+				m.openModal(ModalInspect)
 			}
 		}
 
 	// Старт / Стоп контейнера или проекта Compose
 	case "s", "S":
-		if m.activeTab == 2 {
+		if m.activeTab == TabDocker {
 			containers := m.getFilteredContainers()
 			if len(containers) > 0 && m.cursorIdx < len(containers) {
 				c := containers[m.cursorIdx]
@@ -211,7 +169,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.showToast(fmt.Sprintf(m.i18n.ToastStartingContainer, c.Name))
 				return m, startContainerCmd(c.ID, c.Name, m.i18n)
 			}
-		} else if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
+		} else if m.activeTab == TabCompose && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
 			proj := m.compose[m.composeCursorIdx]
 			m.showToast(fmt.Sprintf(m.i18n.ToastStoppingCompose, proj.Name))
 			return m, stopComposeCmd(proj.Name, m.dockerInfo.Containers, m.i18n)
@@ -219,7 +177,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Запуск проекта Compose
 	case "u", "U":
-		if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
+		if m.activeTab == TabCompose && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
 			proj := m.compose[m.composeCursorIdx]
 			m.showToast(fmt.Sprintf(m.i18n.ToastStartingCompose, proj.Name))
 			return m, startComposeCmd(proj.Name, m.dockerInfo.Containers, m.i18n)
@@ -227,25 +185,25 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Сворачивание проекта Compose (Down) или Удаление контейнера (Delete)
 	case "d", "D":
-		if m.activeTab == 2 && !m.isFiltering {
+		if m.activeTab == TabDocker && !m.isFiltering {
 			containers := m.getFilteredContainers()
 			if len(containers) > 0 && m.cursorIdx < len(containers) {
 				c := containers[m.cursorIdx]
 				m.removeContainerTargetID = c.ID
 				m.removeContainerTargetName = c.Name
-				m.activeModal = "remove_container"
+				m.openModal(ModalRemoveContainer)
 				return m, nil
 			}
-		} else if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
+		} else if m.activeTab == TabCompose && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
 			proj := m.compose[m.composeCursorIdx]
 			m.composeDownTarget = proj.Name
-			m.activeModal = "compose_down"
+			m.openModal(ModalComposeDown)
 			return m, nil
 		}
 
 	// Подключение к Shell контейнера (Exec)
 	case "e", "E":
-		if m.activeTab == 2 {
+		if m.activeTab == TabDocker {
 			containers := m.getFilteredContainers()
 			if len(containers) > 0 && m.cursorIdx < len(containers) {
 				c := containers[m.cursorIdx]
@@ -257,7 +215,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.showToast(m.i18n.ToastDockerNotFound)
 					return m, nil
 				}
-				m.activeModal = "exec"
+				m.openModal(ModalExec)
 				m.execTargetID = c.ID
 				m.execTargetName = c.Name
 				m.execCursorIdx = 0
@@ -269,7 +227,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Принудительное завершение контейнера (Kill / SIGKILL)
 	case "K":
-		if m.activeTab == 2 && !m.isFiltering {
+		if m.activeTab == TabDocker && !m.isFiltering {
 			containers := m.getFilteredContainers()
 			if len(containers) > 0 && m.cursorIdx < len(containers) {
 				c := containers[m.cursorIdx]
@@ -284,27 +242,27 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Удаление контейнера (Remove)
 	case "x", "X":
-		if m.activeTab == 2 && !m.isFiltering {
+		if m.activeTab == TabDocker && !m.isFiltering {
 			containers := m.getFilteredContainers()
 			if len(containers) > 0 && m.cursorIdx < len(containers) {
 				c := containers[m.cursorIdx]
 				m.removeContainerTargetID = c.ID
 				m.removeContainerTargetName = c.Name
-				m.activeModal = "remove_container"
+				m.openModal(ModalRemoveContainer)
 				return m, nil
 			}
 		}
 
 	// Перезапуск контейнера или проекта Compose
 	case "p", "P":
-		if m.activeTab == 2 {
+		if m.activeTab == TabDocker {
 			containers := m.getFilteredContainers()
 			if len(containers) > 0 && m.cursorIdx < len(containers) {
 				c := containers[m.cursorIdx]
 				m.showToast(fmt.Sprintf(m.i18n.ToastRestartingCont, c.Name))
 				return m, restartContainerCmd(c.ID, c.Name, m.i18n)
 			}
-		} else if m.activeTab == 3 && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
+		} else if m.activeTab == TabCompose && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
 			proj := m.compose[m.composeCursorIdx]
 			m.showToast(fmt.Sprintf(m.i18n.ToastRestartingCompose, proj.Name))
 			return m, restartComposeCmd(proj.Name, m.dockerInfo.Containers, m.i18n)
@@ -312,8 +270,8 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Очистка неиспользуемых ресурсов Docker (Prune)
 	case "c", "C":
-		if (m.activeTab == 2 || m.activeTab == 3) && !m.isFiltering {
-			m.activeModal = "prune"
+		if (m.activeTab == TabDocker || m.activeTab == TabCompose) && !m.isFiltering {
+			m.openModal(ModalPrune)
 			m.pruneConfirm = 0
 			usage, err := monitor.GetDockerDiskUsage()
 			m.pruneUsage = usage

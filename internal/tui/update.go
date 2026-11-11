@@ -34,12 +34,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		// Если активно модальное окно — клавиши перехватываются им
-		if m.activeModal != "" {
+		if m.activeModal != ModalNone {
 			return m.handleModalInput(msg)
 		}
 
 		// Режим поиска / фильтрации контейнеров
-		if m.isFiltering && m.activeTab == 2 {
+		if m.isFiltering && m.activeTab == TabDocker {
 			return m.handleFilterInput(msg)
 		}
 
