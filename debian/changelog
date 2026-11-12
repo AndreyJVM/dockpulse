@@ -1,3 +1,14 @@
+dockpulse (0.9.0) unstable; urgency=medium
+
+  * Version 0.9.0 release:
+    - Removed the host metrics page and made Containers the default tab
+    - Added a persistent Docker status summary above every tab
+    - Added read-only Docker Networks and Volumes inventory tabs
+    - Added Docker Engine API discovery with safe Docker CLI fallbacks
+    - Updated navigation, CLI tab selection, tests, and documentation
+
+ -- Andrey Vorobev <Andrey.Vorobev.AQA@gmail.com>  Thu, 12 Nov 2026 17:25:13 +0300
+
 dockpulse (0.8.0) unstable; urgency=medium
 
   * Version 0.8.0 release:

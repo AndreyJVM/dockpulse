@@ -88,10 +88,9 @@ jobs:
               echo "Architecture: ${ARCH}"
               echo "Maintainer: Andrey Vorobev <andrey.vorobev.aqa@gmail.com>"
               echo "Homepage: https://github.com/AndreyJVM/dockpulse"
-              echo "Description: Fast System, Docker, Compose & Swarm terminal monitor"
-              echo " A lightweight and fast terminal dashboard (TUI) written in Go to monitor"
-              echo " host CPU, RAM, disk, network, Docker containers, Compose projects,"
-              echo " and Swarm clusters."
+              echo "Description: Fast Docker resources terminal monitor"
+              echo " A lightweight terminal dashboard (TUI) written in Go to monitor"
+              echo " Docker containers, Compose projects, networks, volumes, and Swarm clusters."
             } > "${PKG_DIR}/DEBIAN/control"
 
             dpkg-deb --build --root-owner-group "${PKG_DIR}" "dist/dockpulse_${PKG_VERSION}_${ARCH}.deb"
@@ -112,14 +111,14 @@ jobs:
           body: |
             ## Dockpulse ${{ steps.get_version.outputs.tag }}
 
-            A fast interactive TUI for monitoring and managing host, Docker, Compose, and Swarm resources with no external runtime dependencies.
+            A fast interactive TUI for monitoring and managing Docker containers and resources with no external runtime dependencies.
 
             ### What's new in ${{ steps.get_version.outputs.tag }}
-            - **English-only interface**: Standardizes the TUI, CLI, diagnostics, documentation, and repository templates on English.
-            - **Breaking language configuration change**: Removes `--lang`, `-l`, `DOCKPULSE_LANG`, locale auto-detection, and the Russian text catalog.
-            - **Cleaner architecture**: Decomposes Docker, Compose, Swarm, TUI update, and message handling into focused modules.
-            - **More reliable tests**: Keeps the suite deterministic on systems without a Docker CLI and adds English-only regression coverage.
-            - **Release maintenance**: Updates static Linux builds, contribution tooling, Dependabot configuration, and GitHub Actions.
+            - **Docker-focused dashboard**: Removes the host metrics page and opens directly on container management.
+            - **Persistent Docker status**: Keeps daemon, container, image, and version information visible above every tab.
+            - **Network inventory**: Adds a read-only networks tab with driver, scope, subnet, gateway, and Compose ownership.
+            - **Volume inventory**: Adds a read-only volumes tab with driver, scope, usage, mountpoint, and Compose ownership.
+            - **Compact navigation**: Fits Containers, Compose, Networks, Volumes, and Swarm tabs in standard 80-column terminals.
 
             ### Installation
 
