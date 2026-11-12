@@ -58,7 +58,7 @@ func TestContainerCursorAndModals(t *testing.T) {
 	m.activeModal = "inspect"
 
 	view := m.View()
-	if !strings.Contains(view, "ИНСПЕКЦИЯ КОНТЕЙНЕРА") {
+	if !strings.Contains(view, "CONTAINER INSPECTION") {
 		t.Errorf("expected inspect modal title in View(), got %q", view)
 	}
 
@@ -216,22 +216,22 @@ func TestRenderDockerTabFilteringView(t *testing.T) {
 	m.isFiltering = true
 	m.filterQuery = "alp"
 	vSearch := m.View()
-	if !strings.Contains(vSearch, "[Поиск: alp█]") {
+	if !strings.Contains(vSearch, "[Search: alp█]") {
 		t.Errorf("expected search prompt in View(), got: %s", vSearch)
 	}
 
 	// Applied filter view
 	m.isFiltering = false
 	vFilter := m.View()
-	if !strings.Contains(vFilter, "Фильтр: alp") {
+	if !strings.Contains(vFilter, "Filter: alp") {
 		t.Errorf("expected filter badge in View(), got: %s", vFilter)
 	}
 
 	// Empty search results
 	m.filterQuery = "nonexistent"
 	vEmpty := m.View()
-	if !strings.Contains(vEmpty, "не найдены") {
-		t.Errorf("expected 'не найдены' in View(), got: %s", vEmpty)
+	if !strings.Contains(vEmpty, "No containers found") {
+		t.Errorf("expected no containers found message in View(), got: %s", vEmpty)
 	}
 }
 
@@ -261,24 +261,24 @@ func TestDockerTabHealthBadges(t *testing.T) {
 }
 
 func TestDockerTabSelectedContainerDetails(t *testing.T) {
-	m := NewModel(2*time.Second, 2, "v0.6.2", "en")
+	m := NewModel(2*time.Second, 2, "v0.6.2")
 	m.activeTab = 2
 	m.dockerInfo.Containers = []monitor.ContainerItem{
 		{
-			ID:             "abcdef123456",
-			Name:           "web-server",
-			Image:          "nginx:alpine",
-			State:          "running",
-			Ports:          "8080->80/tcp, 8443->443/tcp",
-			Mounts:         []string{"/var/www -> /usr/share/nginx/html (ro)", "nginx-logs -> /var/log/nginx (rw)"},
-			ComposeProject: "my-stack",
-			ComposeService: "web",
-			IPAddress:      "172.18.0.5",
-			NetworkName:    "my-network",
-			RestartPolicy:  "unless-stopped",
-			Created:        "2026-11-07 15:30:00",
-			NetRxBytes:     12 * 1024 * 1024,
-			NetTxBytes:     45 * 1024 * 1024,
+			ID:              "abcdef123456",
+			Name:            "web-server",
+			Image:           "nginx:alpine",
+			State:           "running",
+			Ports:           "8080->80/tcp, 8443->443/tcp",
+			Mounts:          []string{"/var/www -> /usr/share/nginx/html (ro)", "nginx-logs -> /var/log/nginx (rw)"},
+			ComposeProject:  "my-stack",
+			ComposeService:  "web",
+			IPAddress:       "172.18.0.5",
+			NetworkName:     "my-network",
+			RestartPolicy:   "unless-stopped",
+			Created:         "2026-11-07 15:30:00",
+			NetRxBytes:      12 * 1024 * 1024,
+			NetTxBytes:      45 * 1024 * 1024,
 			BlockReadBytes:  10 * 1024 * 1024,
 			BlockWriteBytes: 20 * 1024 * 1024,
 		},
@@ -342,7 +342,7 @@ func TestContainerExecHotkeysAndMessages(t *testing.T) {
 	mUnavailable := NewModel(2*time.Second, 2, "v0.5.0")
 	mUnavailable.dockerInfo = monitor.DockerSummary{
 		Status:        "running",
-		StatusDisplay: "[Запущен]",
+		StatusDisplay: "Running",
 		Containers: []monitor.ContainerItem{
 			{ID: "c1", Name: "running-container", State: "running", Status: "Up 2 hours"},
 		},
@@ -350,7 +350,7 @@ func TestContainerExecHotkeysAndMessages(t *testing.T) {
 	mUnavailable.cursorIdx = 0
 	resUnavail, _ := mUnavailable.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
 	mUnavailResult := resUnavail.(Model)
-	if !strings.Contains(mUnavailResult.actionMessage, "утилита docker не найдена") {
+	if !strings.Contains(mUnavailResult.actionMessage, "docker binary not found") {
 		t.Errorf("expected docker not found message, got %q", mUnavailResult.actionMessage)
 	}
 	restoreUnavailable()
@@ -362,7 +362,7 @@ func TestContainerExecHotkeysAndMessages(t *testing.T) {
 	m := NewModel(2*time.Second, 2, "v0.5.0")
 	m.dockerInfo = monitor.DockerSummary{
 		Status:        "running",
-		StatusDisplay: "[Запущен]",
+		StatusDisplay: "Running",
 		Containers: []monitor.ContainerItem{
 			{ID: "c1", Name: "running-container", State: "running", Status: "Up 2 hours"},
 			{ID: "c2", Name: "stopped-container", State: "exited", Status: "Exited (0) 5 mins ago"},
@@ -394,21 +394,21 @@ func TestContainerExecHotkeysAndMessages(t *testing.T) {
 	if cmd != nil {
 		t.Errorf("expected nil cmd for stopped container, got non-nil")
 	}
-	if !strings.Contains(m.actionMessage, "Нельзя подключиться") {
+	if !strings.Contains(m.actionMessage, "Cannot connect") {
 		t.Errorf("expected cannot connect message, got %q", m.actionMessage)
 	}
 
 	// 3. ExecFinishedMsg with nil error
 	res, _ = m.Update(execFinishedMsg{containerName: "running-container", err: nil})
 	m = res.(Model)
-	if !strings.Contains(m.actionMessage, "Сессия shell в running-container завершена") {
+	if !strings.Contains(m.actionMessage, "Shell session in running-container ended") {
 		t.Errorf("expected shell session finished message, got %q", m.actionMessage)
 	}
 
 	// 4. ExecFinishedMsg with error
 	res, _ = m.Update(execFinishedMsg{containerName: "running-container", err: fmt.Errorf("shell not found")})
 	m = res.(Model)
-	if !strings.Contains(m.actionMessage, "Ошибка shell в running-container") {
+	if !strings.Contains(m.actionMessage, "Shell error in running-container") {
 		t.Errorf("expected shell error message, got %q", m.actionMessage)
 	}
 
@@ -421,13 +421,13 @@ func TestContainerExecHotkeysAndMessages(t *testing.T) {
 
 	m.showHelp = true
 	helpView := m.View()
-	if !strings.Contains(helpView, "[E]") || !strings.Contains(helpView, "Интерактивный shell") {
-		t.Errorf("expected '[E]' and 'Интерактивный shell' in help modal, got: %s", helpView)
+	if !strings.Contains(helpView, "[E]") || !strings.Contains(helpView, "Interactive shell") {
+		t.Errorf("expected [E] and Interactive shell in help modal, got: %s", helpView)
 	}
 }
 
 func TestContainerSorting(t *testing.T) {
-	m := NewModel(2*time.Second, 2, "v0.6.3", "en")
+	m := NewModel(2*time.Second, 2, "v0.6.3")
 	m.activeTab = 2
 	m.dockerInfo.Containers = []monitor.ContainerItem{
 		{ID: "c1", Name: "zeta-app", State: "running", CPUPerc: 10.0, MemUsageMB: 200.0, Health: "healthy"},
@@ -505,7 +505,7 @@ func TestContainerSorting(t *testing.T) {
 }
 
 func TestContainerKillAndRemoveWorkflow(t *testing.T) {
-	m := NewModel(2*time.Second, 2, "v0.6.3", "en")
+	m := NewModel(2*time.Second, 2, "v0.6.3")
 	m.activeTab = 2
 	m.dockerInfo.Containers = []monitor.ContainerItem{
 		{ID: "c1", Name: "app-run", State: "running"},

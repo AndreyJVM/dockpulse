@@ -64,7 +64,7 @@ func tickCmd(d time.Duration) tea.Cmd {
 	})
 }
 
-// Model представляет состояние TUI.
+// Model contains the TUI state.
 type Model struct {
 	version         string
 	activeTab       TabID
@@ -73,11 +73,9 @@ type Model struct {
 	width           int
 	height          int
 
-	// Локализация
-	lang string
 	i18n i18n.Dictionary
 
-	// Навигация и модальные окна
+	// Navigation and modal state.
 	cursorIdx           int
 	composeCursorIdx    int
 	swarmCursorIdx      int
@@ -95,26 +93,26 @@ type Model struct {
 	actionMessage       string
 	actionMessageExpiry time.Time
 
-	// Compose down модальное окно
+	// Compose down modal.
 	composeDownTarget string
 
-	// Remove Container модальное окно
+	// Remove container modal.
 	removeContainerTargetID   string
 	removeContainerTargetName string
 
-	// Prune модальное окно
+	// Prune modal.
 	pruneUsage    monitor.DockerDiskUsage
 	pruneUsageErr string
-	pruneConfirm  int // 0 - меню, 1 - containers, 2 - images, 3 - volumes, 4 - all
+	pruneConfirm  int // 0 - menu, 1 - containers, 2 - images, 3 - volumes, 4 - all
 
-	// История метрик (Sparklines)
+	// Metric history for sparklines.
 	cpuHistory []float64
 	memHistory []float64
 
-	// Сортировка контейнеров (0 - default, 1 - CPU desc, 2 - MEM desc, 3 - Name asc, 4 - Status)
+	// Container sorting: default, CPU desc, memory desc, name asc, or status.
 	containerSortMode int
 
-	// Поиск и фильтрация контейнеров
+	// Container search and filtering.
 	isFiltering bool
 	filterQuery string
 
@@ -127,9 +125,8 @@ type Model struct {
 	lastUpdate string
 }
 
-// NewModel создает новую TUI модель с настраиваемым интервалом обновления, начальной вкладкой и языком.
-// Если язык не передан, по умолчанию используется "ru" для обратной совместимости.
-func NewModel(refreshInterval time.Duration, initialTab int, version string, lang ...string) Model {
+// NewModel creates a TUI model with a refresh interval and initial tab.
+func NewModel(refreshInterval time.Duration, initialTab int, version string) Model {
 	tab := TabID(initialTab)
 	if tab < TabHost || tab > TabCount {
 		tab = TabHost
@@ -137,17 +134,11 @@ func NewModel(refreshInterval time.Duration, initialTab int, version string, lan
 	if refreshInterval <= 0 {
 		refreshInterval = 2 * time.Second
 	}
-	selectedLang := "ru"
-	if len(lang) > 0 && lang[0] != "" {
-		selectedLang = lang[0]
-	}
-
 	m := Model{
 		version:         version,
 		activeTab:       tab,
 		refreshInterval: refreshInterval,
-		lang:            selectedLang,
-		i18n:            i18n.Get(selectedLang),
+		i18n:            i18n.Get(),
 	}
 	m.fetchAllData()
 	return m

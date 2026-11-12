@@ -235,4 +235,3 @@ func (m Model) handleExecModalInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
-

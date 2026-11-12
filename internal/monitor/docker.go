@@ -17,9 +17,9 @@ const (
 	DockerStatusNotInstalled = "not_installed"
 
 	// Localized status displays
-	DockerStatusDisplayRunning      = "Запущен"
-	DockerStatusDisplayStopped      = "Остановлен"
-	DockerStatusDisplayNotInstalled = "Не установлен"
+	DockerStatusDisplayRunning      = "Running"
+	DockerStatusDisplayStopped      = "Stopped"
+	DockerStatusDisplayNotInstalled = "Not installed"
 
 	// Healthcheck statuses
 	HealthStatusHealthy   = "healthy"
@@ -159,14 +159,14 @@ func formatPorts(ports []rawPort) string {
 }
 
 type rawSocketContainer struct {
-	ID     string            `json:"Id"`
-	Names  []string          `json:"Names"`
-	Image  string            `json:"Image"`
-	State  string            `json:"State"`
-	Status string            `json:"Status"`
-	Ports  []rawPort         `json:"Ports"`
-	Labels map[string]string `json:"Labels"`
-	Created int64            `json:"Created"`
+	ID              string            `json:"Id"`
+	Names           []string          `json:"Names"`
+	Image           string            `json:"Image"`
+	State           string            `json:"State"`
+	Status          string            `json:"Status"`
+	Ports           []rawPort         `json:"Ports"`
+	Labels          map[string]string `json:"Labels"`
+	Created         int64             `json:"Created"`
 	NetworkSettings struct {
 		Networks map[string]struct {
 			IPAddress string `json:"IPAddress"`

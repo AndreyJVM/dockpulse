@@ -9,16 +9,13 @@ import (
 )
 
 func TestEnglishLanguageModel(t *testing.T) {
-	m := NewModel(2*time.Second, 1, "v0.6.1", "en")
-	if m.lang != "en" {
-		t.Fatalf("expected lang='en', got %q", m.lang)
-	}
+	m := NewModel(2*time.Second, 1, "v0.6.1")
 
-	// 1. Host Tab
+	// Host tab.
 	m.activeTab = 1
 	m.dockerInfo = monitor.DockerSummary{
 		Status:        "running",
-		StatusDisplay: "Запущен", // legacy monitor status display
+		StatusDisplay: "Running",
 	}
 	m.sysInfo = monitor.SystemInfo{
 		Hostname:  "test-host",
@@ -37,17 +34,11 @@ func TestEnglishLanguageModel(t *testing.T) {
 	if !strings.Contains(vHost, "Status: Running") {
 		t.Errorf("expected English 'Status: Running', got: %s", vHost)
 	}
-	if strings.Contains(vHost, "Запущен") {
-		t.Errorf("found unwanted Russian 'Запущен' in English Host Tab: %s", vHost)
-	}
 	if !strings.Contains(vHost, "1d 01:00") {
 		t.Errorf("expected English uptime format '1d 01:00', got: %s", vHost)
 	}
-	if strings.Contains(vHost, "дн") {
-		t.Errorf("found unwanted Russian 'дн' in English Host Tab: %s", vHost)
-	}
 
-	// 2. Docker Tab
+	// Docker tab.
 	m.activeTab = 2
 	vDocker := m.View()
 	if !strings.Contains(vDocker, "DOCKER CONTAINERS") {
@@ -56,17 +47,14 @@ func TestEnglishLanguageModel(t *testing.T) {
 	if !strings.Contains(vDocker, "Daemon: Running") {
 		t.Errorf("expected English 'Daemon: Running', got: %s", vDocker)
 	}
-	if strings.Contains(vDocker, "Запущен") {
-		t.Errorf("found unwanted Russian 'Запущен' in English Docker Tab: %s", vDocker)
-	}
 
-	// 3. Compose Tab
+	// Compose tab.
 	m.activeTab = 3
 	m.compose = []monitor.ComposeProject{
 		{
 			Name:            "demo-stack",
 			Status:          "running",
-			StatusDisplay:   "Запущен",
+			StatusDisplay:   "Running",
 			TotalServices:   1,
 			RunningServices: 1,
 		},
@@ -78,15 +66,12 @@ func TestEnglishLanguageModel(t *testing.T) {
 	if !strings.Contains(vCompose, "[Running]") {
 		t.Errorf("expected English '[Running]' status in Compose tab, got: %s", vCompose)
 	}
-	if strings.Contains(vCompose, "[Запущен]") {
-		t.Errorf("found unwanted Russian '[Запущен]' in English Compose Tab: %s", vCompose)
-	}
 
-	// 4. Swarm Tab
+	// Swarm tab.
 	m.activeTab = 4
 	m.swarm = monitor.SwarmSummary{
 		IsActive:      false,
-		StatusDisplay: "Не активен",
+		StatusDisplay: "Inactive",
 	}
 	vSwarm := m.View()
 	if !strings.Contains(vSwarm, "DOCKER SWARM CLUSTER") {
@@ -95,11 +80,8 @@ func TestEnglishLanguageModel(t *testing.T) {
 	if !strings.Contains(vSwarm, "Status: Inactive") {
 		t.Errorf("expected English 'Status: Inactive', got: %s", vSwarm)
 	}
-	if strings.Contains(vSwarm, "Не активен") {
-		t.Errorf("found unwanted Russian 'Не активен' in English Swarm Tab: %s", vSwarm)
-	}
 
-	// 5. Help Modal
+	// Help modal.
 	m.showHelp = true
 	vHelp := m.View()
 	if !strings.Contains(vHelp, "HOTKEYS:") {
@@ -107,7 +89,7 @@ func TestEnglishLanguageModel(t *testing.T) {
 	}
 	m.showHelp = false
 
-	// 6. Compose down modal
+	// Compose down modal.
 	m.composeDownTarget = "my-stack"
 	m.activeModal = "compose_down"
 	vDown := m.View()

@@ -6,11 +6,11 @@ BINARY = dockpulse
 
 all: build
 
-# Проверка версии
+# Show the current version.
 version:
 	@echo "Current version: $(VERSION)"
 
-# Увеличение версии (patch - исправления, minor - новые функции, major - критические изменения)
+# Increment the version: patch for fixes, minor for features, major for breaking changes.
 version-patch:
 	$(eval NEW_VERSION=$(shell echo $(VERSION) | awk -F. '{print $$1"."$$2"."$$3+1}'))
 	@echo $(NEW_VERSION) > VERSION
@@ -26,12 +26,12 @@ version-major:
 	@echo $(NEW_VERSION) > VERSION
 	@echo "Version bumped to $(NEW_VERSION)"
 
-# Запуск тестов
+# Run tests.
 test:
 	@echo "Running Go tests..."
 	go test -v ./...
 
-# Проверка стиля и качества кода (Go Checkstyle / Linting)
+# Run style and quality checks.
 lint:
 	@echo "Running code style and quality checks..."
 	go vet ./...
@@ -43,24 +43,24 @@ lint:
 		echo "revive not found, run: go install github.com/mgechev/revive@latest"; \
 	fi
 
-# Сборка автономного бинарника Go
+# Build the standalone Go binary.
 build:
 	@echo "Building $(BINARY) v$(VERSION)..."
 	CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=v$(VERSION)" -o $(BINARY) ./cmd/dockpulse
 	@echo "Build complete: ./$(BINARY)"
 
-# Запуск приложения локально
+# Run the application locally.
 run:
 	@echo "Running $(BINARY)..."
 	go run ./cmd/dockpulse
 
-# Обновление changelog
+# Update the changelog.
 update-changelog:
 	@echo "Updating debian/changelog with version $(VERSION)"
 	@chmod +x update-changelog.sh
 	@./update-changelog.sh
 
-# Очистка
+# Remove build artifacts.
 clean:
 	@echo "Cleaning build artifacts..."
 	rm -f $(BINARY)
@@ -70,7 +70,7 @@ clean:
 clean-all: clean
 	@echo "Clean-all complete"
 
-# Проверка готовности к релизу
+# Check release readiness.
 release-check:
 	@if [ -n "$$(git status --porcelain)" ]; then \
 		echo "Error: Uncommitted changes exist. Commit or stash them before releasing."; \
@@ -83,7 +83,7 @@ release-check:
 	fi; \
 	echo "Working tree is clean. Ready for release v$${CUR_VER}."
 
-# Создание git-тега релиза
+# Create the release tag.
 release-tag: release-check
 	@CUR_VER=$$(cat VERSION); \
 	echo "Creating git tag v$${CUR_VER}..."; \
@@ -93,28 +93,28 @@ release-tag: release-check
 	echo "To publish the release and automatically build Linux binaries & .deb packages:"; \
 	echo "  git push origin main --tags"
 
-# Полный релиз текущей версии
+# Release the current version.
 release: release-tag
 
-# Релиз с увеличением patch-версии
+# Release with a patch version increment.
 release-patch: version-patch update-changelog
 	@git add VERSION debian/changelog
 	@git commit -m "Bump version to $$(cat VERSION)"
 	@$(MAKE) release-tag
 
-# Релиз с увеличением minor-версии
+# Release with a minor version increment.
 release-minor: version-minor update-changelog
 	@git add VERSION debian/changelog
 	@git commit -m "Bump version to $$(cat VERSION)"
 	@$(MAKE) release-tag
 
-# Релиз с увеличением major-версии
+# Release with a major version increment.
 release-major: version-major update-changelog
 	@git add VERSION debian/changelog
 	@git commit -m "Bump version to $$(cat VERSION)"
 	@$(MAKE) release-tag
 
-# Помощь
+# Show help.
 help:
 	@echo "Available commands:"
 	@echo "  make version         - Show current version"

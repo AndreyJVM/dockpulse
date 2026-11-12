@@ -42,7 +42,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.showHelp = true
 		return m, nil
 
-	// Навигация по вкладкам
+	// Tab navigation.
 	case "tab", "right":
 		m.nextTab()
 	case "shift+tab", "left":
@@ -61,7 +61,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.showToast(m.i18n.ToastRefreshing)
 		return m, fetchDataCmd()
 
-	// Сортировка списка контейнеров (Вкладка 2)
+	// Container sorting on the Docker tab.
 	case "o", "O":
 		if m.activeTab == TabDocker && !m.isFiltering {
 			m.containerSortMode = (m.containerSortMode + 1) % sortModeCount
@@ -79,7 +79,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-	// Поиск по списку контейнеров
+	// Container search.
 	case "/":
 		if m.activeTab == TabDocker {
 			m.isFiltering = true
@@ -93,13 +93,13 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-	// Навигация в списке контейнеров (Вкладка 2), Compose (Вкладка 3), Swarm (Вкладка 4)
+	// List navigation for Docker, Compose, and Swarm.
 	case "up", "k":
 		m.moveCursor(-1)
 	case "down", "j":
 		m.moveCursor(1)
 
-	// Просмотр логов контейнера, проекта Compose или службы Swarm
+	// Container, Compose project, or Swarm service logs.
 	case "l", "L":
 		if m.activeTab == TabDocker {
 			containers := m.getFilteredContainers()
@@ -142,7 +142,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	// Детали контейнера (Inspect)
+	// Container inspection.
 	case "enter", "i", "I":
 		containers := m.getFilteredContainers()
 		if m.activeTab == TabDocker && len(containers) > 0 && m.cursorIdx < len(containers) {
@@ -156,7 +156,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	// Старт / Стоп контейнера или проекта Compose
+	// Start or stop a container or Compose project.
 	case "s", "S":
 		if m.activeTab == TabDocker {
 			containers := m.getFilteredContainers()
@@ -175,7 +175,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, stopComposeCmd(proj.Name, m.dockerInfo.Containers, m.i18n)
 		}
 
-	// Запуск проекта Compose
+	// Start a Compose project.
 	case "u", "U":
 		if m.activeTab == TabCompose && len(m.compose) > 0 && m.composeCursorIdx < len(m.compose) {
 			proj := m.compose[m.composeCursorIdx]
@@ -183,7 +183,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, startComposeCmd(proj.Name, m.dockerInfo.Containers, m.i18n)
 		}
 
-	// Сворачивание проекта Compose (Down) или Удаление контейнера (Delete)
+	// Down a Compose project or remove a container.
 	case "d", "D":
 		if m.activeTab == TabDocker && !m.isFiltering {
 			containers := m.getFilteredContainers()
@@ -201,7 +201,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-	// Подключение к Shell контейнера (Exec)
+	// Open an interactive container shell.
 	case "e", "E":
 		if m.activeTab == TabDocker {
 			containers := m.getFilteredContainers()
@@ -225,7 +225,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	// Принудительное завершение контейнера (Kill / SIGKILL)
+	// Force-kill a container with SIGKILL.
 	case "K":
 		if m.activeTab == TabDocker && !m.isFiltering {
 			containers := m.getFilteredContainers()
@@ -240,7 +240,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	// Удаление контейнера (Remove)
+	// Remove a container.
 	case "x", "X":
 		if m.activeTab == TabDocker && !m.isFiltering {
 			containers := m.getFilteredContainers()
@@ -253,7 +253,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	// Перезапуск контейнера или проекта Compose
+	// Restart a container or Compose project.
 	case "p", "P":
 		if m.activeTab == TabDocker {
 			containers := m.getFilteredContainers()
@@ -268,7 +268,7 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, restartComposeCmd(proj.Name, m.dockerInfo.Containers, m.i18n)
 		}
 
-	// Очистка неиспользуемых ресурсов Docker (Prune)
+	// Prune unused Docker resources.
 	case "c", "C":
 		if (m.activeTab == TabDocker || m.activeTab == TabCompose) && !m.isFiltering {
 			m.openModal(ModalPrune)
@@ -285,4 +285,3 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
-

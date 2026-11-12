@@ -20,7 +20,6 @@ const (
 	PruneOptionAll        = 4
 )
 
-
 func fetchAllData() dataFetchedMsg {
 	dockerInfo := monitor.GetDockerSummary()
 	return dataFetchedMsg{

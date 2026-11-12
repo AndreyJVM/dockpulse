@@ -24,9 +24,6 @@ func TestParseFlags_Defaults(t *testing.T) {
 	if cfg.initialTab != defaultTab {
 		t.Errorf("expected initialTab %d, got %d", defaultTab, cfg.initialTab)
 	}
-	if cfg.lang != "" {
-		t.Errorf("expected lang empty by default, got %q", cfg.lang)
-	}
 	if cfg.showVersion {
 		t.Errorf("expected showVersion to be false")
 	}
@@ -38,21 +35,18 @@ func TestParseFlags_CustomValues(t *testing.T) {
 		args         []string
 		wantInterval time.Duration
 		wantTab      int
-		wantLang     string
 	}{
 		{
 			name:         "short flags numeric",
-			args:         []string{"-i", "1s", "-t", "3", "-l", "en"},
+			args:         []string{"-i", "1s", "-t", "3"},
 			wantInterval: 1 * time.Second,
 			wantTab:      3,
-			wantLang:     "en",
 		},
 		{
 			name:         "long flags numeric",
-			args:         []string{"--interval", "500ms", "--tab", "2", "--lang", "ru"},
+			args:         []string{"--interval", "500ms", "--tab", "2"},
 			wantInterval: 500 * time.Millisecond,
 			wantTab:      2,
-			wantLang:     "ru",
 		},
 		{
 			name:         "named tab host",
@@ -93,9 +87,6 @@ func TestParseFlags_CustomValues(t *testing.T) {
 			if cfg.initialTab != tt.wantTab {
 				t.Errorf("expected initialTab %d, got %d", tt.wantTab, cfg.initialTab)
 			}
-			if tt.wantLang != "" && cfg.lang != tt.wantLang {
-				t.Errorf("expected lang %s, got %s", tt.wantLang, cfg.lang)
-			}
 		})
 	}
 }
@@ -103,16 +94,13 @@ func TestParseFlags_CustomValues(t *testing.T) {
 func TestParseFlags_EnvVariables(t *testing.T) {
 	origInterval := os.Getenv("DOCKPULSE_INTERVAL")
 	origTab := os.Getenv("DOCKPULSE_TAB")
-	origLang := os.Getenv("DOCKPULSE_LANG")
 	defer func() {
 		os.Setenv("DOCKPULSE_INTERVAL", origInterval)
 		os.Setenv("DOCKPULSE_TAB", origTab)
-		os.Setenv("DOCKPULSE_LANG", origLang)
 	}()
 
 	os.Setenv("DOCKPULSE_INTERVAL", "3s")
 	os.Setenv("DOCKPULSE_TAB", "compose")
-	os.Setenv("DOCKPULSE_LANG", "ru")
 
 	var stdout, stderr bytes.Buffer
 	cfg, err := parseFlags([]string{}, &stdout, &stderr)
@@ -126,12 +114,8 @@ func TestParseFlags_EnvVariables(t *testing.T) {
 	if cfg.initialTab != 3 {
 		t.Errorf("expected tab from env 3 (compose), got %d", cfg.initialTab)
 	}
-	if cfg.lang != "ru" {
-		t.Errorf("expected lang from env ru, got %s", cfg.lang)
-	}
-
 	// CLI flags must override env variables
-	cfgOverridden, err := parseFlags([]string{"-i", "500ms", "-t", "swarm", "-l", "en"}, &stdout, &stderr)
+	cfgOverridden, err := parseFlags([]string{"-i", "500ms", "-t", "swarm"}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -140,9 +124,6 @@ func TestParseFlags_EnvVariables(t *testing.T) {
 	}
 	if cfgOverridden.initialTab != 4 {
 		t.Errorf("expected overridden tab 4 (swarm), got %d", cfgOverridden.initialTab)
-	}
-	if cfgOverridden.lang != "en" {
-		t.Errorf("expected overridden lang en, got %s", cfgOverridden.lang)
 	}
 }
 
@@ -185,8 +166,19 @@ func TestParseFlags_PositionalArgsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for positional arguments, got nil")
 	}
-	if !strings.Contains(err.Error(), "неизвестные позиционные аргументы") {
+	if !strings.Contains(err.Error(), "unknown positional arguments") {
 		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestParseFlags_RejectsLanguageFlag(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	_, err := parseFlags([]string{"--lang", "fr"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected the removed --lang flag to be rejected")
+	}
+	if !strings.Contains(err.Error(), "flag provided but not defined: -lang") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -203,18 +195,8 @@ func TestValidateConfig(t *testing.T) {
 		},
 		{
 			name:    "valid boundary values",
-			cfg:     config{interval: 100 * time.Millisecond, initialTab: 4, lang: "en"},
+			cfg:     config{interval: 100 * time.Millisecond, initialTab: 4},
 			wantErr: false,
-		},
-		{
-			name:    "valid ru lang",
-			cfg:     config{interval: 1 * time.Second, initialTab: 2, lang: "ru"},
-			wantErr: false,
-		},
-		{
-			name:    "invalid lang",
-			cfg:     config{interval: 1 * time.Second, initialTab: 2, lang: "de"},
-			wantErr: true,
 		},
 		{
 			name:    "interval too small",
@@ -256,7 +238,7 @@ func TestRun_Help(t *testing.T) {
 			t.Fatalf("expected nil error for %s, got: %v", flag, err)
 		}
 		output := stdout.String()
-		if !strings.Contains(output, "Dockpulse") || !strings.Contains(output, "Использование:") {
+		if !strings.Contains(output, "Dockpulse") || !strings.Contains(output, "Usage:") {
 			t.Errorf("expected usage info in stdout for %s, got: %s", flag, output)
 		}
 	}
@@ -282,15 +264,7 @@ func TestRun_ValidationFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for invalid tab, got nil")
 	}
-	if !strings.Contains(err.Error(), "недопустимая начальная вкладка") {
-		t.Errorf("unexpected error: %v", err)
-	}
-
-	err = run([]string{"--lang", "invalid"}, &stdout, &stderr)
-	if err == nil {
-		t.Fatal("expected error for invalid lang, got nil")
-	}
-	if !strings.Contains(err.Error(), "неподдерживаемый язык") {
+	if !strings.Contains(err.Error(), "invalid initial tab") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
@@ -299,7 +273,7 @@ func TestRun_TerminalCheck(t *testing.T) {
 	origIsTerminal := isTerminal
 	defer func() { isTerminal = origIsTerminal }()
 
-	// Non-terminal check
+	// Non-terminal check.
 	isTerminal = func(_ uintptr) bool {
 		return false
 	}
@@ -309,7 +283,7 @@ func TestRun_TerminalCheck(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when running outside of interactive terminal, got nil")
 	}
-	if !strings.Contains(err.Error(), "требует интерактивного терминала (TTY)") {
+	if !strings.Contains(err.Error(), "requires an interactive terminal (TTY)") {
 		t.Errorf("unexpected error message: %v", err)
 	}
 }
@@ -333,7 +307,7 @@ func TestRun_ProgramExecution(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	err := run([]string{"-i", "1s", "-t", "2", "-l", "en"}, &stdout, &stderr)
+	err := run([]string{"-i", "1s", "-t", "2"}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

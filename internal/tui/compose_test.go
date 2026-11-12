@@ -15,7 +15,7 @@ func TestComposeTabNavigationAndActions(t *testing.T) {
 		{
 			Name:            "proj-alpha",
 			Status:          "running",
-			StatusDisplay:   "Запущен",
+			StatusDisplay:   "Running",
 			TotalServices:   2,
 			RunningServices: 2,
 			Services: []monitor.ComposeService{
@@ -26,7 +26,7 @@ func TestComposeTabNavigationAndActions(t *testing.T) {
 		{
 			Name:            "proj-beta",
 			Status:          "stopped",
-			StatusDisplay:   "Остановлен",
+			StatusDisplay:   "Stopped",
 			TotalServices:   1,
 			RunningServices: 0,
 			Services: []monitor.ComposeService{
@@ -73,7 +73,7 @@ func TestComposeTabNavigationAndActions(t *testing.T) {
 
 	// Footer on tab 3 contains compose hints
 	view := m.View()
-	if !strings.Contains(view, "Логи") || !strings.Contains(view, "Рестарт") || !strings.Contains(view, "Стоп") || !strings.Contains(view, "Старт") || !strings.Contains(view, "Down") {
+	if !strings.Contains(view, "Logs") || !strings.Contains(view, "Restart") || !strings.Contains(view, "Stop") || !strings.Contains(view, "Start") || !strings.Contains(view, "Down") {
 		t.Errorf("expected compose hints in footer view, got: %s", view)
 	}
 
@@ -121,7 +121,7 @@ func TestComposeTabNavigationAndActions(t *testing.T) {
 	}
 
 	modalView := m.View()
-	if !strings.Contains(modalView, "ПОДТВЕРЖДЕНИЕ СВОРАЧИВАНИЯ COMPOSE СТЕКА") || !strings.Contains(modalView, "proj-beta") {
+	if !strings.Contains(modalView, "CONFIRM DOCKER COMPOSE DOWN") || !strings.Contains(modalView, "proj-beta") {
 		t.Errorf("expected compose down modal content, got: %s", modalView)
 	}
 

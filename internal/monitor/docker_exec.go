@@ -75,7 +75,7 @@ func GetContainerExecCommandWithOptions(containerID string, opts ExecOptions) *e
 	return exec.Command("docker", args...)
 }
 
-// GetContainerExecCommand возвращает команду exec.Cmd для запуска интерактивного шелла в контейнере.
+// GetContainerExecCommand creates an exec.Cmd for an interactive container shell.
 func GetContainerExecCommand(containerID string) *exec.Cmd {
 	return GetContainerExecCommandWithOptions(containerID, ExecOptions{Mode: "auto"})
 }

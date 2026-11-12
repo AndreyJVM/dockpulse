@@ -9,7 +9,7 @@ import (
 )
 
 func TestRenderHeaderAndTabs(t *testing.T) {
-	dict := i18n.Get("en")
+	dict := i18n.Get()
 
 	// Header
 	hdr := RenderHeader("v0.6.3", "12:00:00")
@@ -26,7 +26,7 @@ func TestRenderHeaderAndTabs(t *testing.T) {
 }
 
 func TestRenderFooter(t *testing.T) {
-	dict := i18n.Get("en")
+	dict := i18n.Get()
 
 	// Tab 1 footer
 	f1 := RenderFooter(FooterContext{ActiveTab: 1, I18n: &dict, Width: 80})
@@ -59,7 +59,7 @@ func TestRenderFooter(t *testing.T) {
 }
 
 func TestRenderHostView(t *testing.T) {
-	dict := i18n.Get("en")
+	dict := i18n.Get()
 	view := RenderHost(HostContext{
 		SysInfo:               monitor.SystemInfo{Hostname: "my-host", OS: "Linux", Kernel: "6.8.0"},
 		CPUInfo:               monitor.CPUInfo{Cores: 4, Percent: 25.0},
@@ -78,7 +78,7 @@ func TestRenderHostView(t *testing.T) {
 }
 
 func TestRenderComposeView(t *testing.T) {
-	dict := i18n.Get("en")
+	dict := i18n.Get()
 
 	// Empty
 	emptyView := RenderCompose(ComposeContext{Projects: nil, I18n: &dict})
@@ -110,7 +110,7 @@ func TestRenderComposeView(t *testing.T) {
 }
 
 func TestRenderSwarmView(t *testing.T) {
-	dict := i18n.Get("en")
+	dict := i18n.Get()
 
 	// Inactive
 	inactView := RenderSwarm(SwarmContext{
@@ -145,7 +145,7 @@ func TestRenderSwarmView(t *testing.T) {
 }
 
 func TestRenderDockerView(t *testing.T) {
-	dict := i18n.Get("en")
+	dict := i18n.Get()
 
 	// Empty
 	emptyView := RenderDocker(DockerContext{
@@ -160,21 +160,21 @@ func TestRenderDockerView(t *testing.T) {
 	// Containers table with details panel
 	containers := []monitor.ContainerItem{
 		{
-			ID:             "c12345678901",
-			Name:           "api-server",
-			Image:          "golang:alpine",
-			State:          "running",
-			Health:         "healthy",
-			CPUPerc:        12.5,
-			MemUsageMB:     250.0,
-			MemLimitMB:     1024.0,
-			MemPerc:        24.4,
-			Ports:          "8080->8080/tcp",
-			Mounts:         []string{"/vol -> /app (rw)"},
-			ComposeProject: "my-app",
-			ComposeService: "api",
-			NetRxBytes:     1024 * 1024,
-			NetTxBytes:     2048 * 1024,
+			ID:              "c12345678901",
+			Name:            "api-server",
+			Image:           "golang:alpine",
+			State:           "running",
+			Health:          "healthy",
+			CPUPerc:         12.5,
+			MemUsageMB:      250.0,
+			MemLimitMB:      1024.0,
+			MemPerc:         24.4,
+			Ports:           "8080->8080/tcp",
+			Mounts:          []string{"/vol -> /app (rw)"},
+			ComposeProject:  "my-app",
+			ComposeService:  "api",
+			NetRxBytes:      1024 * 1024,
+			NetTxBytes:      2048 * 1024,
 			BlockReadBytes:  512 * 1024,
 			BlockWriteBytes: 1536 * 1024,
 		},
@@ -294,7 +294,7 @@ func TestRenderDockerView_EdgeCases(t *testing.T) {
 	}
 
 	// 2. Filter active with results and sorting badge
-	dict := i18n.Get("en")
+	dict := i18n.Get()
 	containers := []monitor.ContainerItem{
 		{ID: "c1", Name: "app", State: "running", Ports: "80:80"},
 	}
@@ -378,7 +378,7 @@ func TestFormatPortDisplay(t *testing.T) {
 }
 
 func TestRenderContainerDetailsCard_Extended(t *testing.T) {
-	dict := i18n.Get("en")
+	dict := i18n.Get()
 
 	// 1. Container with complete extended fields (IP, Network, RestartPolicy, Created)
 	cFull := monitor.ContainerItem{
@@ -440,4 +440,3 @@ func TestRenderContainerDetailsCard_Extended(t *testing.T) {
 		t.Errorf("expected none for missing IP, got: %s", viewOnFail)
 	}
 }
-

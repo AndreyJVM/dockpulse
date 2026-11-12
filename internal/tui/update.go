@@ -33,22 +33,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		// Если активно модальное окно — клавиши перехватываются им
+		// Active modals intercept keyboard input.
 		if m.activeModal != ModalNone {
 			return m.handleModalInput(msg)
 		}
 
-		// Режим поиска / фильтрации контейнеров
+		// Container search and filter mode.
 		if m.isFiltering && m.activeTab == TabDocker {
 			return m.handleFilterInput(msg)
 		}
 
-		// Модальное окно справки
+		// Help modal.
 		if m.showHelp {
 			return m.handleHelpInput(msg)
 		}
 
-		// Основной режим
+		// Main input mode.
 		return m.handleMainKeys(msg)
 
 	case tickMsg:

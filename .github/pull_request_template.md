@@ -1,30 +1,29 @@
-## Description / Описание изменений
+## Description
 
 <!--
-English: Briefly describe what changes were made and why.
-Русский: Кратко опишите, какие изменения были внесены и с какой целью.
+Briefly describe what changes were made and why.
 -->
 
-## Type of Change / Тип изменений
+## Type of Change
 
-<!-- Mark with [x] / Отметьте нужное [x] -->
-- [ ] `feat`: New feature or capability / Новая функциональность
-- [ ] `fix`: Bug fix / Исправление ошибки
-- [ ] `docs`: Documentation update / Обновление документации
-- [ ] `refactor`: Refactoring without behavioral change / Рефакторинг без изменения логики
-- [ ] `test`: Adding or updating tests / Добавление или обновление тестов
-- [ ] `chore`: Maintenance, dependencies, build / Обслуживание, зависимости, сборка
+<!-- Mark with [x]. -->
+- [ ] `feat`: New feature or capability
+- [ ] `fix`: Bug fix
+- [ ] `docs`: Documentation update
+- [ ] `refactor`: Refactoring without behavioral change
+- [ ] `test`: Adding or updating tests
+- [ ] `chore`: Maintenance, dependencies, build
 
-## Related Issues / Связанные задачи
+## Related Issues
 
 <!--
 Closes #123 / Fixes #123
 -->
 
-## Checklist / Чек-лист проверки
+## Checklist
 
-- [ ] Project builds without errors (`make build`) / Проект успешно собирается
-- [ ] Unit tests pass with race detector (`make test`) / Тесты проходят успешно
-- [ ] Linter checks pass (`make lint`) / Линтер не выдает ошибок
-- [ ] Commit message conforms to Conventional Commits / Коммит оформлен по Conventional Commits
-- [ ] Documentation updated if needed / Документация обновлена (при необходимости)
+- [ ] Project builds without errors (`make build`)
+- [ ] Unit tests pass with race detector (`make test`)
+- [ ] Linter checks pass (`make lint`)
+- [ ] Commit message conforms to Conventional Commits
+- [ ] Documentation is updated if needed

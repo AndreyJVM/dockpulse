@@ -18,8 +18,8 @@ const (
 )
 
 var (
-	dockerSocketFinder   = FindDockerSocket
-	socketClientFactory  = getSocketHTTPClient
+	dockerSocketFinder     = FindDockerSocket
+	socketClientFactory    = getSocketHTTPClient
 	dockerCLICommandRunner = func(ctx context.Context, args ...string) ([]byte, error) {
 		if ctx == nil {
 			return exec.Command("docker", args...).CombinedOutput()
@@ -28,7 +28,7 @@ var (
 	}
 )
 
-// FindDockerSocket ищет доступный UNIX-сокет Docker или Podman.
+// FindDockerSocket finds an available Docker or Podman Unix socket.
 func FindDockerSocket() string {
 	if dockerHost := os.Getenv("DOCKER_HOST"); strings.HasPrefix(dockerHost, "unix://") {
 		p := strings.TrimPrefix(dockerHost, "unix://")

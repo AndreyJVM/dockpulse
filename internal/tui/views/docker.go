@@ -67,7 +67,7 @@ func getDictionary(dict *i18n.Dictionary) *i18n.Dictionary {
 	if dict != nil {
 		return dict
 	}
-	d := i18n.Get("en")
+	d := i18n.Get()
 	return &d
 }
 

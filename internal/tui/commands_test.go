@@ -26,8 +26,8 @@ func TestAsyncCommandTriggers(t *testing.T) {
 	if cmd == nil {
 		t.Errorf("expected non-nil tea.Cmd on 's'")
 	}
-	if !strings.Contains(m.actionMessage, "Остановка контейнера web") {
-		t.Errorf("expected toast 'Остановка контейнера web', got: %s", m.actionMessage)
+	if !strings.Contains(m.actionMessage, "Stopping container web") {
+		t.Errorf("expected stopping toast, got: %s", m.actionMessage)
 	}
 
 	// 2. Press 's' on stopped container -> starts asynchronously
@@ -37,8 +37,8 @@ func TestAsyncCommandTriggers(t *testing.T) {
 	if cmd == nil {
 		t.Errorf("expected non-nil tea.Cmd on 's' for stopped container")
 	}
-	if !strings.Contains(m.actionMessage, "Запуск контейнера db") {
-		t.Errorf("expected toast 'Запуск контейнера db', got: %s", m.actionMessage)
+	if !strings.Contains(m.actionMessage, "Starting container db") {
+		t.Errorf("expected starting toast, got: %s", m.actionMessage)
 	}
 
 	// 3. Press 'p' on container -> restarts asynchronously
@@ -48,8 +48,8 @@ func TestAsyncCommandTriggers(t *testing.T) {
 	if cmd == nil {
 		t.Errorf("expected non-nil tea.Cmd on 'p'")
 	}
-	if !strings.Contains(m.actionMessage, "Перезапуск web") {
-		t.Errorf("expected toast 'Перезапуск web', got: %s", m.actionMessage)
+	if !strings.Contains(m.actionMessage, "Restarting web") {
+		t.Errorf("expected restarting toast, got: %s", m.actionMessage)
 	}
 
 	// 4. Press 'r' -> refresh command
@@ -58,7 +58,7 @@ func TestAsyncCommandTriggers(t *testing.T) {
 	if cmd == nil {
 		t.Errorf("expected non-nil tea.Cmd on 'r'")
 	}
-	if !strings.Contains(m.actionMessage, "Обновление данных") {
+	if !strings.Contains(m.actionMessage, "Refreshing data") {
 		t.Errorf("expected refresh toast, got: %s", m.actionMessage)
 	}
 }
@@ -67,32 +67,32 @@ func TestActionFinishedMsg(t *testing.T) {
 	m := NewModel(2*time.Second, 1, "v0.5.0")
 
 	// Success message without refresh
-	res, cmd := m.Update(actionFinishedMsg{message: "Операция завершена успешно", refresh: false})
+	res, cmd := m.Update(actionFinishedMsg{message: "Operation completed successfully", refresh: false})
 	m = res.(Model)
 	if cmd != nil {
 		t.Errorf("expected nil cmd when refresh=false")
 	}
-	if !strings.Contains(m.actionMessage, "Операция завершена успешно") {
+	if !strings.Contains(m.actionMessage, "Operation completed successfully") {
 		t.Errorf("expected toast message, got: %s", m.actionMessage)
 	}
 
 	// Error message
-	res, cmd = m.Update(actionFinishedMsg{err: errors.New("ошибка выполнения команды"), refresh: false})
+	res, cmd = m.Update(actionFinishedMsg{err: errors.New("command execution failed"), refresh: false})
 	m = res.(Model)
 	if cmd != nil {
 		t.Errorf("expected nil cmd on error")
 	}
-	if !strings.Contains(m.actionMessage, "ошибка выполнения команды") {
+	if !strings.Contains(m.actionMessage, "command execution failed") {
 		t.Errorf("expected error toast, got: %s", m.actionMessage)
 	}
 
 	// Success message with refresh -> triggers fetchDataCmd
-	res, cmd = m.Update(actionFinishedMsg{message: "Контейнер удален", refresh: true})
+	res, cmd = m.Update(actionFinishedMsg{message: "Container removed", refresh: true})
 	m = res.(Model)
 	if cmd == nil {
 		t.Errorf("expected non-nil tea.Cmd when refresh=true")
 	}
-	if !strings.Contains(m.actionMessage, "Контейнер удален") {
+	if !strings.Contains(m.actionMessage, "Container removed") {
 		t.Errorf("expected toast message, got: %s", m.actionMessage)
 	}
 }
@@ -124,7 +124,7 @@ func TestDataFetchedMsg(t *testing.T) {
 }
 
 func TestKillAndRemoveCommandsExecution(t *testing.T) {
-	dict := i18n.Get("en")
+	dict := i18n.Get()
 
 	// 1. Test killContainerCmd returns non-nil actionFinishedMsg
 	killCmd := killContainerCmd("c-test", "test-app", dict)
@@ -212,7 +212,7 @@ func TestMakeActionCmd(t *testing.T) {
 }
 
 func TestExecutePruneAndPruneCmd(t *testing.T) {
-	dict := i18n.Get("en")
+	dict := i18n.Get()
 
 	// Invalid option
 	_, err := executePrune(99)
@@ -246,7 +246,7 @@ func TestExecutePruneAndPruneCmd(t *testing.T) {
 }
 
 func TestContainerAndComposeCommandsExecution(t *testing.T) {
-	dict := i18n.Get("en")
+	dict := i18n.Get()
 
 	cmds := []struct {
 		name string

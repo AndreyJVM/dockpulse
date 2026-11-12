@@ -1,27 +1,27 @@
 ---
-name: Feature Request / Предложение новой функции
+name: Feature Request
 about: Suggest an idea or feature enhancement for Dockpulse
 title: 'feat: '
 labels: 'enhancement'
 assignees: ''
 ---
 
-### Описание предложения / Feature Description
+### Feature Description
 
-<!-- Краткое и ясное описание предлагаемой функции / A clear and concise description of what you want to happen -->
+<!-- A clear and concise description of what you want to happen. -->
 
-### Проблема или мотивация / Problem or Motivation
+### Problem or Motivation
 
-<!-- С какой проблемой или неудобством вы сталкиваетесь? / What problem does this solve? -->
+<!-- What problem does this solve? -->
 
-### Предлагаемое решение / Proposed Solution
+### Proposed Solution
 
-<!-- Как, по вашему мнению, это должно работать и выглядеть в интерфейсе? -->
+<!-- How should this work and look in the interface? -->
 
-### Альтернативные решения / Alternatives Considered
+### Alternatives Considered
 
-<!-- Рассматривали ли вы другие подходы? -->
+<!-- Which other approaches did you consider? -->
 
-### Дополнительный контекст / Additional Context
+### Additional Context
 
-<!-- Ссылки на аналогичные утилиты (lazydocker, ctop, dry), эскизы интерфейса и т.д. -->
+<!-- Add links to similar tools, interface sketches, or other useful context. -->

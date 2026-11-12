@@ -10,7 +10,7 @@ import (
 )
 
 func TestRenderLogs(t *testing.T) {
-	dict := i18n.Get("en")
+	dict := i18n.Get()
 
 	// Empty logs
 	emptyView := RenderLogs(nil, 0, "test-container", "c12345", 100, &dict)
@@ -93,7 +93,7 @@ func TestRenderLogs_EdgeCases(t *testing.T) {
 }
 
 func TestRenderInspect(t *testing.T) {
-	dict := i18n.Get("ru")
+	dict := i18n.Get()
 
 	detail := monitor.ContainerDetail{
 		ID:              "c123456789",
@@ -136,7 +136,7 @@ func TestRenderInspect(t *testing.T) {
 }
 
 func TestRenderPrune(t *testing.T) {
-	dict := i18n.Get("en")
+	dict := i18n.Get()
 
 	// Error view
 	errView := RenderPrune(monitor.DockerDiskUsage{}, "daemon error", 0, &dict)
@@ -164,7 +164,7 @@ func TestRenderPrune(t *testing.T) {
 }
 
 func TestGetPruneActionName(t *testing.T) {
-	dict := i18n.Get("en")
+	dict := i18n.Get()
 	if act1 := getPruneActionName(1, &dict); act1 != dict.PruneWarnAction1 {
 		t.Errorf("expected %q, got %q", dict.PruneWarnAction1, act1)
 	}
@@ -195,7 +195,7 @@ func TestRenderPrune_NilDictAndZeroTotal(t *testing.T) {
 }
 
 func TestRenderComposeDown(t *testing.T) {
-	dict := i18n.Get("en")
+	dict := i18n.Get()
 	view := RenderComposeDown("my-stack", &dict)
 	if !strings.Contains(view, "my-stack") || !strings.Contains(view, dict.ComposeDownTitle) {
 		t.Errorf("expected project name and title in compose down modal, got: %s", view)
@@ -203,7 +203,7 @@ func TestRenderComposeDown(t *testing.T) {
 }
 
 func TestRenderRemoveContainer(t *testing.T) {
-	dict := i18n.Get("ru")
+	dict := i18n.Get()
 	view := RenderRemoveContainer("my-db", "c98765", &dict)
 	if !strings.Contains(view, "my-db") || !strings.Contains(view, "c98765") || !strings.Contains(view, dict.RemoveContainerTitle) {
 		t.Errorf("expected container name, id and title in remove modal, got: %s", view)
@@ -211,7 +211,7 @@ func TestRenderRemoveContainer(t *testing.T) {
 }
 
 func TestRenderHelp(t *testing.T) {
-	dict := i18n.Get("en")
+	dict := i18n.Get()
 
 	t.Run("standard en rendering", func(t *testing.T) {
 		view := RenderHelp(2*time.Second, &dict)
@@ -230,17 +230,10 @@ func TestRenderHelp(t *testing.T) {
 		}
 	})
 
-	t.Run("russian rendering", func(t *testing.T) {
-		ruDict := i18n.Get("ru")
-		view := RenderHelp(5*time.Second, &ruDict)
-		if !strings.Contains(view, "ГОРЯЧИЕ КЛАВИШИ:") || !strings.Contains(view, "КОНТЕЙНЕРЫ") {
-			t.Errorf("expected ru sections in help view, got: %s", view)
-		}
-	})
 }
 
 func TestRenderExec(t *testing.T) {
-	dict := i18n.Get("en")
+	dict := i18n.Get()
 
 	// 1. Menu view
 	menuView := RenderExec(ExecModalContext{

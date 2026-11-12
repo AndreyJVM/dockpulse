@@ -35,7 +35,7 @@ func executePruneResource(cfg pruneResourceConfig) (string, error) {
 			if doErr == nil && resp.StatusCode == http.StatusOK {
 				defer resp.Body.Close()
 				if count, reclaimed, ok := cfg.parseSocketRes(resp.Body); ok {
-					return fmt.Sprintf("Удалено %s: %d, освобождено: %s", cfg.label, count, FormatBytes(reclaimed)), nil
+					return fmt.Sprintf("Deleted %s: %d, reclaimed: %s", cfg.label, count, FormatBytes(reclaimed)), nil
 				}
 			}
 		}
@@ -56,7 +56,7 @@ func PruneContainers() (string, error) {
 	return executePruneResource(pruneResourceConfig{
 		socketPath:  "containers/prune",
 		cliResource: "container",
-		label:       "контейнеров",
+		label:       "containers",
 		parseSocketRes: func(r io.Reader) (int, int64, bool) {
 			var res struct {
 				ContainersDeleted []string `json:"ContainersDeleted"`
@@ -75,7 +75,7 @@ func PruneImages() (string, error) {
 	return executePruneResource(pruneResourceConfig{
 		socketPath:  "images/prune",
 		cliResource: "image",
-		label:       "образов",
+		label:       "images",
 		parseSocketRes: func(r io.Reader) (int, int64, bool) {
 			var res struct {
 				ImagesDeleted  []map[string]interface{} `json:"ImagesDeleted"`
@@ -94,7 +94,7 @@ func PruneVolumes() (string, error) {
 	return executePruneResource(pruneResourceConfig{
 		socketPath:  "volumes/prune",
 		cliResource: "volume",
-		label:       "томов",
+		label:       "volumes",
 		parseSocketRes: func(r io.Reader) (int, int64, bool) {
 			var res struct {
 				VolumesDeleted []string `json:"VolumesDeleted"`
@@ -128,7 +128,7 @@ func pruneBuildCacheSocket(sockPath string) string {
 		SpaceReclaimed int64    `json:"SpaceReclaimed"`
 	}
 	if json.NewDecoder(resp.Body).Decode(&res) == nil && len(res.CachesDeleted) > 0 {
-		return fmt.Sprintf("Кэш сборки: %d записей (%s)", len(res.CachesDeleted), FormatBytes(res.SpaceReclaimed))
+		return fmt.Sprintf("Build cache: %d entries (%s)", len(res.CachesDeleted), FormatBytes(res.SpaceReclaimed))
 	}
 	return ""
 }
@@ -168,7 +168,7 @@ func PruneAll() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}
-	return formatPruneCLIOutput(string(out), "ресурсов"), nil
+	return formatPruneCLIOutput(string(out), "resources"), nil
 }
 
 func formatPruneCLIOutput(out string, label string) string {
@@ -176,8 +176,8 @@ func formatPruneCLIOutput(out string, label string) string {
 	for _, l := range lines {
 		if strings.Contains(l, totalReclaimedSpacePrefix) {
 			space := strings.TrimPrefix(l, totalReclaimedSpacePrefix)
-			return fmt.Sprintf("Очистка %s завершена. Освобождено:%s", label, space)
+			return fmt.Sprintf("Pruned %s. Reclaimed:%s", label, space)
 		}
 	}
-	return fmt.Sprintf("Очистка %s успешно выполнена", label)
+	return fmt.Sprintf("Pruned %s successfully", label)
 }

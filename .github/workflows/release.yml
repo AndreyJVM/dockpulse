@@ -112,29 +112,29 @@ jobs:
           body: |
             ## Dockpulse ${{ steps.get_version.outputs.tag }}
 
-            Сверхбыстрый интерактивный TUI-терминал мониторинга и управления Docker, Compose, Swarm и хост-системами с нулевыми внешними зависимостями.
+            A fast interactive TUI for monitoring and managing host, Docker, Compose, and Swarm resources with no external runtime dependencies.
 
-            ### Что нового в ${{ steps.get_version.outputs.tag }}:
-            - **Расширенная карточка деталей контейнера**: Отображение IP-адреса и имени пользовательской сети (Bridge/Overlay/Compose) с поддержкой прямого Unix-сокета и CLI фоллбэка.
-            - **Статус аптайма и время создания**: Отображение времени непрерывной работы контейнера и точного времени создания/запуска (`Uptime / Started`).
-            - **Политика перезапуска (Restart Policy)**: Определение и цветовая индикация политики перезапуска контейнера (`always`, `unless-stopped`, `on-failure`, `no`) в карточке деталей и окне инспекции.
-            - **Эргономичное форматирование портов**: Автоматическая дедупликация IPv4 и IPv6 привязок портов (`0.0.0.0` и `[::]`) и наглядное стрелочное отображение маппинга (`0.0.0.0:8080 → 8080/tcp`).
-            - **Отказоустойчивое определение IP в сетях Compose**: Надежное извлечение IP-адресов при инспекции контейнеров, подключенных к изолированным пользовательским сетям.
+            ### What's new in ${{ steps.get_version.outputs.tag }}
+            - **Expanded container details card**: Displays the IP address and custom network name for Bridge, Overlay, and Compose networks through the Unix socket with a CLI fallback.
+            - **Uptime and creation time**: Displays container uptime and exact creation or start time (`Uptime / Started`).
+            - **Restart policy**: Detects and highlights `always`, `unless-stopped`, `on-failure`, and `no` policies in the details card and inspection modal.
+            - **Clear port formatting**: Deduplicates IPv4 and IPv6 bindings (`0.0.0.0` and `[::]`) and displays mappings as `0.0.0.0:8080 → 8080/tcp`.
+            - **Reliable Compose network IP detection**: Extracts IP addresses for containers attached to isolated custom networks.
 
-            ### Установка:
+            ### Installation
 
-            #### Debian / Ubuntu / Linux Mint (.deb):
+            #### Debian / Ubuntu / Linux Mint (.deb)
             ```bash
-            # Для x86_64 / amd64:
+            # x86_64 / amd64
             wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/dockpulse_${{ steps.get_version.outputs.version }}_amd64.deb
             sudo dpkg -i dockpulse_${{ steps.get_version.outputs.version }}_amd64.deb
 
-            # Для ARM64 (Raspberry Pi, ARM-серверы):
+            # ARM64 (Raspberry Pi and ARM servers)
             wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/dockpulse_${{ steps.get_version.outputs.version }}_arm64.deb
             sudo dpkg -i dockpulse_${{ steps.get_version.outputs.version }}_arm64.deb
             ```
 
-            #### Прямой запуск автономного бинарника Linux:
+            #### Run the standalone Linux binary
             ```bash
             tar -xzf dockpulse_${{ steps.get_version.outputs.tag }}_linux_amd64.tar.gz
             ./dockpulse

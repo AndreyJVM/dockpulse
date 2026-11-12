@@ -13,7 +13,7 @@ const (
 	containerStatsTimeout = 2 * time.Second
 )
 
-// ContainerStatsRaw описывает структуру ответа /containers/{id}/stats?stream=false от Docker Engine API.
+// ContainerStatsRaw represents the Docker Engine API container stats response.
 type ContainerStatsRaw struct {
 	CPUStats struct {
 		CPUUsage struct {
@@ -54,7 +54,7 @@ type ContainerStatsRaw struct {
 	} `json:"blkio_stats"`
 }
 
-// ContainerStats содержит вычисленные метрики контейнера (CPU, RAM, Net I/O, Block I/O).
+// ContainerStats contains calculated CPU, memory, network, and block I/O metrics.
 type ContainerStats struct {
 	CPUPerc         float64
 	MemUsageMB      float64
@@ -70,7 +70,7 @@ func calculateContainerStats(s ContainerStatsRaw) ContainerStats {
 	var stats ContainerStats
 	const mebiByte = 1024 * 1024
 
-	// Расчет загрузки CPU в процентах
+	// Calculate CPU usage as a percentage.
 	cpuDelta := float64(s.CPUStats.CPUUsage.TotalUsage) - float64(s.PreCPUStats.CPUUsage.TotalUsage)
 	systemDelta := float64(s.CPUStats.SystemCPUUsage) - float64(s.PreCPUStats.SystemCPUUsage)
 	onlineCPUs := s.CPUStats.OnlineCPUs
@@ -82,7 +82,7 @@ func calculateContainerStats(s ContainerStatsRaw) ContainerStats {
 		stats.CPUPerc = (cpuDelta / systemDelta) * float64(onlineCPUs) * 100.0
 	}
 
-	// Расчет потребления оперативной памяти
+	// Calculate memory usage.
 	memUsage := s.MemoryStats.Usage
 	if s.MemoryStats.Stats.TotalInactiveFile > 0 && memUsage > s.MemoryStats.Stats.TotalInactiveFile {
 		memUsage -= s.MemoryStats.Stats.TotalInactiveFile
@@ -96,7 +96,7 @@ func calculateContainerStats(s ContainerStatsRaw) ContainerStats {
 		stats.MemPerc = (float64(memUsage) / float64(s.MemoryStats.Limit)) * 100.0
 	}
 
-	// Расчет Network I/O
+	// Calculate network I/O.
 	if len(s.Networks) > 0 {
 		for _, net := range s.Networks {
 			stats.NetRxBytes += net.RxBytes
@@ -107,7 +107,7 @@ func calculateContainerStats(s ContainerStatsRaw) ContainerStats {
 		stats.NetTxBytes = s.Network.TxBytes
 	}
 
-	// Расчет Block I/O
+	// Calculate block I/O.
 	for _, bio := range s.BlkioStats.IOServiceBytesRecursive {
 		switch strings.ToLower(bio.Op) {
 		case "read":
@@ -143,7 +143,7 @@ func fetchContainerStats(client *http.Client, containerID string) ContainerStats
 	return calculateContainerStats(s)
 }
 
-// fetchContainerInspect запрашивает краткие метаданные инспекции контейнера через сокет.
+// fetchContainerInspect reads a compact set of container metadata through the socket.
 func fetchContainerInspect(client *http.Client, containerID string) (restartPolicy, startedAt string) {
 	ctx, cancel := context.WithTimeout(context.Background(), containerStatsTimeout)
 	defer cancel()

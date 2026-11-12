@@ -1,37 +1,37 @@
 ---
-name: Bug Report / Сообщение об ошибке
+name: Bug Report
 about: Report a bug or unexpected behavior in Dockpulse
 title: 'fix: '
 labels: 'bug'
 assignees: ''
 ---
 
-### Описание проблемы / Problem Description
+### Problem Description
 
-<!-- Краткое и ясное описание ошибки / A clear and concise description of the bug -->
+<!-- A clear and concise description of the bug. -->
 
-### Шаги для воспроизведения / Steps to Reproduce
+### Steps to Reproduce
 
-1. Запустить Dockpulse: `...`
-2. Нажать клавишу / открыть экран: `...`
-3. Увидеть ошибку / наблюдать некорректное поведение
+1. Start Dockpulse: `...`
+2. Press a key or open a screen: `...`
+3. Observe the error or unexpected behavior.
 
-### Ожидаемое поведение / Expected Behavior
+### Expected Behavior
 
-<!-- Что должно было произойти / What you expected to happen -->
+<!-- What you expected to happen. -->
 
-### Скриншоты или логи / Screenshots or Logs
+### Screenshots or Logs
 
-<!-- Если применимо, добавьте скриншот терминала или вывод логов -->
+<!-- Add a terminal screenshot or log output when applicable. -->
 
-### Окружение / Environment
+### Environment
 
-- **Dockpulse Version**: (например, `dockpulse --version` или `git rev-parse --short HEAD`)
-- **OS**: (например, `Ubuntu 24.04`, `Debian 12`, `macOS 14`)
-- **Terminal Emulator**: (например, `kitty`, `alacritty`, `gnome-terminal`, `tmux`)
-- **Docker Version**: (например, `Docker Engine 27.0.3`)
+- **Dockpulse Version**: (for example, `dockpulse --version` or `git rev-parse --short HEAD`)
+- **OS**: (for example, `Ubuntu 24.04` or `Debian 12`)
+- **Terminal Emulator**: (for example, `kitty`, `alacritty`, `gnome-terminal`, or `tmux`)
+- **Docker Version**: (for example, `Docker Engine 27.0.3`)
 - **Docker Mode**: (Standalone / Docker Compose / Docker Swarm)
 
-### Дополнительный контекст / Additional Context
+### Additional Context
 
-<!-- Любая дополнительная информация о проблеме -->
+<!-- Any other information about the problem. -->

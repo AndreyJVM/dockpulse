@@ -264,8 +264,8 @@ func TestPruneAll_Socket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(res, "контейнеров") || !strings.Contains(res, "образов") ||
-		!strings.Contains(res, "томов") || !strings.Contains(res, "Кэш сборки") {
+	if !strings.Contains(res, "containers") || !strings.Contains(res, "images") ||
+		!strings.Contains(res, "volumes") || !strings.Contains(res, "Build cache") {
 		t.Errorf("unexpected PruneAll result: %s", res)
 	}
 }
@@ -313,14 +313,14 @@ func TestPruneAll_CLIError(t *testing.T) {
 
 func TestFormatPruneCLIOutput(t *testing.T) {
 	outputWithReclaimed := "Deleted Containers:\nabc123\nTotal reclaimed space: 14.5MB"
-	res := formatPruneCLIOutput(outputWithReclaimed, "контейнеров")
-	if !strings.Contains(res, "14.5MB") || !strings.Contains(res, "контейнеров") {
+	res := formatPruneCLIOutput(outputWithReclaimed, "containers")
+	if !strings.Contains(res, "14.5MB") || !strings.Contains(res, "containers") {
 		t.Errorf("unexpected output: %s", res)
 	}
 
 	outputWithoutReclaimed := "Deleted Images: 0"
-	res2 := formatPruneCLIOutput(outputWithoutReclaimed, "образов")
-	if !strings.Contains(res2, "успешно выполнена") {
+	res2 := formatPruneCLIOutput(outputWithoutReclaimed, "images")
+	if !strings.Contains(res2, "successfully") {
 		t.Errorf("unexpected fallback output: %s", res2)
 	}
 }

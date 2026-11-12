@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AndreyJVM/dockpulse/internal/i18n"
 	"github.com/AndreyJVM/dockpulse/internal/tui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/term"
@@ -28,7 +27,6 @@ const (
 type config struct {
 	interval    time.Duration
 	initialTab  int
-	lang        string
 	showVersion bool
 }
 
@@ -45,26 +43,25 @@ var (
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
-		fmt.Fprintf(os.Stderr, "Ошибка: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 func printUsage(w io.Writer) {
 	fmt.Fprintf(w, "Dockpulse %s\n\n", version)
-	fmt.Fprintf(w, "Использование:\n")
-	fmt.Fprintf(w, "  dockpulse [опции]\n\n")
-	fmt.Fprintf(w, "Опции:\n")
-	fmt.Fprintf(w, "  -i, --interval <duration>  Интервал автообновления (по умолчанию: %v, env: DOCKPULSE_INTERVAL)\n", defaultInterval)
-	fmt.Fprintf(w, "  -t, --tab <1-4|name>       Начальная вкладка: 1|host, 2|docker, 3|compose, 4|swarm (по умолчанию: %d, env: DOCKPULSE_TAB)\n", defaultTab)
-	fmt.Fprintf(w, "  -l, --lang <en|ru>         Язык интерфейса: en или ru (по умолчанию: автоопределение, env: DOCKPULSE_LANG)\n")
-	fmt.Fprintf(w, "  -v, --version              Показать версию\n")
-	fmt.Fprintf(w, "  -h, --help                 Показать эту справку\n\n")
-	fmt.Fprintf(w, "Управление в TUI:\n")
-	fmt.Fprintf(w, "  1..4, Tab, ←/→             Переключение вкладок\n")
-	fmt.Fprintf(w, "  r, R                       Принудительное обновление данных\n")
-	fmt.Fprintf(w, "  ?                          Окно подсказок горячих клавиш\n")
-	fmt.Fprintf(w, "  q, Esc, Ctrl+C             Выход из приложения\n")
+	fmt.Fprintf(w, "Usage:\n")
+	fmt.Fprintf(w, "  dockpulse [options]\n\n")
+	fmt.Fprintf(w, "Options:\n")
+	fmt.Fprintf(w, "  -i, --interval <duration>  Auto-refresh interval (default: %v, env: DOCKPULSE_INTERVAL)\n", defaultInterval)
+	fmt.Fprintf(w, "  -t, --tab <1-4|name>       Initial tab: 1|host, 2|docker, 3|compose, 4|swarm (default: %d, env: DOCKPULSE_TAB)\n", defaultTab)
+	fmt.Fprintf(w, "  -v, --version              Show version\n")
+	fmt.Fprintf(w, "  -h, --help                 Show this help\n\n")
+	fmt.Fprintf(w, "TUI controls:\n")
+	fmt.Fprintf(w, "  1..4, Tab, ←/→             Switch tabs\n")
+	fmt.Fprintf(w, "  r, R                       Refresh data immediately\n")
+	fmt.Fprintf(w, "  ?                          Show keyboard shortcuts\n")
+	fmt.Fprintf(w, "  q, Esc, Ctrl+C             Quit\n")
 }
 
 func parseFlags(args []string, stdout, stderr io.Writer) (*config, error) {
@@ -80,8 +77,6 @@ func parseFlags(args []string, stdout, stderr io.Writer) (*config, error) {
 		tabDefault = envTab
 	}
 
-	langDefault := os.Getenv("DOCKPULSE_LANG")
-
 	var tabFlag string
 	cfg := &config{
 		interval:   intervalDefault,
@@ -94,21 +89,19 @@ func parseFlags(args []string, stdout, stderr io.Writer) (*config, error) {
 		printUsage(stdout)
 	}
 
-	flags.DurationVar(&cfg.interval, "interval", intervalDefault, "Интервал обновления метрик (например, 1s, 2s, 500ms)")
-	flags.DurationVar(&cfg.interval, "i", intervalDefault, "Интервал обновления (короткий флаг)")
-	flags.StringVar(&tabFlag, "tab", tabDefault, "Начальная вкладка: 1|host, 2|docker, 3|compose, 4|swarm")
-	flags.StringVar(&tabFlag, "t", tabDefault, "Начальная вкладка (короткий флаг)")
-	flags.StringVar(&cfg.lang, "lang", langDefault, "Язык интерфейса: en или ru (по умолчанию: автоопределение)")
-	flags.StringVar(&cfg.lang, "l", langDefault, "Язык интерфейса (короткий флаг)")
-	flags.BoolVar(&cfg.showVersion, "version", false, "Показать версию программы")
-	flags.BoolVar(&cfg.showVersion, "v", false, "Показать версию (короткий флаг)")
+	flags.DurationVar(&cfg.interval, "interval", intervalDefault, "Metrics refresh interval (for example: 1s, 2s, 500ms)")
+	flags.DurationVar(&cfg.interval, "i", intervalDefault, "Metrics refresh interval (short flag)")
+	flags.StringVar(&tabFlag, "tab", tabDefault, "Initial tab: 1|host, 2|docker, 3|compose, 4|swarm")
+	flags.StringVar(&tabFlag, "t", tabDefault, "Initial tab (short flag)")
+	flags.BoolVar(&cfg.showVersion, "version", false, "Show version")
+	flags.BoolVar(&cfg.showVersion, "v", false, "Show version (short flag)")
 
 	if err := flags.Parse(args); err != nil {
 		return nil, err
 	}
 
 	if len(flags.Args()) > 0 {
-		return nil, fmt.Errorf("неизвестные позиционные аргументы: %s", strings.Join(flags.Args(), " "))
+		return nil, fmt.Errorf("unknown positional arguments: %s", strings.Join(flags.Args(), " "))
 	}
 
 	tab, err := parseTab(tabFlag)
@@ -131,19 +124,16 @@ func parseTab(val string) (int, error) {
 	case "4", "swarm":
 		return 4, nil
 	default:
-		return 0, fmt.Errorf("недопустимая начальная вкладка: %q (допустимы: 1|host, 2|docker, 3|compose, 4|swarm)", val)
+		return 0, fmt.Errorf("invalid initial tab: %q (allowed: 1|host, 2|docker, 3|compose, 4|swarm)", val)
 	}
 }
 
 func validateConfig(cfg *config) error {
 	if cfg.interval < minInterval {
-		return fmt.Errorf("интервал обновления должен быть не менее %v (передано: %v)", minInterval, cfg.interval)
+		return fmt.Errorf("refresh interval must be at least %v (got: %v)", minInterval, cfg.interval)
 	}
 	if cfg.initialTab < 1 || cfg.initialTab > 4 {
-		return fmt.Errorf("начальная вкладка должна быть в диапазоне от 1 до 4 (передано: %d)", cfg.initialTab)
-	}
-	if cfg.lang != "" && cfg.lang != "en" && cfg.lang != "ru" {
-		return fmt.Errorf("неподдерживаемый язык: %s (допустимы: en, ru)", cfg.lang)
+		return fmt.Errorf("initial tab must be between 1 and 4 (got: %d)", cfg.initialTab)
 	}
 	return nil
 }
@@ -167,13 +157,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 
 	if !isTerminal(os.Stdin.Fd()) || !isTerminal(os.Stdout.Fd()) {
-		return errors.New("dockpulse требует интерактивного терминала (TTY)")
+		return errors.New("dockpulse requires an interactive terminal (TTY)")
 	}
 
-	if cfg.lang == "" {
-		cfg.lang = i18n.DetectLanguage()
-	}
-
-	model := tui.NewModel(cfg.interval, cfg.initialTab, version, cfg.lang)
+	model := tui.NewModel(cfg.interval, cfg.initialTab, version)
 	return runProgram(model)
 }

@@ -185,7 +185,7 @@ func GetDockerDiskUsage() (DockerDiskUsage, error) {
 		return usage, nil
 	}
 
-	return DockerDiskUsage{}, fmt.Errorf("служба Docker недоступна")
+	return DockerDiskUsage{}, fmt.Errorf("Docker service is unavailable")
 }
 
 func parseCLIInt(s string) int {

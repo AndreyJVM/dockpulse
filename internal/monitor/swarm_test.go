@@ -34,8 +34,8 @@ func TestParseSwarmInfo(t *testing.T) {
 	if !summary.IsActive {
 		t.Errorf("expected IsActive=true")
 	}
-	if summary.StatusDisplay != "Активен" {
-		t.Errorf("expected StatusDisplay 'Активен', got '%s'", summary.StatusDisplay)
+	if summary.StatusDisplay != "Active" {
+		t.Errorf("expected StatusDisplay Active, got %q", summary.StatusDisplay)
 	}
 	if summary.NodeID != "2468135790ab" {
 		t.Errorf("expected truncated NodeID '2468135790ab', got '%s'", summary.NodeID)
@@ -242,7 +242,7 @@ func TestParseSwarmServices(t *testing.T) {
 	]`)
 
 	svcTasks := map[string]int{
-		"svc1234567890abcdef":  3,
+		"svc1234567890abcdef":   3,
 		"svcGlobal9876543210fe": 2,
 	}
 
@@ -429,7 +429,7 @@ func TestGetSwarmSummary_SocketActive(t *testing.T) {
 	if summary.NodesCount != 3 || len(summary.Nodes) != 1 || len(summary.Services) != 1 {
 		t.Errorf("unexpected counts: nodes=%d, services=%d", len(summary.Nodes), len(summary.Services))
 	}
-	if !strings.Contains(summary.Text, "3 нод") {
+	if !strings.Contains(summary.Text, "3 nodes") {
 		t.Errorf("unexpected summary text: %s", summary.Text)
 	}
 }
@@ -473,7 +473,7 @@ func TestGetSwarmSummary_CLIFallback_Inactive(t *testing.T) {
 	if summary.IsActive {
 		t.Errorf("expected inactive Swarm summary from CLI")
 	}
-	if !strings.Contains(summary.Text, "не активирован") {
+	if !strings.Contains(summary.Text, "not active") {
 		t.Errorf("expected inactive text, got %q", summary.Text)
 	}
 }

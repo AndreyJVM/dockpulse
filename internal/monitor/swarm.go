@@ -15,9 +15,9 @@ const (
 	swarmTimeout        = 5 * time.Second
 	defaultSwarmTail    = 100
 	swarmIDTruncateLen  = 12
-	swarmStatusActive   = "Активен"
-	swarmStatusInactive = "Не активен"
-	swarmTextInactive   = "Docker Swarm не активирован"
+	swarmStatusActive   = "Active"
+	swarmStatusInactive = "Inactive"
+	swarmTextInactive   = "Docker Swarm is not active"
 )
 
 // SwarmNode represents a single cluster node in Docker Swarm.
@@ -323,7 +323,7 @@ func fetchSwarmSummaryViaSocket(sockPath string, summary *SwarmSummary) bool {
 	svcTasks, nodeTasks := parseSwarmTasks(tasksBody)
 	summary.Nodes = parseSwarmNodes(nodesBody, nodeTasks)
 	summary.Services = parseSwarmServices(servicesBody, svcTasks)
-	summary.Text = fmt.Sprintf("Кластер Swarm: %d нод (%d менеджеров), %d служб", summary.NodesCount, summary.ManagersCount, len(summary.Services))
+	summary.Text = fmt.Sprintf("Swarm cluster: %d nodes (%d managers), %d services", summary.NodesCount, summary.ManagersCount, len(summary.Services))
 	return true
 }
 
@@ -356,9 +356,9 @@ func fetchSwarmSummaryViaCLI(summary *SwarmSummary) {
 	}
 
 	if len(summary.Services) > 0 {
-		summary.Text = fmt.Sprintf("Кластер Swarm: %d нод (%d менеджеров), %d служб", summary.NodesCount, summary.ManagersCount, len(summary.Services))
+		summary.Text = fmt.Sprintf("Swarm cluster: %d nodes (%d managers), %d services", summary.NodesCount, summary.ManagersCount, len(summary.Services))
 	} else {
-		summary.Text = fmt.Sprintf("Кластер Swarm: %d нод (%d менеджеров)", nodes, managers)
+		summary.Text = fmt.Sprintf("Swarm cluster: %d nodes (%d managers)", nodes, managers)
 	}
 }
 

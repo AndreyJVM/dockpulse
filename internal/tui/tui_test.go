@@ -94,14 +94,14 @@ func TestRenderAllTabs(t *testing.T) {
 	// Render Tab 1: Host
 	m.activeTab = 1
 	v1 := m.View()
-	if !strings.Contains(v1, "СИСТЕМНАЯ ИНФОРМАЦИЯ") {
+	if !strings.Contains(v1, "SYSTEM INFORMATION") {
 		t.Errorf("expected Host tab header in View()")
 	}
 
 	// Render Tab 2: Docker
 	m.activeTab = 2
 	v2 := m.View()
-	if !strings.Contains(v2, "DOCKER КОНТЕЙНЕРЫ") {
+	if !strings.Contains(v2, "DOCKER CONTAINERS") {
 		t.Errorf("expected Docker tab header in View()")
 	}
 
@@ -122,7 +122,7 @@ func TestRenderAllTabs(t *testing.T) {
 	// Render Help modal
 	m.showHelp = true
 	vHelp := m.View()
-	if !strings.Contains(vHelp, "ГОРЯЧИЕ КЛАВИШИ") {
+	if !strings.Contains(vHelp, "HOTKEYS") {
 		t.Errorf("expected Help modal in View()")
 	}
 }

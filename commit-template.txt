@@ -1,9 +1,9 @@
-# dockpulse: Краткое описание изменений
+# dockpulse: Brief summary of changes
 #
 # Version: X.Y.Z
 # Type: bugfix|feature|release
 #
-# Подробное описание:
-# - Что было изменено
-# - Почему
-# - Какие проблемы решает
+# Details:
+# - What changed
+# - Why it changed
+# - Which problems it solves

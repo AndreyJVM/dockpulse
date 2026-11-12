@@ -27,9 +27,9 @@ func (m Model) formatDockerStatus(status string) string {
 		return m.i18n.StatusNotInstalled
 	default:
 		switch m.dockerInfo.StatusDisplay {
-		case monitor.DockerStatusDisplayRunning, "[Запущен]", "running", "Running":
+		case monitor.DockerStatusDisplayRunning, "running":
 			return m.i18n.StatusRunning
-		case monitor.DockerStatusDisplayStopped, "stopped", "Stopped":
+		case monitor.DockerStatusDisplayStopped, "stopped":
 			return m.i18n.StatusStopped
 		case monitor.DockerStatusDisplayNotInstalled, "not_installed":
 			return m.i18n.StatusNotInstalled
@@ -55,11 +55,11 @@ func (m Model) formatComposeStatus(status, statusDisplay string) string {
 		return m.i18n.StatusStopped
 	default:
 		switch statusDisplay {
-		case monitor.StatusDisplayRunning, "[Запущен]", "running", "Running":
+		case monitor.StatusDisplayRunning, "running":
 			return m.i18n.StatusRunning
-		case monitor.StatusDisplayPartial, "partial", "Partial":
+		case monitor.StatusDisplayPartial, "partial":
 			return m.i18n.StatusPartial
-		case monitor.StatusDisplayStopped, "stopped", "Stopped":
+		case monitor.StatusDisplayStopped, "stopped":
 			return m.i18n.StatusStopped
 		default:
 			if statusDisplay != "" {

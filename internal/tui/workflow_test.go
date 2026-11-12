@@ -21,7 +21,7 @@ func TestInspectModalHealthBadge(t *testing.T) {
 	}
 
 	view := m.View()
-	if !strings.Contains(view, "Здоровье:") || !strings.Contains(view, "[healthy]") {
+	if !strings.Contains(view, "Health:") || !strings.Contains(view, "[healthy]") {
 		t.Errorf("expected health badge in inspect modal view, got: %s", view)
 	}
 
@@ -42,8 +42,8 @@ func TestInspectModalHealthBadge(t *testing.T) {
 	// Test no health configured
 	m.inspectTarget.Health = ""
 	view = m.View()
-	if !strings.Contains(view, "Здоровье:") {
-		t.Errorf("expected 'Здоровье:' line even if health is empty, got: %s", view)
+	if !strings.Contains(view, "Health:") {
+		t.Errorf("expected Health line even if health is empty, got: %s", view)
 	}
 }
 
@@ -61,10 +61,10 @@ func TestPruneModalAndWorkflow(t *testing.T) {
 
 	// 2. View in menu state
 	view := m.View()
-	if !strings.Contains(view, "ОЧИСТКА РЕСУРСОВ DOCKER") {
+	if !strings.Contains(view, "DOCKER RESOURCE PRUNE") {
 		t.Errorf("expected prune modal header in view, got: %s", view)
 	}
-	if !strings.Contains(view, "Очистить остановленные контейнеры") {
+	if !strings.Contains(view, "Prune stopped containers") {
 		t.Errorf("expected menu item 1 in view, got: %s", view)
 	}
 	if !strings.Contains(view, "[1-4]") {
@@ -78,7 +78,7 @@ func TestPruneModalAndWorkflow(t *testing.T) {
 		t.Errorf("expected pruneConfirm to be 1, got %d", m.pruneConfirm)
 	}
 	confirmView := m.View()
-	if !strings.Contains(confirmView, "Удаление всех остановленных контейнеров") {
+	if !strings.Contains(confirmView, "Remove all stopped containers") {
 		t.Errorf("expected confirmation prompt in view, got: %s", confirmView)
 	}
 	if !strings.Contains(confirmView, "[Y]") {
@@ -129,20 +129,20 @@ func TestPruneModalAndWorkflow(t *testing.T) {
 	m.activeTab = 2
 	m.activeModal = ""
 	tab2View := m.View()
-	if !strings.Contains(tab2View, "[C]") || !strings.Contains(tab2View, "Очистка") {
-		t.Errorf("expected [C] Очистка in tab 2 footer, got: %s", tab2View)
+	if !strings.Contains(tab2View, "[C]") || !strings.Contains(tab2View, "Prune") {
+		t.Errorf("expected [C] Prune in tab 2 footer, got: %s", tab2View)
 	}
 
 	m.activeTab = 3
 	tab3View := m.View()
-	if !strings.Contains(tab3View, "[C]") || !strings.Contains(tab3View, "Очистка") {
-		t.Errorf("expected [C] Очистка in tab 3 footer, got: %s", tab3View)
+	if !strings.Contains(tab3View, "[C]") || !strings.Contains(tab3View, "Prune") {
+		t.Errorf("expected [C] Prune in tab 3 footer, got: %s", tab3View)
 	}
 
 	// 9. Check help box hint
 	m.showHelp = true
 	helpView := m.View()
-	if !strings.Contains(helpView, "[C]") || !strings.Contains(helpView, "Очистка неиспользуемых ресурсов Docker") {
+	if !strings.Contains(helpView, "[C]") || !strings.Contains(helpView, "Prune unused Docker resources") {
 		t.Errorf("expected [C] hint in help view, got: %s", helpView)
 	}
 }

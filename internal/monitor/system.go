@@ -144,7 +144,7 @@ func formatUptime(uptimeSec uint64) string {
 	minutes := (uptimeSec % secondsPerHour) / secondsPerMinute
 
 	if days > 0 {
-		return fmt.Sprintf("%d дн %02d:%02d", days, hours, minutes)
+		return fmt.Sprintf("%dd %02d:%02d", days, hours, minutes)
 	}
 	return fmt.Sprintf("%02d:%02d", hours, minutes)
 }

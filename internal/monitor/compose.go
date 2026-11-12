@@ -17,9 +17,9 @@ const (
 	StatusStopped = "stopped"
 
 	// Localized status displays
-	StatusDisplayRunning = "Запущен"
-	StatusDisplayPartial = "Частично"
-	StatusDisplayStopped = "Остановлен"
+	StatusDisplayRunning = "Running"
+	StatusDisplayPartial = "Partial"
+	StatusDisplayStopped = "Stopped"
 
 	// Action names for Compose CLI commands
 	ActionRestart = "restart"
@@ -32,7 +32,7 @@ const (
 	minPerContainerTail    = 20
 	composeLogsTimeout     = 5 * time.Second
 	composeRestartTimeout  = 30 * time.Second
-	emptyProjectLogsNotice = "Логи сервисов проекта пусты или сервисы не выводили сообщений."
+	emptyProjectLogsNotice = "Project service logs are empty or the services produced no output."
 	containerStateRunning  = "running"
 )
 
@@ -192,7 +192,7 @@ func GetComposeProjectLogs(projectName string, containers []ContainerItem, tailL
 	// 2. Fallback: fetch logs concurrently across identified project containers
 	projectContainers := filterContainersByProject(containers, projectName)
 	if len(projectContainers) == 0 {
-		return "", fmt.Errorf("контейнеры проекта %q не найдены", projectName)
+		return "", fmt.Errorf("containers for project %q were not found", projectName)
 	}
 
 	perContainerTail := tailLines / len(projectContainers)
@@ -244,7 +244,7 @@ func GetComposeProjectLogs(projectName string, containers []ContainerItem, tailL
 func executeComposeProjectAction(projectName, actionName string, containers []ContainerItem, fallbackFn func(id string) error) error {
 	projectContainers := filterContainersByProject(containers, projectName)
 	if len(projectContainers) == 0 {
-		return fmt.Errorf("не найдено контейнеров для проекта %q", projectName)
+		return fmt.Errorf("no containers found for project %q", projectName)
 	}
 
 	// 1. Attempt via Docker Compose CLI
@@ -280,17 +280,17 @@ func executeComposeProjectAction(projectName, actionName string, containers []Co
 		var actionTitle string
 		switch actionName {
 		case ActionRestart:
-			actionTitle = "перезапуска"
+			actionTitle = "restart"
 		case ActionStop:
-			actionTitle = "остановки"
+			actionTitle = "stop"
 		case ActionStart:
-			actionTitle = "запуска"
+			actionTitle = "start"
 		case ActionDown:
-			actionTitle = "сворачивания (down)"
+			actionTitle = "down"
 		default:
 			actionTitle = actionName
 		}
-		return fmt.Errorf("ошибки %s: %s", actionTitle, strings.Join(errs, "; "))
+		return fmt.Errorf("%s errors: %s", actionTitle, strings.Join(errs, "; "))
 	}
 	return nil
 }

@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// GetContainerLogs читает последние N строк логов контейнера.
+// GetContainerLogs reads the latest log lines from a container.
 func GetContainerLogs(containerID string, tailLines int) (string, error) {
 	if strings.TrimSpace(containerID) == "" {
 		return "", fmt.Errorf("container ID cannot be empty")
@@ -41,7 +41,7 @@ func GetContainerLogs(containerID string, tailLines int) (string, error) {
 	return string(out), nil
 }
 
-// demuxDockerLogs разбирает мультиплексированный стрим логов Docker Engine API (8-байтный заголовок каждого фрейма).
+// demuxDockerLogs decodes the Docker Engine API multiplexed stream with an 8-byte frame header.
 func demuxDockerLogs(r io.Reader) string {
 	all, err := io.ReadAll(r)
 	if err != nil || len(all) == 0 {

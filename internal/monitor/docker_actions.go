@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// containerAction выполняет стандартное действие жизненного цикла контейнера через сокет с фоллбэком на CLI.
+// containerAction performs a container lifecycle action through the socket with a CLI fallback.
 func containerAction(containerID, action string, validCodes ...int) error {
 	if strings.TrimSpace(containerID) == "" {
 		return fmt.Errorf("container ID cannot be empty")
@@ -41,27 +41,27 @@ func containerAction(containerID, action string, validCodes ...int) error {
 	return nil
 }
 
-// StartContainer запускает контейнер по ID.
+// StartContainer starts a container by ID.
 func StartContainer(containerID string) error {
 	return containerAction(containerID, "start", http.StatusNoContent, http.StatusNotModified)
 }
 
-// StopContainer останавливает контейнер по ID.
+// StopContainer stops a container by ID.
 func StopContainer(containerID string) error {
 	return containerAction(containerID, "stop", http.StatusNoContent, http.StatusNotModified)
 }
 
-// RestartContainer перезапускает контейнер по ID.
+// RestartContainer restarts a container by ID.
 func RestartContainer(containerID string) error {
 	return containerAction(containerID, "restart", http.StatusNoContent)
 }
 
-// KillContainer принудительно завершает контейнер по ID (SIGKILL).
+// KillContainer terminates a container by ID with SIGKILL.
 func KillContainer(containerID string) error {
 	return containerAction(containerID, "kill", http.StatusNoContent)
 }
 
-// RemoveContainer удаляет контейнер по ID (с флагом force=true).
+// RemoveContainer force-removes a container by ID.
 func RemoveContainer(containerID string) error {
 	if strings.TrimSpace(containerID) == "" {
 		return fmt.Errorf("container ID cannot be empty")

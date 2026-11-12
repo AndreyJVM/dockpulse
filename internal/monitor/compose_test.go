@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
-	"sync"
 )
 
 func TestGetComposeProjects(t *testing.T) {
@@ -78,9 +78,9 @@ func TestGetComposeProjects(t *testing.T) {
 			total         int
 			running       int
 		}{
-			"alpha-stack": {status: "running", statusDisplay: "Запущен", total: 2, running: 2},
-			"beta-stack":  {status: "partial", statusDisplay: "Частично", total: 2, running: 1},
-			"gamma-stack": {status: "stopped", statusDisplay: "Остановлен", total: 2, running: 0},
+			"alpha-stack": {status: "running", statusDisplay: "Running", total: 2, running: 2},
+			"beta-stack":  {status: "partial", statusDisplay: "Partial", total: 2, running: 1},
+			"gamma-stack": {status: "stopped", statusDisplay: "Stopped", total: 2, running: 0},
 		}
 
 		for _, p := range projects {
@@ -184,7 +184,7 @@ func TestGetComposeProjectLogs(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error for non-existent project, got nil")
 		}
-		if !strings.Contains(err.Error(), "не найдены") {
+		if !strings.Contains(err.Error(), "were not found") {
 			t.Errorf("unexpected error message: %v", err)
 		}
 	})
@@ -202,7 +202,7 @@ func TestGetComposeProjectLogs(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if !strings.Contains(logs, "Логи сервисов проекта пусты") && !strings.Contains(logs, "web-1") {
+		if !strings.Contains(logs, "Project service logs are empty") && !strings.Contains(logs, "web-1") {
 			t.Errorf("expected fallback log message, got: %q", logs)
 		}
 	})
@@ -233,7 +233,7 @@ func TestRestartComposeProject(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error for non-existent project, got nil")
 		}
-		if !strings.Contains(err.Error(), "не найдено контейнеров") {
+		if !strings.Contains(err.Error(), "no containers found") {
 			t.Errorf("unexpected error message: %v", err)
 		}
 	})
@@ -273,8 +273,8 @@ func TestRestartComposeProject(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error when restarting non-existent container ID, got nil")
 		}
-		if !strings.Contains(err.Error(), "ошибки перезапуска") {
-			t.Errorf("expected 'ошибки перезапуска' in error message, got: %v", err)
+		if !strings.Contains(err.Error(), "restart errors") {
+			t.Errorf("expected restart errors in error message, got: %v", err)
 		}
 	})
 }
@@ -322,8 +322,8 @@ func TestStopComposeProject(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error when stopping non-existent container ID, got nil")
 		}
-		if !strings.Contains(err.Error(), "ошибки остановки") {
-			t.Errorf("expected 'ошибки остановки' in error message, got: %v", err)
+		if !strings.Contains(err.Error(), "stop errors") {
+			t.Errorf("expected stop errors in error message, got: %v", err)
 		}
 	})
 }
@@ -371,8 +371,8 @@ func TestStartComposeProject(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error when starting non-existent container ID, got nil")
 		}
-		if !strings.Contains(err.Error(), "ошибки запуска") {
-			t.Errorf("expected 'ошибки запуска' in error message, got: %v", err)
+		if !strings.Contains(err.Error(), "start errors") {
+			t.Errorf("expected start errors in error message, got: %v", err)
 		}
 	})
 }
@@ -420,8 +420,8 @@ func TestDownComposeProject(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error when downing non-existent container ID, got nil")
 		}
-		if !strings.Contains(err.Error(), "ошибки сворачивания (down)") {
-			t.Errorf("expected 'ошибки сворачивания (down)' in error message, got: %v", err)
+		if !strings.Contains(err.Error(), "down errors") {
+			t.Errorf("expected down errors in error message, got: %v", err)
 		}
 	})
 }
@@ -478,8 +478,8 @@ func TestExecuteComposeProjectAction_CustomActionTitle(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	if !strings.Contains(err.Error(), "ошибки pause") {
-		t.Errorf("expected 'ошибки pause' in error message, got: %v", err)
+	if !strings.Contains(err.Error(), "pause errors") {
+		t.Errorf("expected pause errors in error message, got: %v", err)
 	}
 }
 
@@ -535,4 +535,3 @@ func TestComposeCommandRunner_Execution(_ *testing.T) {
 	// Should not crash when executed
 	_, _ = composeCommandRunner(ctx, "version")
 }
-

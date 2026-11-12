@@ -13,7 +13,7 @@ func TestSwarmTabNavigationAndLogs(t *testing.T) {
 	m := NewModel(2*time.Second, 4, "v0.4.1")
 	m.swarm = monitor.SwarmSummary{
 		IsActive:      true,
-		StatusDisplay: "Активен",
+		StatusDisplay: "Active",
 		NodesCount:    3,
 		ManagersCount: 1,
 		Services: []monitor.SwarmService{
@@ -63,7 +63,7 @@ func TestSwarmTabNavigationAndLogs(t *testing.T) {
 	if !strings.Contains(view, "► ") {
 		t.Errorf("expected cursor marker '► ' in swarm tab view")
 	}
-	if !strings.Contains(view, "Выбрать службу") || !strings.Contains(view, "Логи службы") {
+	if !strings.Contains(view, "Select service") || !strings.Contains(view, "Service logs") {
 		t.Errorf("expected swarm footer hints in View(), got: %s", view)
 	}
 
