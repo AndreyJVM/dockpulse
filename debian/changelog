@@ -1,3 +1,14 @@
+dockpulse (0.8.0) unstable; urgency=medium
+
+  * Version 0.8.0 release:
+    - Removed Russian localization and locale auto-detection
+    - Standardized the UI, CLI, diagnostics, and documentation on English
+    - Removed --lang, -l, and DOCKPULSE_LANG support as a breaking change
+    - Refactored TUI and monitor modules with more reliable Docker-free tests
+    - Updated static Linux builds, contribution tooling, and GitHub Actions
+
+ -- Andrey Vorobev <Andrey.Vorobev.AQA@gmail.com>  Thu, 12 Nov 2026 16:29:59 +0300
+
 dockpulse (0.7.4) unstable; urgency=medium
 
   * Version 0.7.4 release:

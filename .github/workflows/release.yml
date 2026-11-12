@@ -115,11 +115,11 @@ jobs:
             A fast interactive TUI for monitoring and managing host, Docker, Compose, and Swarm resources with no external runtime dependencies.
 
             ### What's new in ${{ steps.get_version.outputs.tag }}
-            - **Expanded container details card**: Displays the IP address and custom network name for Bridge, Overlay, and Compose networks through the Unix socket with a CLI fallback.
-            - **Uptime and creation time**: Displays container uptime and exact creation or start time (`Uptime / Started`).
-            - **Restart policy**: Detects and highlights `always`, `unless-stopped`, `on-failure`, and `no` policies in the details card and inspection modal.
-            - **Clear port formatting**: Deduplicates IPv4 and IPv6 bindings (`0.0.0.0` and `[::]`) and displays mappings as `0.0.0.0:8080 → 8080/tcp`.
-            - **Reliable Compose network IP detection**: Extracts IP addresses for containers attached to isolated custom networks.
+            - **English-only interface**: Standardizes the TUI, CLI, diagnostics, documentation, and repository templates on English.
+            - **Breaking language configuration change**: Removes `--lang`, `-l`, `DOCKPULSE_LANG`, locale auto-detection, and the Russian text catalog.
+            - **Cleaner architecture**: Decomposes Docker, Compose, Swarm, TUI update, and message handling into focused modules.
+            - **More reliable tests**: Keeps the suite deterministic on systems without a Docker CLI and adds English-only regression coverage.
+            - **Release maintenance**: Updates static Linux builds, contribution tooling, Dependabot configuration, and GitHub Actions.
 
             ### Installation
 
