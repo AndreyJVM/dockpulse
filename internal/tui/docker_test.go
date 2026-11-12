@@ -11,7 +11,7 @@ import (
 )
 
 func TestContainerCursorAndModals(t *testing.T) {
-	m := NewModel(2*time.Second, 2, "v0.4.1")
+	m := NewModel(2*time.Second, 1, "v0.4.1")
 
 	// Populate dummy containers
 	m.dockerInfo.Containers = []monitor.ContainerItem{
@@ -106,7 +106,7 @@ func TestContainerCursorAndModals(t *testing.T) {
 }
 
 func TestFilterContainers(t *testing.T) {
-	m := NewModel(2*time.Second, 2, "v0.4.1")
+	m := NewModel(2*time.Second, 1, "v0.4.1")
 	m.dockerInfo.Containers = []monitor.ContainerItem{
 		{ID: "c1", Name: "web-gateway", Image: "nginx:alpine", ComposeProject: "infra"},
 		{ID: "c2", Name: "db-postgres", Image: "postgres:16", ComposeProject: "backend"},
@@ -155,7 +155,7 @@ func TestFilterContainers(t *testing.T) {
 }
 
 func TestFilterModeKeys(t *testing.T) {
-	m := NewModel(2*time.Second, 2, "v0.4.1")
+	m := NewModel(2*time.Second, 1, "v0.4.1")
 	m.dockerInfo.Containers = []monitor.ContainerItem{
 		{ID: "c1", Name: "web", Image: "nginx"},
 		{ID: "c2", Name: "worker", Image: "app"},
@@ -206,8 +206,8 @@ func TestFilterModeKeys(t *testing.T) {
 }
 
 func TestRenderDockerTabFilteringView(t *testing.T) {
-	m := NewModel(2*time.Second, 2, "v0.4.1")
-	m.activeTab = 2
+	m := NewModel(2*time.Second, 1, "v0.4.1")
+	m.activeTab = 1
 	m.dockerInfo.Containers = []monitor.ContainerItem{
 		{ID: "c1", Name: "alpha", Image: "alpine"},
 	}
@@ -236,8 +236,8 @@ func TestRenderDockerTabFilteringView(t *testing.T) {
 }
 
 func TestDockerTabHealthBadges(t *testing.T) {
-	m := NewModel(2*time.Second, 2, "v0.4.1")
-	m.activeTab = 2
+	m := NewModel(2*time.Second, 1, "v0.4.1")
+	m.activeTab = 1
 	m.dockerInfo.Containers = []monitor.ContainerItem{
 		{ID: "c1", Name: "healthy-app", Image: "nginx", State: "running", Health: "healthy"},
 		{ID: "c2", Name: "broken-app", Image: "postgres", State: "running", Health: "unhealthy"},
@@ -261,8 +261,8 @@ func TestDockerTabHealthBadges(t *testing.T) {
 }
 
 func TestDockerTabSelectedContainerDetails(t *testing.T) {
-	m := NewModel(2*time.Second, 2, "v0.6.2")
-	m.activeTab = 2
+	m := NewModel(2*time.Second, 1, "v0.6.2")
+	m.activeTab = 1
 	m.dockerInfo.Containers = []monitor.ContainerItem{
 		{
 			ID:              "abcdef123456",
@@ -315,7 +315,7 @@ func TestDockerTabSelectedContainerDetails(t *testing.T) {
 }
 
 func TestFilterContainersByHealth(t *testing.T) {
-	m := NewModel(2*time.Second, 2, "v0.4.1")
+	m := NewModel(2*time.Second, 1, "v0.4.1")
 	m.dockerInfo.Containers = []monitor.ContainerItem{
 		{ID: "c1", Name: "web", Image: "nginx", Health: "healthy"},
 		{ID: "c2", Name: "db", Image: "postgres", Health: "unhealthy"},
@@ -339,7 +339,7 @@ func TestFilterContainersByHealth(t *testing.T) {
 func TestContainerExecHotkeysAndMessages(t *testing.T) {
 	// Test when Docker CLI is not available
 	restoreUnavailable := monitor.SetDockerCLIAvailableCheckerForTesting(func() bool { return false })
-	mUnavailable := NewModel(2*time.Second, 2, "v0.5.0")
+	mUnavailable := NewModel(2*time.Second, 1, "v0.5.0")
 	mUnavailable.dockerInfo = monitor.DockerSummary{
 		Status:        "running",
 		StatusDisplay: "Running",
@@ -359,7 +359,7 @@ func TestContainerExecHotkeysAndMessages(t *testing.T) {
 	restoreAvailable := monitor.SetDockerCLIAvailableCheckerForTesting(func() bool { return true })
 	defer restoreAvailable()
 
-	m := NewModel(2*time.Second, 2, "v0.5.0")
+	m := NewModel(2*time.Second, 1, "v0.5.0")
 	m.dockerInfo = monitor.DockerSummary{
 		Status:        "running",
 		StatusDisplay: "Running",
@@ -427,8 +427,8 @@ func TestContainerExecHotkeysAndMessages(t *testing.T) {
 }
 
 func TestContainerSorting(t *testing.T) {
-	m := NewModel(2*time.Second, 2, "v0.6.3")
-	m.activeTab = 2
+	m := NewModel(2*time.Second, 1, "v0.6.3")
+	m.activeTab = 1
 	m.dockerInfo.Containers = []monitor.ContainerItem{
 		{ID: "c1", Name: "zeta-app", State: "running", CPUPerc: 10.0, MemUsageMB: 200.0, Health: "healthy"},
 		{ID: "c2", Name: "alpha-app", State: "running", CPUPerc: 50.0, MemUsageMB: 50.0, Health: "unhealthy"},
@@ -505,8 +505,8 @@ func TestContainerSorting(t *testing.T) {
 }
 
 func TestContainerKillAndRemoveWorkflow(t *testing.T) {
-	m := NewModel(2*time.Second, 2, "v0.6.3")
-	m.activeTab = 2
+	m := NewModel(2*time.Second, 1, "v0.6.3")
+	m.activeTab = 1
 	m.dockerInfo.Containers = []monitor.ContainerItem{
 		{ID: "c1", Name: "app-run", State: "running"},
 		{ID: "c2", Name: "app-stop", State: "stopped"},

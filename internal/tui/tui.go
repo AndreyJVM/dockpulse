@@ -14,16 +14,18 @@ import (
 type TabID int
 
 const (
-	// TabHost displays host system metrics, top processes, and trend sparklines.
-	TabHost TabID = 1
 	// TabDocker displays Docker containers, statuses, metrics, and actions.
-	TabDocker TabID = 2
+	TabDocker TabID = 1
 	// TabCompose displays Docker Compose projects and aggregated service statuses.
-	TabCompose TabID = 3
+	TabCompose TabID = 2
+	// TabNetworks displays Docker networks and their configuration.
+	TabNetworks TabID = 3
+	// TabVolumes displays Docker volumes and their usage details.
+	TabVolumes TabID = 4
 	// TabSwarm displays Swarm cluster nodes and services.
-	TabSwarm TabID = 4
+	TabSwarm TabID = 5
 	// TabCount represents the total number of primary tabs.
-	TabCount = 4
+	TabCount = 5
 )
 
 // ModalType represents an active modal dialog.
@@ -78,6 +80,8 @@ type Model struct {
 	// Navigation and modal state.
 	cursorIdx           int
 	composeCursorIdx    int
+	networkCursorIdx    int
+	volumeCursorIdx     int
 	swarmCursorIdx      int
 	activeModal         ModalType
 	execTargetID        string
@@ -105,10 +109,6 @@ type Model struct {
 	pruneUsageErr string
 	pruneConfirm  int // 0 - menu, 1 - containers, 2 - images, 3 - volumes, 4 - all
 
-	// Metric history for sparklines.
-	cpuHistory []float64
-	memHistory []float64
-
 	// Container sorting: default, CPU desc, memory desc, name asc, or status.
 	containerSortMode int
 
@@ -116,20 +116,21 @@ type Model struct {
 	isFiltering bool
 	filterQuery string
 
-	sysInfo    monitor.SystemInfo
-	cpuInfo    monitor.CPUInfo
-	memInfo    monitor.MemoryInfo
 	dockerInfo monitor.DockerSummary
 	compose    []monitor.ComposeProject
+	networks   []monitor.DockerNetwork
+	volumes    []monitor.DockerVolume
 	swarm      monitor.SwarmSummary
+	networkErr string
+	volumeErr  string
 	lastUpdate string
 }
 
 // NewModel creates a TUI model with a refresh interval and initial tab.
 func NewModel(refreshInterval time.Duration, initialTab int, version string) Model {
 	tab := TabID(initialTab)
-	if tab < TabHost || tab > TabCount {
-		tab = TabHost
+	if tab < TabDocker || tab > TabCount {
+		tab = TabDocker
 	}
 	if refreshInterval <= 0 {
 		refreshInterval = 2 * time.Second
@@ -145,14 +146,14 @@ func NewModel(refreshInterval time.Duration, initialTab int, version string) Mod
 }
 
 func (m *Model) applyFetchedData(d dataFetchedMsg) {
-	m.sysInfo = d.sysInfo
-	m.cpuInfo = d.cpuInfo
-	m.memInfo = d.memInfo
 	m.dockerInfo = d.dockerInfo
 	m.compose = d.compose
+	m.networks = d.networks
+	m.volumes = d.volumes
 	m.swarm = d.swarm
+	m.networkErr = d.networkErr
+	m.volumeErr = d.volumeErr
 	m.lastUpdate = d.timestamp
-	m.recordMetricHistory(m.cpuInfo.Percent, m.memInfo.Percent)
 
 	m.clampCursor()
 	if m.composeCursorIdx >= len(m.compose) {
@@ -165,13 +166,16 @@ func (m *Model) applyFetchedData(d dataFetchedMsg) {
 
 func (m *Model) fetchAllData() {
 	dockerInfo := monitor.GetDockerSummary()
+	networks, networkErr := monitor.GetDockerNetworks()
+	volumes, volumeErr := monitor.GetDockerVolumes()
 	m.applyFetchedData(dataFetchedMsg{
-		sysInfo:    monitor.GetSystemInfo(),
-		cpuInfo:    monitor.GetCPUInfo(),
-		memInfo:    monitor.GetMemoryInfo(),
 		dockerInfo: dockerInfo,
 		compose:    monitor.GetComposeProjects(dockerInfo.Containers),
+		networks:   networks,
+		volumes:    volumes,
 		swarm:      monitor.GetSwarmSummary(),
+		networkErr: formatFetchError(networkErr),
+		volumeErr:  formatFetchError(volumeErr),
 		timestamp:  time.Now().Format("15:04:05"),
 	})
 }
@@ -269,6 +273,22 @@ func (m *Model) clampCursor() {
 	} else if m.swarmCursorIdx < 0 {
 		m.swarmCursorIdx = 0
 	}
+
+	if len(m.networks) == 0 {
+		m.networkCursorIdx = 0
+	} else if m.networkCursorIdx >= len(m.networks) {
+		m.networkCursorIdx = len(m.networks) - 1
+	} else if m.networkCursorIdx < 0 {
+		m.networkCursorIdx = 0
+	}
+
+	if len(m.volumes) == 0 {
+		m.volumeCursorIdx = 0
+	} else if m.volumeCursorIdx >= len(m.volumes) {
+		m.volumeCursorIdx = len(m.volumes) - 1
+	} else if m.volumeCursorIdx < 0 {
+		m.volumeCursorIdx = 0
+	}
 }
 
 func (m Model) Init() tea.Cmd {
@@ -280,37 +300,25 @@ func (m *Model) showToast(msg string) {
 	m.actionMessageExpiry = time.Now().Add(4 * time.Second)
 }
 
-func (m *Model) recordMetricHistory(cpu, mem float64) {
-	const maxHistory = 30
-	m.cpuHistory = append(m.cpuHistory, cpu)
-	if len(m.cpuHistory) > maxHistory {
-		m.cpuHistory = m.cpuHistory[len(m.cpuHistory)-maxHistory:]
-	}
-	m.memHistory = append(m.memHistory, mem)
-	if len(m.memHistory) > maxHistory {
-		m.memHistory = m.memHistory[len(m.memHistory)-maxHistory:]
-	}
-}
-
 // nextTab switches to the next tab cyclically.
 func (m *Model) nextTab() {
 	m.activeTab++
 	if m.activeTab > TabCount {
-		m.activeTab = TabHost
+		m.activeTab = TabDocker
 	}
 }
 
 // prevTab switches to the previous tab cyclically.
 func (m *Model) prevTab() {
 	m.activeTab--
-	if m.activeTab < TabHost {
+	if m.activeTab < TabDocker {
 		m.activeTab = TabCount
 	}
 }
 
 // setTab switches directly to the specified tab if within valid range.
 func (m *Model) setTab(tab TabID) {
-	if tab >= TabHost && tab <= TabCount {
+	if tab >= TabDocker && tab <= TabCount {
 		m.activeTab = tab
 	}
 }
@@ -333,6 +341,20 @@ func (m *Model) moveCursor(delta int) {
 				m.composeCursorIdx += len(m.compose)
 			}
 		}
+	case TabNetworks:
+		if len(m.networks) > 0 {
+			m.networkCursorIdx = (m.networkCursorIdx + delta) % len(m.networks)
+			if m.networkCursorIdx < 0 {
+				m.networkCursorIdx += len(m.networks)
+			}
+		}
+	case TabVolumes:
+		if len(m.volumes) > 0 {
+			m.volumeCursorIdx = (m.volumeCursorIdx + delta) % len(m.volumes)
+			if m.volumeCursorIdx < 0 {
+				m.volumeCursorIdx += len(m.volumes)
+			}
+		}
 	case TabSwarm:
 		if len(m.swarm.Services) > 0 {
 			m.swarmCursorIdx = (m.swarmCursorIdx + delta) % len(m.swarm.Services)
@@ -341,6 +363,13 @@ func (m *Model) moveCursor(delta int) {
 			}
 		}
 	}
+}
+
+func formatFetchError(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 // openModal activates the specified modal dialog.

@@ -25,17 +25,16 @@ const (
 
 // DockerContext contains data needed to render the Docker Containers tab.
 type DockerContext struct {
-	DockerInfo            monitor.DockerSummary
-	Containers            []monitor.ContainerItem
-	TotalContainersCount  int
-	CursorIdx             int
-	IsFiltering           bool
-	FilterQuery           string
-	SortMode              int
-	SortNames             []string
-	Width                 int
-	FormattedDockerStatus string
-	I18n                  *i18n.Dictionary
+	DockerInfo           monitor.DockerSummary
+	Containers           []monitor.ContainerItem
+	TotalContainersCount int
+	CursorIdx            int
+	IsFiltering          bool
+	FilterQuery          string
+	SortMode             int
+	SortNames            []string
+	Width                int
+	I18n                 *i18n.Dictionary
 }
 
 // RenderDocker renders the Docker Containers tab.
@@ -43,7 +42,7 @@ func RenderDocker(ctx DockerContext) string {
 	var s strings.Builder
 	dict := getDictionary(ctx.I18n)
 
-	renderDockerHeader(&ctx, dict, &s)
+	renderDockerHeader(dict, &s)
 
 	if len(ctx.DockerInfo.Containers) == 0 {
 		renderEmptyContainersNotice(&ctx, dict, &s)
@@ -71,13 +70,9 @@ func getDictionary(dict *i18n.Dictionary) *i18n.Dictionary {
 	return &d
 }
 
-func renderDockerHeader(ctx *DockerContext, dict *i18n.Dictionary, s *strings.Builder) {
+func renderDockerHeader(dict *i18n.Dictionary, s *strings.Builder) {
 	s.WriteString(theme.TitleStyle.Render(dict.DockerTabTitle) + "\n")
-	s.WriteString(fmt.Sprintf("  %s %s    %s %d    %s %s\n\n",
-		theme.DimStyle.Render(dict.ServiceLabel), ctx.FormattedDockerStatus,
-		theme.DimStyle.Render(dict.ImagesCountLabel), ctx.DockerInfo.ImagesCount,
-		theme.DimStyle.Render(dict.VersionLabel), ctx.DockerInfo.Version,
-	))
+	s.WriteString("\n")
 }
 
 func renderEmptyContainersNotice(ctx *DockerContext, dict *i18n.Dictionary, s *strings.Builder) {

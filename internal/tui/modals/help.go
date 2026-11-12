@@ -32,7 +32,7 @@ func RenderHelp(refreshInterval time.Duration, dict *i18n.Dictionary) string {
 		{
 			title: d.HelpSecNav,
 			items: []helpItem{
-				{key: "[1] - [4]", desc: d.HelpKeyTabs},
+				{key: "[1] - [5]", desc: d.HelpKeyTabs},
 				{key: "[Tab] / [Shift+Tab] / [←] / [→]", desc: d.HelpKeyPrev},
 				{key: "[↑] / [↓] / [k] / [j]", desc: d.HelpKeyNav},
 			},

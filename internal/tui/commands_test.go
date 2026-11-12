@@ -13,7 +13,7 @@ import (
 )
 
 func TestAsyncCommandTriggers(t *testing.T) {
-	m := NewModel(2*time.Second, 2, "v0.5.0")
+	m := NewModel(2*time.Second, 1, "v0.5.0")
 	m.dockerInfo.Containers = []monitor.ContainerItem{
 		{ID: "c1", Name: "web", State: "running"},
 		{ID: "c2", Name: "db", State: "exited"},
@@ -102,9 +102,10 @@ func TestDataFetchedMsg(t *testing.T) {
 
 	data := dataFetchedMsg{
 		timestamp: "14:25:36",
-		sysInfo:   monitor.SystemInfo{Hostname: "dockpulse-node"},
-		cpuInfo:   monitor.CPUInfo{Cores: 8, Percent: 45.0},
-		memInfo:   monitor.MemoryInfo{TotalGB: 32.0, UsedGB: 12.0, Percent: 37.5},
+		dockerInfo: monitor.DockerSummary{
+			Status:            monitor.DockerStatusRunning,
+			RunningContainers: 2,
+		},
 	}
 
 	res, cmd := m.Update(data)
@@ -115,11 +116,8 @@ func TestDataFetchedMsg(t *testing.T) {
 	if m.lastUpdate != "14:25:36" {
 		t.Errorf("expected lastUpdate='14:25:36', got: %s", m.lastUpdate)
 	}
-	if m.sysInfo.Hostname != "dockpulse-node" {
-		t.Errorf("expected hostname 'dockpulse-node', got: %s", m.sysInfo.Hostname)
-	}
-	if m.cpuInfo.Cores != 8 {
-		t.Errorf("expected 8 cores, got: %d", m.cpuInfo.Cores)
+	if m.dockerInfo.RunningContainers != 2 {
+		t.Errorf("expected 2 running containers, got: %d", m.dockerInfo.RunningContainers)
 	}
 }
 

@@ -10,7 +10,7 @@ import (
 )
 
 func TestSwarmTabNavigationAndLogs(t *testing.T) {
-	m := NewModel(2*time.Second, 4, "v0.4.1")
+	m := NewModel(2*time.Second, 5, "v0.4.1")
 	m.swarm = monitor.SwarmSummary{
 		IsActive:      true,
 		StatusDisplay: "Active",

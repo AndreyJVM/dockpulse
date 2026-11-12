@@ -4,7 +4,7 @@
 - Professional visual style without emoji in the CLI, TUI, or documentation
 - Standalone TUI built with Bubble Tea and Lip Gloss
 - Interactive Docker container management: logs, inspection, start, stop, and restart
-- Host, Docker, Docker Compose, and Docker Swarm monitoring
+- Docker containers, Compose, networks, volumes, and Swarm monitoring
 - Linux builds for amd64 and arm64
 
 ### Installation

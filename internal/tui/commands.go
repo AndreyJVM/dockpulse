@@ -22,13 +22,16 @@ const (
 
 func fetchAllData() dataFetchedMsg {
 	dockerInfo := monitor.GetDockerSummary()
+	networks, networkErr := monitor.GetDockerNetworks()
+	volumes, volumeErr := monitor.GetDockerVolumes()
 	return dataFetchedMsg{
-		sysInfo:    monitor.GetSystemInfo(),
-		cpuInfo:    monitor.GetCPUInfo(),
-		memInfo:    monitor.GetMemoryInfo(),
 		dockerInfo: dockerInfo,
 		compose:    monitor.GetComposeProjects(dockerInfo.Containers),
+		networks:   networks,
+		volumes:    volumes,
 		swarm:      monitor.GetSwarmSummary(),
+		networkErr: formatFetchError(networkErr),
+		volumeErr:  formatFetchError(volumeErr),
 		timestamp:  time.Now().Format(TimeFormat),
 	}
 }

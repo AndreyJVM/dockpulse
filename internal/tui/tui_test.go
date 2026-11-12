@@ -12,8 +12,8 @@ import (
 func TestNewModel(t *testing.T) {
 	// Defaults when invalid arguments are passed
 	m := NewModel(0, 99, "v1.0.0")
-	if m.activeTab != 1 {
-		t.Errorf("expected activeTab to default to 1, got %d", m.activeTab)
+	if m.activeTab != TabDocker {
+		t.Errorf("expected activeTab to default to Docker, got %d", m.activeTab)
 	}
 	if m.refreshInterval != 2*time.Second {
 		t.Errorf("expected refreshInterval to default to 2s, got %v", m.refreshInterval)
@@ -26,6 +26,47 @@ func TestNewModel(t *testing.T) {
 	cmd := m.Init()
 	if cmd == nil {
 		t.Errorf("expected non-nil Init cmd")
+	}
+}
+
+func TestDockerIsFirstTabAndStatusRemainsVisibleAcrossTabs(t *testing.T) {
+	m := NewModel(2*time.Second, 1, "v1.0.0")
+	m.width = 120
+	m.dockerInfo = monitor.DockerSummary{
+		Status:            "running",
+		RunningContainers: 2,
+		StoppedContainers: 1,
+		ImagesCount:       7,
+		Version:           "27.4.0",
+	}
+
+	dockerView := m.View()
+	if !strings.Contains(dockerView, "[1: Containers]") {
+		t.Fatalf("expected Docker to be the first active tab, got: %s", dockerView)
+	}
+	if strings.Contains(dockerView, "Host Overview") || strings.Contains(dockerView, "SYSTEM INFORMATION") {
+		t.Fatalf("expected the Host page to be removed, got: %s", dockerView)
+	}
+	if !strings.Contains(dockerView, "Containers: 2 active, 1 stopped") {
+		t.Fatalf("expected Docker status summary at the top, got: %s", dockerView)
+	}
+
+	m.setTab(TabCompose)
+	composeView := m.View()
+	if !strings.Contains(composeView, "Containers: 2 active, 1 stopped") {
+		t.Fatalf("expected Docker status summary to remain visible on Compose, got: %s", composeView)
+	}
+}
+
+func TestViewIncludesNetworksAndVolumesTabs(t *testing.T) {
+	m := NewModel(2*time.Second, 1, "v1.0.0")
+	m.width = 120
+	view := m.View()
+
+	for _, label := range []string{"3: Networks", "4: Volumes", "5: Swarm"} {
+		if !strings.Contains(view, label) {
+			t.Fatalf("expected tab %q in view, got: %s", label, view)
+		}
 	}
 }
 
@@ -47,16 +88,18 @@ func TestModelNavigationAndUpdates(t *testing.T) {
 		key         string
 		expectedTab TabID
 	}{
-		{"tab", TabDocker},
 		{"tab", TabCompose},
-		{"right", TabSwarm},
-		{"tab", TabHost},
+		{"tab", TabNetworks},
+		{"right", TabVolumes},
+		{"tab", TabSwarm},
+		{"tab", TabDocker},
 		{"left", TabSwarm},
-		{"shift+tab", TabCompose},
-		{"1", TabHost},
-		{"2", TabDocker},
-		{"3", TabCompose},
-		{"4", TabSwarm},
+		{"shift+tab", TabVolumes},
+		{"1", TabDocker},
+		{"2", TabCompose},
+		{"3", TabNetworks},
+		{"4", TabVolumes},
+		{"5", TabSwarm},
 	}
 
 	for _, kt := range keyTests {
@@ -91,31 +134,38 @@ func TestModelNavigationAndUpdates(t *testing.T) {
 func TestRenderAllTabs(t *testing.T) {
 	m := NewModel(2*time.Second, 1, "v0.4.1")
 
-	// Render Tab 1: Host
+	// Render Tab 1: Docker
 	m.activeTab = 1
 	v1 := m.View()
-	if !strings.Contains(v1, "SYSTEM INFORMATION") {
-		t.Errorf("expected Host tab header in View()")
-	}
-
-	// Render Tab 2: Docker
-	m.activeTab = 2
-	v2 := m.View()
-	if !strings.Contains(v2, "DOCKER CONTAINERS") {
+	if !strings.Contains(v1, "DOCKER CONTAINERS") {
 		t.Errorf("expected Docker tab header in View()")
 	}
 
-	// Render Tab 3: Compose
-	m.activeTab = 3
-	v3 := m.View()
-	if !strings.Contains(v3, "DOCKER COMPOSE") {
+	// Render Tab 2: Compose
+	m.activeTab = 2
+	v2 := m.View()
+	if !strings.Contains(v2, "DOCKER COMPOSE") {
 		t.Errorf("expected Compose tab header in View()")
 	}
 
-	// Render Tab 4: Swarm
+	// Render Tab 3: Networks
+	m.activeTab = 3
+	v3 := m.View()
+	if !strings.Contains(v3, "DOCKER NETWORKS") {
+		t.Errorf("expected Networks tab header in View()")
+	}
+
+	// Render Tab 4: Volumes
 	m.activeTab = 4
 	v4 := m.View()
-	if !strings.Contains(v4, "DOCKER SWARM") {
+	if !strings.Contains(v4, "DOCKER VOLUMES") {
+		t.Errorf("expected Volumes tab header in View()")
+	}
+
+	// Render Tab 5: Swarm
+	m.activeTab = 5
+	v5 := m.View()
+	if !strings.Contains(v5, "DOCKER SWARM") {
 		t.Errorf("expected Swarm tab header in View()")
 	}
 
@@ -127,67 +177,14 @@ func TestRenderAllTabs(t *testing.T) {
 	}
 }
 
-func TestRecordMetricHistory(t *testing.T) {
-	m := NewModel(2*time.Second, 1, "v0.5.0")
-	initialCPULen := len(m.cpuHistory)
-	initialMemLen := len(m.memHistory)
-
-	if initialCPULen == 0 || initialMemLen == 0 {
-		t.Errorf("expected initial history to have at least 1 point from fetchAllData")
-	}
-
-	// Push 40 entries to verify maxHistory truncation (limit = 30)
-	for i := 0; i < 40; i++ {
-		m.recordMetricHistory(float64(i), float64(i*2))
-	}
-
-	if len(m.cpuHistory) != 30 {
-		t.Errorf("expected cpuHistory to be capped at 30, got %d", len(m.cpuHistory))
-	}
-	if len(m.memHistory) != 30 {
-		t.Errorf("expected memHistory to be capped at 30, got %d", len(m.memHistory))
-	}
-
-	// Verify latest value is at the end
-	if m.cpuHistory[29] != 39.0 {
-		t.Errorf("expected latest cpu value 39.0, got %f", m.cpuHistory[29])
-	}
-	if m.memHistory[29] != 78.0 {
-		t.Errorf("expected latest mem value 78.0, got %f", m.memHistory[29])
-	}
-}
-
-func TestHostTabSparklineDisplay(t *testing.T) {
-	m := NewModel(2*time.Second, 1, "v0.5.0")
-	m.width = 100
-	m.height = 30
-	m.cpuHistory = []float64{10, 20, 30, 70, 90}
-	m.memHistory = []float64{15, 25, 35, 65, 85}
-
-	view := m.View()
-	if !strings.Contains(view, "CPU (") || !strings.Contains(view, "RAM (") {
-		t.Errorf("expected CPU and RAM in Host Overview view, got: %s", view)
-	}
-	var hasSparkChar bool
-	for _, ch := range sparkChars {
-		if strings.ContainsRune(view, ch) {
-			hasSparkChar = true
-			break
-		}
-	}
-	if !hasSparkChar {
-		t.Errorf("expected sparkline characters in view output, got: %s", view)
-	}
-}
-
 func TestNavigationMethods(t *testing.T) {
 	m := NewModel(2*time.Second, 1, "v0.7.4")
 
 	// nextTab wrapping
 	m.setTab(TabSwarm)
 	m.nextTab()
-	if m.activeTab != TabHost {
-		t.Errorf("expected wrap to TabHost, got %v", m.activeTab)
+	if m.activeTab != TabDocker {
+		t.Errorf("expected wrap to TabDocker, got %v", m.activeTab)
 	}
 
 	// prevTab wrapping
@@ -244,6 +241,22 @@ func TestNavigationMethods(t *testing.T) {
 	m.moveCursor(1) // Wrap
 	if m.composeCursorIdx != 0 {
 		t.Errorf("expected composeCursorIdx 0, got %d", m.composeCursorIdx)
+	}
+
+	// moveCursor in Networks tab
+	m.setTab(TabNetworks)
+	m.networks = []monitor.DockerNetwork{{Name: "frontend"}, {Name: "backend"}}
+	m.moveCursor(1)
+	if m.networkCursorIdx != 1 {
+		t.Errorf("expected networkCursorIdx 1, got %d", m.networkCursorIdx)
+	}
+
+	// moveCursor in Volumes tab
+	m.setTab(TabVolumes)
+	m.volumes = []monitor.DockerVolume{{Name: "data"}, {Name: "cache"}}
+	m.moveCursor(-1)
+	if m.volumeCursorIdx != 1 {
+		t.Errorf("expected volumeCursorIdx wrapped to 1, got %d", m.volumeCursorIdx)
 	}
 
 	// moveCursor in Swarm tab

@@ -11,35 +11,12 @@ import (
 func TestEnglishLanguageModel(t *testing.T) {
 	m := NewModel(2*time.Second, 1, "v0.6.1")
 
-	// Host tab.
+	// Docker tab and persistent status.
 	m.activeTab = 1
 	m.dockerInfo = monitor.DockerSummary{
 		Status:        "running",
 		StatusDisplay: "Running",
 	}
-	m.sysInfo = monitor.SystemInfo{
-		Hostname:  "test-host",
-		UptimeSec: 90000,
-	}
-	vHost := m.View()
-	if !strings.Contains(vHost, "SYSTEM INFORMATION") {
-		t.Errorf("expected English title 'SYSTEM INFORMATION' in View(), got: %s", vHost)
-	}
-	if !strings.Contains(vHost, "HOST PERFORMANCE") {
-		t.Errorf("expected 'HOST PERFORMANCE' in View(), got: %s", vHost)
-	}
-	if !strings.Contains(vHost, "Tabs") {
-		t.Errorf("expected 'Tabs' in footer, got: %s", vHost)
-	}
-	if !strings.Contains(vHost, "Status: Running") {
-		t.Errorf("expected English 'Status: Running', got: %s", vHost)
-	}
-	if !strings.Contains(vHost, "1d 01:00") {
-		t.Errorf("expected English uptime format '1d 01:00', got: %s", vHost)
-	}
-
-	// Docker tab.
-	m.activeTab = 2
 	vDocker := m.View()
 	if !strings.Contains(vDocker, "DOCKER CONTAINERS") {
 		t.Errorf("expected 'DOCKER CONTAINERS' in View(), got: %s", vDocker)
@@ -49,7 +26,7 @@ func TestEnglishLanguageModel(t *testing.T) {
 	}
 
 	// Compose tab.
-	m.activeTab = 3
+	m.activeTab = 2
 	m.compose = []monitor.ComposeProject{
 		{
 			Name:            "demo-stack",
@@ -68,7 +45,7 @@ func TestEnglishLanguageModel(t *testing.T) {
 	}
 
 	// Swarm tab.
-	m.activeTab = 4
+	m.activeTab = 5
 	m.swarm = monitor.SwarmSummary{
 		IsActive:      false,
 		StatusDisplay: "Inactive",

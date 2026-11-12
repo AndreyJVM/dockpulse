@@ -10,7 +10,7 @@ import (
 )
 
 func TestComposeTabNavigationAndActions(t *testing.T) {
-	m := NewModel(2*time.Second, 3, "v0.4.1")
+	m := NewModel(2*time.Second, 2, "v0.4.1")
 	m.compose = []monitor.ComposeProject{
 		{
 			Name:            "proj-alpha",

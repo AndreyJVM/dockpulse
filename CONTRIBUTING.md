@@ -44,7 +44,7 @@ dockpulse/
 │   │   ├── swarm*.go       # Docker Swarm cluster nodes and services monitoring
 │   │   └── system*.go      # Host system metrics (CPU, RAM, Disk, Network)
 │   ├── tui/                # Terminal User Interface (Bubble Tea & Lip Gloss)
-│   │   ├── views/          # Primary views (Docker containers, Compose, Swarm, Host)
+│   │   ├── views/          # Primary views (containers, Compose, networks, volumes, Swarm)
 │   │   ├── modals/         # Interactive dialogs (logs, inspect, exec, prune, help)
 │   │   ├── components/     # Reusable UI widgets (progress bar, sparkline, tables)
 │   │   ├── theme/          # Color schemes, styles, and borders

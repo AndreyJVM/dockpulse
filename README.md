@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Linux-lightgrey)](https://github.com/AndreyJVM/dockpulse/releases)
 
-**A fast, lightweight terminal TUI monitor for Host, Docker, Compose, and Swarm.**<br>
+**A fast, lightweight terminal TUI for Docker containers and resources.**<br>
 
 [Contributing](CONTRIBUTING.md)
 
@@ -18,7 +18,6 @@
 
 ### Key Features
 
-- **Host Metrics**: Real-time CPU usage, core counts, RAM, sparkline trend graphs, disk mount points, network traffic (RX/TX), uptime, and top resource-consuming processes.
 - **Docker Containers**:
   - Live CPU% and memory stats with dynamic color coding.
   - Interactive sorting by CPU%, RAM, Name, or Status (`s`, `o`).
@@ -33,6 +32,8 @@
   - Docker System Prune modal (`C`) with disk reclaim estimates and confirmation.
   - Socket support: Docker daemon, Rootless Docker, and Podman (<2 ms latency).
 - **Docker Compose**: Automatic project/service grouping, aggregated stack health, live stack logs (`L`), service control (`U` / `S` / `P`), and stack teardown (`D` / down) with confirmation.
+- **Docker Networks**: Network driver, scope, connected container count, subnet, gateway, and Compose ownership.
+- **Docker Volumes**: Volume driver, scope, reference count, disk usage, mountpoint, and Compose ownership.
 - **Docker Swarm**: Cluster node roles (Leader, Manager, Worker), service listings, replica counts with degradation highlights, and live service logs (`L`).
 - **English Interface**: Consistent English UI, CLI help, diagnostics, and documentation.
 - **Zero Dependencies**: Standalone binary (<12 MB) with zero external runtime dependencies. Runs on Linux.
@@ -43,12 +44,12 @@
 
 ```bash
 # AMD64 (x86_64)
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.8.0_amd64.deb
-sudo dpkg -i dockpulse_0.8.0_amd64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.9.0_amd64.deb
+sudo dpkg -i dockpulse_0.9.0_amd64.deb
 
 # ARM64
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.8.0_arm64.deb
-sudo dpkg -i dockpulse_0.8.0_arm64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.9.0_arm64.deb
+sudo dpkg -i dockpulse_0.9.0_arm64.deb
 ```
 
 #### Pre-built Binaries (Linux)
@@ -57,7 +58,7 @@ Download the latest archive from [Releases](https://github.com/AndreyJVM/dockpul
 
 ```bash
 # Linux AMD64
-tar -xzf dockpulse_v0.8.0_linux_amd64.tar.gz
+tar -xzf dockpulse_v0.9.0_linux_amd64.tar.gz
 ./dockpulse
 ```
 
@@ -78,7 +79,7 @@ Usage:
 
 Options:
   -i, --interval <duration>  Auto-refresh interval (default: 2s, e.g., 1s, 500ms)
-  -t, --tab <1-4|name>       Initial active tab (1: Host, 2: Docker, 3: Compose, 4: Swarm) (default: 1)
+  -t, --tab <1-5|name>       Initial active tab (1: Docker, 2: Compose, 3: Networks, 4: Volumes, 5: Swarm) (default: 1)
   -v, --version              Show version information
   -h, --help                 Show help message
 ```
@@ -87,7 +88,7 @@ Options:
 
 | Key | Action |
 |---|---|
-| `1`..`4` / `Tab` / `←`/`→` | Switch tabs (Host, Docker, Compose, Swarm) |
+| `1`..`5` / `Tab` / `←`/`→` | Switch tabs (Docker, Compose, Networks, Volumes, Swarm) |
 | `r`, `R` | Force immediate refresh |
 | `↑` / `↓` (or `k` / `j`) | Navigate rows / select items |
 | `/` | Search & filter (`Esc` to clear) |

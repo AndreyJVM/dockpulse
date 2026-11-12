@@ -1,20 +1,7 @@
 package tui
 
 import (
-	"fmt"
-
 	"github.com/AndreyJVM/dockpulse/internal/monitor"
-	"github.com/AndreyJVM/dockpulse/internal/tui/components"
-)
-
-var (
-	sparkChars      = components.SparkChars
-	formatPercent   = components.FormatPercent
-	formatBar       = components.FormatBar
-	truncate        = components.Truncate
-	padRight        = components.PadRight
-	padLeft         = components.PadLeft
-	renderSparkline = components.RenderSparkline
 )
 
 func (m Model) formatDockerStatus(status string) string {
@@ -75,20 +62,4 @@ func (m Model) formatSwarmStatus(isActive bool) string {
 		return m.i18n.StatusActive
 	}
 	return m.i18n.StatusInactive
-}
-
-func (m Model) formatUptime(uptimeSec uint64) string {
-	if uptimeSec == 0 {
-		if m.sysInfo.Uptime != "" {
-			return m.sysInfo.Uptime
-		}
-		return "00:00"
-	}
-	days := uptimeSec / 86400
-	hours := (uptimeSec % 86400) / 3600
-	minutes := (uptimeSec % 3600) / 60
-	if days > 0 {
-		return fmt.Sprintf(m.i18n.UptimeDaysFormat, days, hours, minutes)
-	}
-	return fmt.Sprintf(m.i18n.UptimeHoursFormat, hours, minutes)
 }

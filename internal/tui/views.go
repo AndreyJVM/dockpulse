@@ -14,13 +14,20 @@ func (m Model) View() string {
 	var b strings.Builder
 
 	// 1. Header
-	b.WriteString(views.RenderHeader(m.version, m.lastUpdate) + "\n\n")
+	b.WriteString(views.RenderHeader(views.HeaderContext{
+		Version:               m.version,
+		LastUpdate:            m.lastUpdate,
+		DockerInfo:            m.dockerInfo,
+		FormattedDockerStatus: m.formatDockerStatus(m.dockerInfo.Status),
+		I18n:                  &m.i18n,
+	}) + "\n\n")
 
 	// 2. Tabs
 	tabs := []string{
-		m.i18n.TabHost,
 		m.i18n.TabDocker,
 		m.i18n.TabCompose,
+		m.i18n.TabNetworks,
+		m.i18n.TabVolumes,
 		m.i18n.TabSwarm,
 	}
 	b.WriteString(views.RenderTabs(tabs, int(m.activeTab), m.width) + "\n")
@@ -49,12 +56,14 @@ func (m Model) View() string {
 			b.WriteString("\n" + m.renderHelpBox() + "\n")
 		} else {
 			switch m.activeTab {
-			case TabHost:
-				b.WriteString(m.renderHostTab())
 			case TabDocker:
 				b.WriteString(m.renderDockerTab())
 			case TabCompose:
 				b.WriteString(m.renderComposeTab())
+			case TabNetworks:
+				b.WriteString(m.renderNetworksTab())
+			case TabVolumes:
+				b.WriteString(m.renderVolumesTab())
 			case TabSwarm:
 				b.WriteString(m.renderSwarmTab())
 			}
@@ -75,20 +84,6 @@ func (m Model) View() string {
 	return b.String()
 }
 
-func (m Model) renderHostTab() string {
-	return views.RenderHost(views.HostContext{
-		SysInfo:               m.sysInfo,
-		CPUInfo:               m.cpuInfo,
-		MemInfo:               m.memInfo,
-		DockerInfo:            m.dockerInfo,
-		CPUHistory:            m.cpuHistory,
-		MemHistory:            m.memHistory,
-		FormattedUptime:       m.formatUptime(m.sysInfo.UptimeSec),
-		FormattedDockerStatus: m.formatDockerStatus(m.dockerInfo.Status),
-		I18n:                  &m.i18n,
-	})
-}
-
 func (m Model) renderDockerTab() string {
 	containers := m.getFilteredContainers()
 	sortNames := []string{
@@ -100,17 +95,16 @@ func (m Model) renderDockerTab() string {
 	}
 
 	return views.RenderDocker(views.DockerContext{
-		DockerInfo:            m.dockerInfo,
-		Containers:            containers,
-		TotalContainersCount:  len(m.dockerInfo.Containers),
-		CursorIdx:             m.cursorIdx,
-		IsFiltering:           m.isFiltering,
-		FilterQuery:           m.filterQuery,
-		SortMode:              m.containerSortMode,
-		SortNames:             sortNames,
-		Width:                 m.width,
-		FormattedDockerStatus: m.formatDockerStatus(m.dockerInfo.Status),
-		I18n:                  &m.i18n,
+		DockerInfo:           m.dockerInfo,
+		Containers:           containers,
+		TotalContainersCount: len(m.dockerInfo.Containers),
+		CursorIdx:            m.cursorIdx,
+		IsFiltering:          m.isFiltering,
+		FilterQuery:          m.filterQuery,
+		SortMode:             m.containerSortMode,
+		SortNames:            sortNames,
+		Width:                m.width,
+		I18n:                 &m.i18n,
 	})
 }
 
@@ -120,6 +114,24 @@ func (m Model) renderComposeTab() string {
 		CursorIdx:    m.composeCursorIdx,
 		FormatStatus: m.formatComposeStatus,
 		I18n:         &m.i18n,
+	})
+}
+
+func (m Model) renderNetworksTab() string {
+	return views.RenderNetworks(views.NetworksContext{
+		Networks:  m.networks,
+		CursorIdx: m.networkCursorIdx,
+		Error:     m.networkErr,
+		I18n:      &m.i18n,
+	})
+}
+
+func (m Model) renderVolumesTab() string {
+	return views.RenderVolumes(views.VolumesContext{
+		Volumes:   m.volumes,
+		CursorIdx: m.volumeCursorIdx,
+		Error:     m.volumeErr,
+		I18n:      &m.i18n,
 	})
 }
 

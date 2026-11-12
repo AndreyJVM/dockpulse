@@ -12,15 +12,24 @@ func TestRenderHeaderAndTabs(t *testing.T) {
 	dict := i18n.Get()
 
 	// Header
-	hdr := RenderHeader("v0.6.3", "12:00:00")
+	hdr := RenderHeader(HeaderContext{
+		Version:               "v0.6.3",
+		LastUpdate:            "12:00:00",
+		DockerInfo:            monitor.DockerSummary{RunningContainers: 2, StoppedContainers: 1, ImagesCount: 7, Version: "27.4.0"},
+		FormattedDockerStatus: "Running",
+		I18n:                  &dict,
+	})
 	if !strings.Contains(hdr, "Dockpulse") || !strings.Contains(hdr, "v0.6.3") || !strings.Contains(hdr, "12:00:00") {
 		t.Errorf("unexpected header output: %s", hdr)
 	}
+	if !strings.Contains(hdr, "Containers: 2 active, 1 stopped") || !strings.Contains(hdr, "27.4.0") {
+		t.Errorf("expected persistent Docker summary, got: %s", hdr)
+	}
 
 	// Tabs
-	tabs := []string{dict.TabHost, dict.TabDocker, dict.TabCompose, dict.TabSwarm}
-	tabBar := RenderTabs(tabs, 2, 80)
-	if !strings.Contains(tabBar, "[2: Docker Containers]") {
+	tabs := []string{dict.TabDocker, dict.TabCompose, dict.TabNetworks, dict.TabVolumes, dict.TabSwarm}
+	tabBar := RenderTabs(tabs, 1, 80)
+	if !strings.Contains(tabBar, "[1: Containers]") {
 		t.Errorf("expected active tab bracketed, got: %s", tabBar)
 	}
 }
@@ -30,20 +39,14 @@ func TestRenderFooter(t *testing.T) {
 
 	// Tab 1 footer
 	f1 := RenderFooter(FooterContext{ActiveTab: 1, I18n: &dict, Width: 80})
-	if !strings.Contains(f1, dict.FooterTabs) {
-		t.Errorf("expected tabs hint in footer 1, got: %s", f1)
+	if !strings.Contains(f1, dict.FooterKill) || !strings.Contains(f1, dict.FooterRemove) {
+		t.Errorf("expected Kill and Remove hints in footer 1, got: %s", f1)
 	}
 
-	// Tab 2 footer normal
-	f2 := RenderFooter(FooterContext{ActiveTab: 2, I18n: &dict, Width: 80})
-	if !strings.Contains(f2, dict.FooterKill) || !strings.Contains(f2, dict.FooterRemove) {
-		t.Errorf("expected Kill and Remove hints in footer 2, got: %s", f2)
-	}
-
-	// Tab 2 footer filtering
-	f2Filter := RenderFooter(FooterContext{ActiveTab: 2, IsFiltering: true, I18n: &dict, Width: 80})
-	if !strings.Contains(f2Filter, dict.FooterApplyFilter) {
-		t.Errorf("expected apply filter hint in footer, got: %s", f2Filter)
+	// Tab 1 footer filtering
+	f1Filter := RenderFooter(FooterContext{ActiveTab: 1, IsFiltering: true, I18n: &dict, Width: 80})
+	if !strings.Contains(f1Filter, dict.FooterApplyFilter) {
+		t.Errorf("expected apply filter hint in footer, got: %s", f1Filter)
 	}
 
 	// Modal footers
@@ -55,25 +58,6 @@ func TestRenderFooter(t *testing.T) {
 	fRemove := RenderFooter(FooterContext{ActiveModal: "remove_container", I18n: &dict, Width: 80})
 	if !strings.Contains(fRemove, "(Remove)") {
 		t.Errorf("expected remove container modal footer, got: %s", fRemove)
-	}
-}
-
-func TestRenderHostView(t *testing.T) {
-	dict := i18n.Get()
-	view := RenderHost(HostContext{
-		SysInfo:               monitor.SystemInfo{Hostname: "my-host", OS: "Linux", Kernel: "6.8.0"},
-		CPUInfo:               monitor.CPUInfo{Cores: 4, Percent: 25.0},
-		MemInfo:               monitor.MemoryInfo{TotalGB: 16.0, UsedGB: 4.0, Percent: 25.0},
-		DockerInfo:            monitor.DockerSummary{Status: "running", RunningContainers: 2, StoppedContainers: 1, ImagesCount: 10, Version: "27.0"},
-		CPUHistory:            []float64{10.0, 20.0, 25.0},
-		MemHistory:            []float64{20.0, 25.0, 25.0},
-		FormattedUptime:       "02:45",
-		FormattedDockerStatus: "Running",
-		I18n:                  &dict,
-	})
-
-	if !strings.Contains(view, "my-host") || !strings.Contains(view, "Running") || !strings.Contains(view, "Containers: 2 active, 1 stopped") {
-		t.Errorf("expected host view details, got: %s", view)
 	}
 }
 
@@ -106,6 +90,62 @@ func TestRenderComposeView(t *testing.T) {
 	})
 	if !strings.Contains(view, "web-stack") || !strings.Contains(view, "nginx:alpine") {
 		t.Errorf("expected project details in compose view, got: %s", view)
+	}
+}
+
+func TestRenderNetworksView(t *testing.T) {
+	dict := i18n.Get()
+	view := RenderNetworks(NetworksContext{
+		Networks: []monitor.DockerNetwork{{
+			ID:             "abc123",
+			Name:           "frontend",
+			Driver:         "bridge",
+			Scope:          "local",
+			Containers:     2,
+			Subnet:         "172.20.0.0/16",
+			Gateway:        "172.20.0.1",
+			Attachable:     true,
+			ComposeProject: "shop",
+		}},
+		I18n: &dict,
+	})
+
+	for _, expected := range []string{"frontend", "bridge", "172.20.0.0/16", "172.20.0.1", "shop"} {
+		if !strings.Contains(view, expected) {
+			t.Errorf("expected %q in networks view, got: %s", expected, view)
+		}
+	}
+
+	errorView := RenderNetworks(NetworksContext{Error: "daemon unavailable", I18n: &dict})
+	if !strings.Contains(errorView, "daemon unavailable") {
+		t.Errorf("expected discovery error in networks view, got: %s", errorView)
+	}
+}
+
+func TestRenderVolumesView(t *testing.T) {
+	dict := i18n.Get()
+	view := RenderVolumes(VolumesContext{
+		Volumes: []monitor.DockerVolume{{
+			Name:           "shop_data",
+			Driver:         "local",
+			Scope:          "local",
+			Mountpoint:     "/var/lib/docker/volumes/shop_data/_data",
+			Size:           4096,
+			RefCount:       2,
+			ComposeProject: "shop",
+		}},
+		I18n: &dict,
+	})
+
+	for _, expected := range []string{"shop_data", "4.0 KB", "/var/lib/docker/volumes/shop_data/_data", "shop"} {
+		if !strings.Contains(view, expected) {
+			t.Errorf("expected %q in volumes view, got: %s", expected, view)
+		}
+	}
+
+	errorView := RenderVolumes(VolumesContext{Error: "daemon unavailable", I18n: &dict})
+	if !strings.Contains(errorView, "daemon unavailable") {
+		t.Errorf("expected discovery error in volumes view, got: %s", errorView)
 	}
 }
 
@@ -149,9 +189,8 @@ func TestRenderDockerView(t *testing.T) {
 
 	// Empty
 	emptyView := RenderDocker(DockerContext{
-		DockerInfo:            monitor.DockerSummary{Status: "running"},
-		FormattedDockerStatus: "Running",
-		I18n:                  &dict,
+		DockerInfo: monitor.DockerSummary{Status: "running"},
+		I18n:       &dict,
 	})
 	if !strings.Contains(emptyView, dict.ContainersNotRunning) {
 		t.Errorf("expected no containers running in docker view, got: %s", emptyView)
@@ -181,13 +220,12 @@ func TestRenderDockerView(t *testing.T) {
 	}
 
 	view := RenderDocker(DockerContext{
-		DockerInfo:            monitor.DockerSummary{Status: "running", Containers: containers, ImagesCount: 5, Version: "27.1.0"},
-		Containers:            containers,
-		TotalContainersCount:  1,
-		CursorIdx:             0,
-		Width:                 100,
-		FormattedDockerStatus: "Running",
-		I18n:                  &dict,
+		DockerInfo:           monitor.DockerSummary{Status: "running", Containers: containers, ImagesCount: 5, Version: "27.1.0"},
+		Containers:           containers,
+		TotalContainersCount: 1,
+		CursorIdx:            0,
+		Width:                100,
+		I18n:                 &dict,
 	})
 
 	if !strings.Contains(view, "api-server") || !strings.Contains(view, "[healthy]") || !strings.Contains(view, "8080->8080/tcp") {

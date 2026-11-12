@@ -10,7 +10,7 @@ import (
 )
 
 func TestInspectModalHealthBadge(t *testing.T) {
-	m := NewModel(2*time.Second, 2, "v0.4.1")
+	m := NewModel(2*time.Second, 1, "v0.4.1")
 	m.activeModal = "inspect"
 	m.inspectTarget = monitor.ContainerDetail{
 		ID:     "c1",
@@ -48,7 +48,7 @@ func TestInspectModalHealthBadge(t *testing.T) {
 }
 
 func TestPruneModalAndWorkflow(t *testing.T) {
-	m := NewModel(2*time.Second, 2, "v0.5.0")
+	m := NewModel(2*time.Second, 1, "v0.5.0")
 	m.width = 100
 	m.height = 30
 
@@ -110,12 +110,12 @@ func TestPruneModalAndWorkflow(t *testing.T) {
 		t.Errorf("expected pruneConfirm to reset to 0, got %d", m.pruneConfirm)
 	}
 
-	// 6. Test opening prune modal on Tab 3 (Compose)
-	m.activeTab = 3
+	// 6. Test opening prune modal on Tab 2 (Compose)
+	m.activeTab = 2
 	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("C")})
 	m = res.(Model)
 	if m.activeModal != "prune" {
-		t.Errorf("expected activeModal 'prune' on tab 3 with 'C', got %q", m.activeModal)
+		t.Errorf("expected activeModal 'prune' on tab 2 with 'C', got %q", m.activeModal)
 	}
 
 	// 7. Close modal with Esc
@@ -125,18 +125,18 @@ func TestPruneModalAndWorkflow(t *testing.T) {
 		t.Errorf("expected activeModal to close on Esc, got %q", m.activeModal)
 	}
 
-	// 8. Check footer hints on tab 2 and tab 3
-	m.activeTab = 2
+	// 8. Check footer hints on Docker and Compose tabs.
+	m.activeTab = 1
 	m.activeModal = ""
-	tab2View := m.View()
-	if !strings.Contains(tab2View, "[C]") || !strings.Contains(tab2View, "Prune") {
-		t.Errorf("expected [C] Prune in tab 2 footer, got: %s", tab2View)
+	dockerView := m.View()
+	if !strings.Contains(dockerView, "[C]") || !strings.Contains(dockerView, "Prune") {
+		t.Errorf("expected [C] Prune in Docker footer, got: %s", dockerView)
 	}
 
-	m.activeTab = 3
-	tab3View := m.View()
-	if !strings.Contains(tab3View, "[C]") || !strings.Contains(tab3View, "Prune") {
-		t.Errorf("expected [C] Prune in tab 3 footer, got: %s", tab3View)
+	m.activeTab = 2
+	composeView := m.View()
+	if !strings.Contains(composeView, "[C]") || !strings.Contains(composeView, "Prune") {
+		t.Errorf("expected [C] Prune in Compose footer, got: %s", composeView)
 	}
 
 	// 9. Check help box hint
@@ -151,7 +151,7 @@ func TestExecModalWorkflow(t *testing.T) {
 	restore := monitor.SetDockerCLIAvailableCheckerForTesting(func() bool { return true })
 	defer restore()
 
-	m := NewModel(2*time.Second, 2, "v0.7.4")
+	m := NewModel(2*time.Second, 1, "v0.7.4")
 	m.dockerInfo = monitor.DockerSummary{
 		Status: "running",
 		Containers: []monitor.ContainerItem{

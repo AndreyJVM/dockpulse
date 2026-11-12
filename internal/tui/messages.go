@@ -17,12 +17,13 @@ type execFinishedMsg struct {
 
 // dataFetchedMsg delivers freshly gathered metrics and container lists across all domains.
 type dataFetchedMsg struct {
-	sysInfo    monitor.SystemInfo
-	cpuInfo    monitor.CPUInfo
-	memInfo    monitor.MemoryInfo
 	dockerInfo monitor.DockerSummary
 	compose    []monitor.ComposeProject
+	networks   []monitor.DockerNetwork
+	volumes    []monitor.DockerVolume
 	swarm      monitor.SwarmSummary
+	networkErr string
+	volumeErr  string
 	timestamp  string
 }
 

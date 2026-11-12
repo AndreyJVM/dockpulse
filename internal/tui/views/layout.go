@@ -5,18 +5,40 @@ import (
 	"strings"
 
 	"github.com/AndreyJVM/dockpulse/internal/i18n"
+	"github.com/AndreyJVM/dockpulse/internal/monitor"
 	"github.com/AndreyJVM/dockpulse/internal/tui/theme"
 )
 
-// RenderHeader renders the top status banner with app name, version, and clock.
-func RenderHeader(version, lastUpdate string) string {
-	verStr := version
+// HeaderContext contains the application and Docker status shown above every tab.
+type HeaderContext struct {
+	Version               string
+	LastUpdate            string
+	DockerInfo            monitor.DockerSummary
+	FormattedDockerStatus string
+	I18n                  *i18n.Dictionary
+}
+
+// RenderHeader renders the application banner and persistent Docker status.
+func RenderHeader(ctx HeaderContext) string {
+	verStr := ctx.Version
 	if verStr == "" {
 		verStr = "v0.4.0"
 	}
-	return theme.HeaderStyle.Render("Dockpulse") +
+	d := ctx.I18n
+	if d == nil {
+		dict := i18n.Get()
+		d = &dict
+	}
+	appLine := theme.HeaderStyle.Render("Dockpulse") +
 		theme.DimStyle.Render(fmt.Sprintf("  %s  ", verStr)) +
-		theme.GreenStyle.Render("["+lastUpdate+"]")
+		theme.GreenStyle.Render("["+ctx.LastUpdate+"]")
+	statusLine := fmt.Sprintf("%s %s  |  %s  |  %s %d  |  %s %s",
+		theme.DimStyle.Render(d.ServiceLabel), ctx.FormattedDockerStatus,
+		theme.BoldStyle.Render(fmt.Sprintf(d.ContainersSummary, ctx.DockerInfo.RunningContainers, ctx.DockerInfo.StoppedContainers)),
+		theme.DimStyle.Render(d.ImagesCountLabel), ctx.DockerInfo.ImagesCount,
+		theme.DimStyle.Render(d.VersionLabel), ctx.DockerInfo.Version,
+	)
+	return appLine + "\n" + statusLine
 }
 
 // RenderTabs renders the tab navigation bar.
@@ -73,7 +95,7 @@ func RenderFooter(ctx FooterContext) string {
 			content = theme.BoldStyle.Render("[Esc / Q]") + " " + d.FooterClose + "  |  " +
 				theme.BoldStyle.Render("[↑ / ↓ / PgUp / PgDn]") + " " + d.FooterScroll
 		}
-	} else if ctx.ActiveTab == 2 {
+	} else if ctx.ActiveTab == 1 {
 		if ctx.IsFiltering {
 			content = theme.BoldStyle.Render("[Enter]") + " " + d.FooterApplyFilter + "  |  " +
 				theme.BoldStyle.Render("[Esc]") + " " + d.FooterCancel
@@ -102,7 +124,7 @@ func RenderFooter(ctx FooterContext) string {
 				theme.BoldStyle.Render("[C]") + " " + d.FooterPrune + "  |  " +
 				theme.BoldStyle.Render("[?]") + " " + d.FooterHelp
 		}
-	} else if ctx.ActiveTab == 3 {
+	} else if ctx.ActiveTab == 2 {
 		content = theme.BoldStyle.Render("[↑ / ↓]") + " " + d.FooterSelectStack + "  |  " +
 			theme.BoldStyle.Render("[L]") + " " + d.FooterLogs + "  |  " +
 			theme.BoldStyle.Render("[S]") + " " + d.FooterStop + "  |  " +
@@ -111,12 +133,16 @@ func RenderFooter(ctx FooterContext) string {
 			theme.BoldStyle.Render("[D]") + " " + d.FooterDown + "  |  " +
 			theme.BoldStyle.Render("[C]") + " " + d.FooterPrune + "  |  " +
 			theme.BoldStyle.Render("[?]") + " " + d.FooterHelp
-	} else if ctx.ActiveTab == 4 {
+	} else if ctx.ActiveTab == 3 || ctx.ActiveTab == 4 {
+		content = theme.BoldStyle.Render("[↑ / ↓]") + " " + d.FooterSelect + "  |  " +
+			theme.BoldStyle.Render("[R]") + " " + d.FooterRefresh + "  |  " +
+			theme.BoldStyle.Render("[?]") + " " + d.FooterHelp
+	} else if ctx.ActiveTab == 5 {
 		content = theme.BoldStyle.Render("[↑ / ↓]") + " " + d.FooterSelectService + "  |  " +
 			theme.BoldStyle.Render("[L]") + " " + d.FooterServiceLogs + "  |  " +
 			theme.BoldStyle.Render("[?]") + " " + d.FooterHelp
 	} else {
-		content = theme.BoldStyle.Render("[1-4 / Tab / ← →]") + " " + d.FooterTabs + "  |  " +
+		content = theme.BoldStyle.Render("[1-5 / Tab / ← →]") + " " + d.FooterTabs + "  |  " +
 			theme.BoldStyle.Render("[R]") + " " + d.FooterRefresh + "  |  " +
 			theme.BoldStyle.Render("[?]") + " " + d.FooterHelp + "  |  " +
 			theme.BoldStyle.Render("[Q]") + " " + d.FooterQuit

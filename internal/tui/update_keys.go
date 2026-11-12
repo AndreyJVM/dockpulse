@@ -49,12 +49,14 @@ func (m Model) handleMainKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.prevTab()
 
 	case "1":
-		m.setTab(TabHost)
-	case "2":
 		m.setTab(TabDocker)
-	case "3":
+	case "2":
 		m.setTab(TabCompose)
+	case "3":
+		m.setTab(TabNetworks)
 	case "4":
+		m.setTab(TabVolumes)
+	case "5":
 		m.setTab(TabSwarm)
 
 	case "r", "R":

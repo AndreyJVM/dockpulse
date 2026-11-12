@@ -3,10 +3,11 @@ package i18n
 // Dictionary contains all user interface text.
 type Dictionary struct {
 	// Tabs.
-	TabHost    string
-	TabDocker  string
-	TabCompose string
-	TabSwarm   string
+	TabDocker   string
+	TabCompose  string
+	TabNetworks string
+	TabVolumes  string
+	TabSwarm    string
 
 	// Component statuses.
 	StatusRunning      string
@@ -16,10 +17,7 @@ type Dictionary struct {
 	StatusPartial      string
 	StatusActive       string
 	StatusInactive     string
-
-	// Uptime formats.
-	UptimeDaysFormat  string
-	UptimeHoursFormat string
+	DaemonStatus       string
 
 	// Footer and navigation.
 	FooterTabs          string
@@ -52,17 +50,7 @@ type Dictionary struct {
 	FooterSelectAction  string
 	FooterConfirmPrune  string
 
-	// Host tab.
-	HostSysInfoTitle  string
-	HostLabel         string
-	UptimeLabel       string
-	OSLabel           string
-	KernelLabel       string
-	HostPerfTitle     string
-	CPUCoresLabel     string
-	RAMLabel          string
-	DockerStatusTitle string
-	DaemonStatus      string
+	// Persistent Docker status.
 	ContainersSummary string
 
 	// Docker tab.
@@ -108,6 +96,30 @@ type Dictionary struct {
 	ComposeTabTitle   string
 	NoComposeProjects string
 	ComposeServicesUp string
+
+	// Networks tab.
+	NetworksTabTitle       string
+	NoNetworks             string
+	NetworksUnavailable    string
+	ColDriver              string
+	ColScope               string
+	ColContainers          string
+	ColSubnet              string
+	NetworkDetailsTitle    string
+	NetworkGatewayLabel    string
+	NetworkScopeLabel      string
+	NetworkInternalLabel   string
+	NetworkAttachableLabel string
+	ComposeProjectLabel    string
+
+	// Volumes tab.
+	VolumesTabTitle    string
+	NoVolumes          string
+	VolumesUnavailable string
+	ColReferences      string
+	ColSize            string
+	VolumeDetailsTitle string
+	VolumeMountLabel   string
 
 	// Swarm tab.
 	SwarmTabTitle   string
@@ -258,10 +270,11 @@ type Dictionary struct {
 }
 
 var English = Dictionary{
-	TabHost:    "1: Host Overview",
-	TabDocker:  "2: Docker Containers",
-	TabCompose: "3: Compose Stacks",
-	TabSwarm:   "4: Swarm Cluster",
+	TabDocker:   "1: Containers",
+	TabCompose:  "2: Compose",
+	TabNetworks: "3: Networks",
+	TabVolumes:  "4: Volumes",
+	TabSwarm:    "5: Swarm",
 
 	StatusRunning:      "Running",
 	StatusStopped:      "Stopped",
@@ -270,9 +283,7 @@ var English = Dictionary{
 	StatusPartial:      "Partial",
 	StatusActive:       "Active",
 	StatusInactive:     "Inactive",
-
-	UptimeDaysFormat:  "%dd %02d:%02d",
-	UptimeHoursFormat: "%02d:%02d",
+	DaemonStatus:       "Status:",
 
 	FooterTabs:          "Tabs",
 	FooterRefresh:       "Refresh",
@@ -304,16 +315,6 @@ var English = Dictionary{
 	FooterSelectAction:  "Select action",
 	FooterConfirmPrune:  "Confirm prune",
 
-	HostSysInfoTitle:  "SYSTEM INFORMATION",
-	HostLabel:         "Host:",
-	UptimeLabel:       "Uptime:",
-	OSLabel:           "OS:",
-	KernelLabel:       "Kernel:",
-	HostPerfTitle:     "HOST PERFORMANCE",
-	CPUCoresLabel:     "CPU (%d cores):",
-	RAMLabel:          "RAM (%.1f/%.1f GB):",
-	DockerStatusTitle: "DOCKER STATUS",
-	DaemonStatus:      "Status:",
 	ContainersSummary: "Containers: %d active, %d stopped",
 
 	DockerTabTitle:           "DOCKER CONTAINERS (INTERACTIVE MANAGEMENT)",
@@ -357,6 +358,28 @@ var English = Dictionary{
 	ComposeTabTitle:   "DOCKER COMPOSE PROJECTS (%d)",
 	NoComposeProjects: "No Docker Compose projects detected (missing com.docker.compose.project labels).",
 	ComposeServicesUp: "(Services up: %d/%d)",
+
+	NetworksTabTitle:       "DOCKER NETWORKS (%d)",
+	NoNetworks:             "No Docker networks found.",
+	NetworksUnavailable:    "Docker networks are unavailable: %s",
+	ColDriver:              "DRIVER",
+	ColScope:               "SCOPE",
+	ColContainers:          "CONTAINERS",
+	ColSubnet:              "SUBNET",
+	NetworkDetailsTitle:    "SELECTED NETWORK DETAILS",
+	NetworkGatewayLabel:    "Gateway:",
+	NetworkScopeLabel:      "Scope:",
+	NetworkInternalLabel:   "Internal:",
+	NetworkAttachableLabel: "Attachable:",
+	ComposeProjectLabel:    "Compose project:",
+
+	VolumesTabTitle:    "DOCKER VOLUMES (%d)",
+	NoVolumes:          "No Docker volumes found.",
+	VolumesUnavailable: "Docker volumes are unavailable: %s",
+	ColReferences:      "REFS",
+	ColSize:            "SIZE",
+	VolumeDetailsTitle: "SELECTED VOLUME DETAILS",
+	VolumeMountLabel:   "Mountpoint:",
 
 	SwarmTabTitle:   "DOCKER SWARM CLUSTER",
 	SwarmInactive:   "Host is not part of an active Swarm cluster.",
