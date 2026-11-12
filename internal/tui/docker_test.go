@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -337,6 +338,12 @@ func TestFilterContainersByHealth(t *testing.T) {
 }
 
 func TestContainerExecHotkeysAndMessages(t *testing.T) {
+	originalStart := startEmbeddedShell
+	startEmbeddedShell = func(_ *exec.Cmd, _, _ int) (embeddedShellSession, error) {
+		return &fakeEmbeddedShell{}, nil
+	}
+	defer func() { startEmbeddedShell = originalStart }()
+
 	// Test when Docker CLI is not available
 	restoreUnavailable := monitor.SetDockerCLIAvailableCheckerForTesting(func() bool { return false })
 	mUnavailable := NewModel(2*time.Second, 1, "v0.5.0")
@@ -379,12 +386,16 @@ func TestContainerExecHotkeysAndMessages(t *testing.T) {
 	if m.execTargetID != "c1" {
 		t.Errorf("expected execTargetID 'c1', got %q", m.execTargetID)
 	}
-	// Select first option (auto bash) via enter
+	// Select first option (embedded auto shell) via enter.
 	res, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m = res.(Model)
 	if cmd == nil {
-		t.Errorf("expected non-nil tea.Cmd from tea.ExecProcess on selecting option")
+		t.Errorf("expected non-nil shell read and wait command on selecting option")
 	}
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlCloseBracket})
+	m = res.(Model)
+	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlX})
+	m = res.(Model)
 
 	// 2. Press 'E' on stopped container
 	m.activeModal = ""

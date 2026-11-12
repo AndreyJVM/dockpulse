@@ -15,6 +15,17 @@ type execFinishedMsg struct {
 	err           error
 }
 
+type embeddedShellOutputMsg struct {
+	session embeddedShellSession
+	data    []byte
+	err     error
+}
+
+type embeddedShellExitedMsg struct {
+	session embeddedShellSession
+	err     error
+}
+
 // dataFetchedMsg delivers freshly gathered metrics and container lists across all domains.
 type dataFetchedMsg struct {
 	dockerInfo monitor.DockerSummary

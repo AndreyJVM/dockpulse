@@ -183,8 +183,8 @@ func TestExecModalWorkflow(t *testing.T) {
 	// Wrap around up
 	res, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
 	m = res.(Model)
-	if m.execCursorIdx != 5 {
-		t.Errorf("expected execCursorIdx 5 after wrap up, got %d", m.execCursorIdx)
+	if m.execCursorIdx != 6 {
+		t.Errorf("expected execCursorIdx 6 after wrap up, got %d", m.execCursorIdx)
 	}
 
 	// 3. Switch to custom command mode

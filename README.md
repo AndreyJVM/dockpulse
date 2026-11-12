@@ -26,7 +26,7 @@
   - Search & filter by name, image, ID, or health status (`/`).
   - Logs viewer with scroll support (`L`).
   - Detailed container inspection modal (`Enter` / `I`).
-  - Interactive shell session (`E` — `/bin/bash` or `/bin/sh`) inside container.
+  - Embedded interactive terminal (`E` — `/bin/bash` or `/bin/sh`) without leaving Dockpulse, plus a full-screen fallback.
   - Power control: Start / Stop (`S`), Restart (`P`), Force Kill (`K` — `SIGKILL`).
   - Safe container removal with confirmation (`x`, `d`).
   - Docker System Prune modal (`C`) with disk reclaim estimates and confirmation.
@@ -44,12 +44,12 @@
 
 ```bash
 # AMD64 (x86_64)
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.9.0_amd64.deb
-sudo dpkg -i dockpulse_0.9.0_amd64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.10.0_amd64.deb
+sudo dpkg -i dockpulse_0.10.0_amd64.deb
 
 # ARM64
-wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.9.0_arm64.deb
-sudo dpkg -i dockpulse_0.9.0_arm64.deb
+wget https://github.com/AndreyJVM/dockpulse/releases/latest/download/dockpulse_0.10.0_arm64.deb
+sudo dpkg -i dockpulse_0.10.0_arm64.deb
 ```
 
 #### Pre-built Binaries (Linux)
@@ -58,7 +58,7 @@ Download the latest archive from [Releases](https://github.com/AndreyJVM/dockpul
 
 ```bash
 # Linux AMD64
-tar -xzf dockpulse_v0.9.0_linux_amd64.tar.gz
+tar -xzf dockpulse_v0.10.0_linux_amd64.tar.gz
 ./dockpulse
 ```
 
@@ -95,7 +95,10 @@ Options:
 | `s`, `S`, `o`, `O` | Sort containers (CPU, Memory, Name, Status) |
 | `L` | View logs (scroll with `↑`/`↓`/`PgUp`/`PgDn`) |
 | `Enter` / `I` | Inspect container (details, mounts, network, ports, health) |
-| `E` | Attach interactive shell (`/bin/bash` or `/bin/sh`) |
+| `E` | Open or focus the embedded container terminal (`/bin/bash` or `/bin/sh`) |
+| `Ctrl+]` | Return focus from the embedded terminal to Dockpulse |
+| `Ctrl+D` | Exit the current shell session while the terminal is focused |
+| `Ctrl+X` | Close an unfocused embedded terminal |
 | `S` | Start / Stop container or Compose stack |
 | `P` | Restart container or Compose stack |
 | `K` | Force kill (`SIGKILL`) container |

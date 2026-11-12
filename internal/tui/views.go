@@ -7,6 +7,7 @@ import (
 	"github.com/AndreyJVM/dockpulse/internal/tui/modals"
 	"github.com/AndreyJVM/dockpulse/internal/tui/theme"
 	"github.com/AndreyJVM/dockpulse/internal/tui/views"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // View renders the complete TUI interface for the current model state.
@@ -38,37 +39,42 @@ func (m Model) View() string {
 	}
 
 	// 3. Tab contents or active modal
+	var content string
 	switch m.activeModal {
 	case ModalLogs:
-		b.WriteString(m.renderLogsModal())
+		content = m.renderLogsModal()
 	case ModalInspect:
-		b.WriteString(m.renderInspectModal())
+		content = m.renderInspectModal()
 	case ModalComposeDown:
-		b.WriteString(m.renderComposeDownModal())
+		content = m.renderComposeDownModal()
 	case ModalRemoveContainer:
-		b.WriteString(m.renderRemoveContainerModal())
+		content = m.renderRemoveContainerModal()
 	case ModalExec:
-		b.WriteString(m.renderExecModal())
+		content = m.renderExecModal()
 	case ModalPrune:
-		b.WriteString(m.renderPruneModal())
+		content = m.renderPruneModal()
 	default:
 		if m.showHelp {
-			b.WriteString("\n" + m.renderHelpBox() + "\n")
+			content = "\n" + m.renderHelpBox() + "\n"
 		} else {
 			switch m.activeTab {
 			case TabDocker:
-				b.WriteString(m.renderDockerTab())
+				content = m.renderDockerTab()
 			case TabCompose:
-				b.WriteString(m.renderComposeTab())
+				content = m.renderComposeTab()
 			case TabNetworks:
-				b.WriteString(m.renderNetworksTab())
+				content = m.renderNetworksTab()
 			case TabVolumes:
-				b.WriteString(m.renderVolumesTab())
+				content = m.renderVolumesTab()
 			case TabSwarm:
-				b.WriteString(m.renderSwarmTab())
+				content = m.renderSwarmTab()
 			}
 		}
 	}
+	if m.embeddedShell != nil && m.activeModal == ModalNone && !m.showHelp {
+		content = m.renderEmbeddedShellLayout(content)
+	}
+	b.WriteString(content)
 
 	// 4. Footer
 	b.WriteString(views.RenderFooter(views.FooterContext{
@@ -78,10 +84,40 @@ func (m Model) View() string {
 		IsFiltering:  m.isFiltering,
 		FilterQuery:  m.filterQuery,
 		Width:        m.width,
+		ShellActive:  m.embeddedShell != nil,
+		ShellFocused: m.shellFocused,
 		I18n:         &m.i18n,
 	}))
 
 	return b.String()
+}
+
+func (m Model) renderEmbeddedShellLayout(content string) string {
+	panelWidth := max(embeddedShellMinWidth, m.width)
+	panelHeight := max(embeddedShellMinHeight, m.height-8)
+	if m.width >= embeddedShellWideLayoutMin {
+		panelWidth = m.width / 2
+	}
+
+	terminal := views.RenderEmbeddedShell(views.EmbeddedShellContext{
+		ContainerName: m.shellContainerName,
+		Output:        m.embeddedShell.Render(),
+		Width:         panelWidth,
+		Height:        panelHeight,
+		Focused:       m.shellFocused,
+		I18n:          &m.i18n,
+	})
+	if m.width < embeddedShellWideLayoutMin {
+		return terminal
+	}
+
+	leftWidth := max(1, m.width-panelWidth-1)
+	left := lipgloss.NewStyle().
+		Width(leftWidth).
+		MaxWidth(leftWidth).
+		MaxHeight(panelHeight).
+		Render(content)
+	return lipgloss.JoinHorizontal(lipgloss.Top, left, " ", terminal)
 }
 
 func (m Model) renderDockerTab() string {

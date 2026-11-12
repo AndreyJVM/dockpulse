@@ -30,7 +30,7 @@ func GetExecMenuItems(d *i18n.Dictionary) []ExecMenuItem {
 	return []ExecMenuItem{
 		{
 			Key:         "1",
-			Title:       "Auto Bash / Sh",
+			Title:       "Embedded Bash / Sh",
 			Description: d.ExecModeAutoBash,
 		},
 		{
@@ -57,6 +57,11 @@ func GetExecMenuItems(d *i18n.Dictionary) []ExecMenuItem {
 			Key:         "6",
 			Title:       "Custom Command...",
 			Description: d.ExecModeCustom,
+		},
+		{
+			Key:         "7",
+			Title:       "External Bash / Sh",
+			Description: d.ExecModeExternal,
 		},
 	}
 }
@@ -97,7 +102,7 @@ func RenderExec(ctx ExecModalContext) string {
 	}
 
 	s.WriteString("\n  " +
-		theme.BoldStyle.Render("[1-6 / Enter]") + " " + d.FooterSelectAction + "  |  " +
+		theme.BoldStyle.Render("[1-7 / Enter]") + " " + d.FooterSelectAction + "  |  " +
 		theme.BoldStyle.Render("[Esc / Q]") + " " + d.FooterCancel + "\n")
 
 	return theme.BoxStyle.Render(s.String())

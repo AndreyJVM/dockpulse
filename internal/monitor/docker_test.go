@@ -752,6 +752,25 @@ func TestGetContainerExecCommand(t *testing.T) {
 	}
 }
 
+func TestGetContainerExecCommandWithTerminal(t *testing.T) {
+	containerID := "abc123def456"
+	cmd := GetContainerExecCommandWithOptions(containerID, ExecOptions{
+		Mode:     "auto",
+		Terminal: "xterm-256color",
+	})
+	if cmd == nil {
+		t.Fatal("expected non-nil *exec.Cmd")
+	}
+
+	want := []string{
+		"docker", "exec", "-it", "-e", "TERM=xterm-256color", containerID,
+		"sh", "-c", "if command -v bash >/dev/null 2>&1; then exec bash; else exec sh; fi",
+	}
+	if strings.Join(cmd.Args, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("unexpected command args: %#v", cmd.Args)
+	}
+}
+
 func TestIsDockerCLIAvailable(_ *testing.T) {
 	// Function must execute safely without panics
 	_ = IsDockerCLIAvailable()

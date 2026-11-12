@@ -29,6 +29,7 @@ type ExecOptions struct {
 	Mode      string // "auto", "sh", "zsh", "root", "attach", "custom"
 	User      string // optional user (e.g., "0" or "root")
 	CustomCmd string // optional custom command when Mode == "custom"
+	Terminal  string // optional TERM value for embedded terminal emulation
 }
 
 // GetContainerExecCommandWithOptions creates an exec.Cmd based on specified ExecOptions.
@@ -45,6 +46,9 @@ func GetContainerExecCommandWithOptions(containerID string, opts ExecOptions) *e
 	args := []string{"exec", "-it"}
 	if opts.User != "" {
 		args = append(args, "-u", opts.User)
+	}
+	if terminal := strings.TrimSpace(opts.Terminal); terminal != "" {
+		args = append(args, "-e", "TERM="+terminal)
 	}
 	args = append(args, cleanID)
 

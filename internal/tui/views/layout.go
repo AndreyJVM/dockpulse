@@ -65,6 +65,8 @@ type FooterContext struct {
 	IsFiltering  bool
 	FilterQuery  string
 	Width        int
+	ShellActive  bool
+	ShellFocused bool
 	I18n         *i18n.Dictionary
 }
 
@@ -81,7 +83,7 @@ func RenderFooter(ctx FooterContext) string {
 			content = theme.RedStyle.Render("[Y]") + " " + d.FooterConfirm + " (Remove)  |  " +
 				theme.BoldStyle.Render("[N / Esc]") + " " + d.FooterCancel
 		} else if ctx.ActiveModal == "exec" {
-			content = theme.BoldStyle.Render("[1-6 / Enter]") + " " + d.FooterSelectAction + "  |  " +
+			content = theme.BoldStyle.Render("[1-7 / Enter]") + " " + d.FooterSelectAction + "  |  " +
 				theme.BoldStyle.Render("[Esc / Q]") + " " + d.FooterCancel
 		} else if ctx.ActiveModal == "prune" {
 			if ctx.PruneConfirm > 0 {
@@ -94,6 +96,15 @@ func RenderFooter(ctx FooterContext) string {
 		} else {
 			content = theme.BoldStyle.Render("[Esc / Q]") + " " + d.FooterClose + "  |  " +
 				theme.BoldStyle.Render("[↑ / ↓ / PgUp / PgDn]") + " " + d.FooterScroll
+		}
+	} else if ctx.ShellActive {
+		if ctx.ShellFocused {
+			content = theme.BoldStyle.Render("[Ctrl+]]") + " " + d.FooterShellReleaseFocus + "  |  " +
+				theme.BoldStyle.Render("[Ctrl+D]") + " " + d.FooterShellExit
+		} else {
+			content = theme.BoldStyle.Render("[E]") + " " + d.FooterShellFocus + "  |  " +
+				theme.BoldStyle.Render("[Ctrl+X]") + " " + d.FooterShellClose + "  |  " +
+				theme.BoldStyle.Render("[Q]") + " " + d.FooterQuit
 		}
 	} else if ctx.ActiveTab == 1 {
 		if ctx.IsFiltering {

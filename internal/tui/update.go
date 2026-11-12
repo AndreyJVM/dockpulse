@@ -9,6 +9,12 @@ import (
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case embeddedShellOutputMsg:
+		return m.handleEmbeddedShellOutput(msg)
+
+	case embeddedShellExitedMsg:
+		return m.handleEmbeddedShellExited(msg)
+
 	case execFinishedMsg:
 		return m.handleExecFinished(msg)
 
@@ -30,9 +36,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		if m.embeddedShell != nil {
+			width, height := embeddedShellSize(m.width, m.height)
+			if err := m.embeddedShell.Resize(width, height); err != nil {
+				m.showToast(fmt.Sprintf(m.i18n.ToastShellError, m.shellContainerName, err))
+				m.closeEmbeddedShell()
+			}
+		}
 		return m, nil
 
 	case tea.KeyMsg:
+		if m.embeddedShell != nil {
+			if m.shellFocused {
+				return m.handleEmbeddedShellKey(msg)
+			}
+			switch msg.Type {
+			case tea.KeyCtrlX:
+				m.closeEmbeddedShell()
+				return m, nil
+			}
+			if msg.String() == "e" || msg.String() == "E" {
+				m.shellFocused = true
+				return m, nil
+			}
+		}
+
 		// Active modals intercept keyboard input.
 		if m.activeModal != ModalNone {
 			return m.handleModalInput(msg)

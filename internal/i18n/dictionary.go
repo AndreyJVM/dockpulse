@@ -188,15 +188,24 @@ type Dictionary struct {
 	ComposeDownConfirm string
 
 	// Exec and shell modal.
-	ExecModalTitle   string
-	ExecModeAutoBash string
-	ExecModeSh       string
-	ExecModeZsh      string
-	ExecModeAttach   string
-	ExecModeRootBash string
-	ExecModeCustom   string
-	ExecCustomPrompt string
-	ExecCustomHint   string
+	ExecModalTitle          string
+	ExecModeAutoBash        string
+	ExecModeExternal        string
+	ExecModeSh              string
+	ExecModeZsh             string
+	ExecModeAttach          string
+	ExecModeRootBash        string
+	ExecModeCustom          string
+	ExecCustomPrompt        string
+	ExecCustomHint          string
+	EmbeddedShellTitle      string
+	EmbeddedShellStarting   string
+	EmbeddedShellFocused    string
+	EmbeddedShellUnfocused  string
+	FooterShellReleaseFocus string
+	FooterShellExit         string
+	FooterShellFocus        string
+	FooterShellClose        string
 
 	// Remove container modal.
 	RemoveContainerTitle   string
@@ -442,15 +451,24 @@ var English = Dictionary{
 	ComposeDownNotice:  "Stopping and removing all project containers (docker compose down)",
 	ComposeDownConfirm: "Are you sure you want to down project %s?",
 
-	ExecModalTitle:   "CONNECT TO CONTAINER (EXEC / ATTACH)",
-	ExecModeAutoBash: "Auto Bash / Sh (interactive default shell)",
-	ExecModeSh:       "POSIX Shell (/bin/sh)",
-	ExecModeZsh:      "Zsh Shell (/bin/zsh)",
-	ExecModeAttach:   "Docker Attach (attach to container STDIN/STDOUT)",
-	ExecModeRootBash: "Root Shell (run as root user: -u 0)",
-	ExecModeCustom:   "Custom Command...",
-	ExecCustomPrompt: "Command to execute: %s",
-	ExecCustomHint:   "[Enter] - run, [Esc] - back to menu",
+	ExecModalTitle:          "CONNECT TO CONTAINER (EXEC / ATTACH)",
+	ExecModeAutoBash:        "Embedded shell inside Dockpulse (recommended)",
+	ExecModeExternal:        "Full-screen external shell fallback",
+	ExecModeSh:              "POSIX Shell (/bin/sh)",
+	ExecModeZsh:             "Zsh Shell (/bin/zsh)",
+	ExecModeAttach:          "Docker Attach (attach to container STDIN/STDOUT)",
+	ExecModeRootBash:        "Root Shell (run as root user: -u 0)",
+	ExecModeCustom:          "Custom Command...",
+	ExecCustomPrompt:        "Command to execute: %s",
+	ExecCustomHint:          "[Enter] - run, [Esc] - back to menu",
+	EmbeddedShellTitle:      "TERMINAL: %s",
+	EmbeddedShellStarting:   "Starting shell...",
+	EmbeddedShellFocused:    "FOCUSED",
+	EmbeddedShellUnfocused:  "DOCKPULSE FOCUSED",
+	FooterShellReleaseFocus: "Return to Dockpulse",
+	FooterShellExit:         "Exit shell",
+	FooterShellFocus:        "Focus terminal",
+	FooterShellClose:        "Close terminal",
 
 	RemoveContainerTitle:   "CONFIRM CONTAINER REMOVAL",
 	ContainerLabel:         "Container: %s",

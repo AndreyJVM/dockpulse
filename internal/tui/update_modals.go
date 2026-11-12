@@ -138,10 +138,7 @@ func (m Model) launchExecProcess(opts monitor.ExecOptions) (tea.Model, tea.Cmd) 
 	targetID := m.execTargetID
 	targetName := m.execTargetName
 	m.closeModal()
-	m.execTargetID = ""
-	m.execTargetName = ""
-	m.execIsCustomInput = false
-	m.execCustomCmd = ""
+	m.clearExecTarget()
 
 	cmd := monitor.GetContainerExecCommandWithOptions(targetID, opts)
 	return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
@@ -191,18 +188,18 @@ func (m Model) handleExecModalInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.execCursorIdx > 0 {
 			m.execCursorIdx--
 		} else {
-			m.execCursorIdx = 5
+			m.execCursorIdx = 6
 		}
 		return m, nil
 	case "down", "j":
-		if m.execCursorIdx < 5 {
+		if m.execCursorIdx < 6 {
 			m.execCursorIdx++
 		} else {
 			m.execCursorIdx = 0
 		}
 		return m, nil
 	case "1", "b", "B":
-		return m.launchExecProcess(monitor.ExecOptions{Mode: "auto"})
+		return m.launchEmbeddedShell()
 	case "2", "s", "S":
 		return m.launchExecProcess(monitor.ExecOptions{Mode: "sh"})
 	case "3", "z", "Z":
@@ -215,10 +212,12 @@ func (m Model) handleExecModalInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.execIsCustomInput = true
 		m.execCustomCmd = ""
 		return m, nil
+	case "7":
+		return m.launchExecProcess(monitor.ExecOptions{Mode: "auto"})
 	case "enter":
 		switch m.execCursorIdx {
 		case 0:
-			return m.launchExecProcess(monitor.ExecOptions{Mode: "auto"})
+			return m.launchEmbeddedShell()
 		case 1:
 			return m.launchExecProcess(monitor.ExecOptions{Mode: "sh"})
 		case 2:
@@ -231,6 +230,8 @@ func (m Model) handleExecModalInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.execIsCustomInput = true
 			m.execCustomCmd = ""
 			return m, nil
+		case 6:
+			return m.launchExecProcess(monitor.ExecOptions{Mode: "auto"})
 		}
 	}
 	return m, nil

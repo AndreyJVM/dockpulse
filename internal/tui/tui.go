@@ -1,12 +1,14 @@
 package tui
 
 import (
+	"os/exec"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/AndreyJVM/dockpulse/internal/i18n"
 	"github.com/AndreyJVM/dockpulse/internal/monitor"
+	"github.com/AndreyJVM/dockpulse/internal/tui/shell"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -30,6 +32,20 @@ const (
 
 // ModalType represents an active modal dialog.
 type ModalType string
+
+type embeddedShellSession interface {
+	Read() ([]byte, error)
+	Write(data []byte) error
+	Feed(data []byte) error
+	Render() string
+	Resize(width, height int) error
+	Wait() error
+	Close() error
+}
+
+var startEmbeddedShell = func(cmd *exec.Cmd, width, height int) (embeddedShellSession, error) {
+	return shell.Start(cmd, width, height)
+}
 
 const (
 	// ModalNone indicates no modal is active.
@@ -89,6 +105,9 @@ type Model struct {
 	execCursorIdx       int
 	execIsCustomInput   bool
 	execCustomCmd       string
+	embeddedShell       embeddedShellSession
+	shellFocused        bool
+	shellContainerName  string
 	logsTargetName      string
 	logsTargetID        string
 	logsLines           []string
