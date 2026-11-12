@@ -1,3 +1,14 @@
+dockpulse (0.10.0) unstable; urgency=medium
+
+  * Version 0.10.0 release:
+    - Added an embedded PTY-backed terminal inside the Dockpulse interface
+    - Added responsive split-pane and compact terminal layouts
+    - Added explicit terminal focus, exit, and close keyboard controls
+    - Kept the full-screen external shell as a fallback option
+    - Added terminal lifecycle, rendering, resize, and race coverage
+
+ -- Andrey Vorobev <Andrey.Vorobev.AQA@gmail.com>  Thu, 12 Nov 2026 23:53:30 +0300
+
 dockpulse (0.9.0) unstable; urgency=medium
 
   * Version 0.9.0 release:

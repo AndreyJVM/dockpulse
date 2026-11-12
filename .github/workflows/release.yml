@@ -114,11 +114,11 @@ jobs:
             A fast interactive TUI for monitoring and managing Docker containers and resources with no external runtime dependencies.
 
             ### What's new in ${{ steps.get_version.outputs.tag }}
-            - **Docker-focused dashboard**: Removes the host metrics page and opens directly on container management.
-            - **Persistent Docker status**: Keeps daemon, container, image, and version information visible above every tab.
-            - **Network inventory**: Adds a read-only networks tab with driver, scope, subnet, gateway, and Compose ownership.
-            - **Volume inventory**: Adds a read-only volumes tab with driver, scope, usage, mountpoint, and Compose ownership.
-            - **Compact navigation**: Fits Containers, Compose, Networks, Volumes, and Swarm tabs in standard 80-column terminals.
+            - **Embedded terminal**: Opens Bash or Sh inside Dockpulse without replacing the dashboard.
+            - **Responsive layout**: Shows the terminal beside container information on wide screens and as a focused pane on compact terminals.
+            - **Clear focus controls**: Use `Ctrl+]` to return to Dockpulse, `E` to focus the terminal, and `Ctrl+X` to close it.
+            - **External fallback**: Keeps the original full-screen shell available when it is preferred or needed.
+            - **Safe lifecycle**: Handles PTY output, resizing, process exit, and cleanup without data races.
 
             ### Installation
 
